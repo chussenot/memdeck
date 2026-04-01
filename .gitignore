@@ -1,0 +1,5 @@
+bin/memdeck-tui
+*.o
+*.dSYM/
+.DS_Store
+var/

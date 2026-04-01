@@ -1,0 +1,138 @@
+#!/bin/sh
+# memdeck - Memorized Deck Trainer
+# POSIX shell entrypoint and orchestration layer
+
+set -e
+
+VERSION="1.0.0"
+
+# Find project root (where this script lives, one level up from bin/)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Binary location
+TUI_BIN="$SCRIPT_DIR/memdeck-tui"
+
+# Data directory
+export MEMDECK_DATA="${MEMDECK_DATA:-$PROJECT_DIR/data}"
+
+# User data directory (XDG compliant)
+MEMDECK_USER="${XDG_DATA_HOME:-$HOME/.local/share}/memdeck"
+
+usage() {
+    cat <<'EOF'
+memdeck - Memorized Deck Trainer
+
+Usage: memdeck [command] [options]
+
+Commands:
+  (none)              Launch interactive TUI
+  play                Jump straight into practice
+  study               Jump straight into study mode
+  stacks              List available stacks
+  validate <file>     Validate a stack file
+  import <file>       Import a stack file to your collection
+  export <name>       Export a stack to stdout (TSV format)
+  stats               Show progress statistics
+  reset-progress      Reset all progress data
+  help                Show this help
+
+Environment:
+  MEMDECK_DATA        Override data directory path
+
+Stack file format (TSV):
+  Lines starting with # are comments.
+  Each data line: position<TAB>card_code[<TAB>mnemonic]
+  Card codes: AS, 2H, 10C, KD, etc.
+
+Examples:
+  memdeck                    # launch TUI
+  memdeck play               # start practicing
+  memdeck validate my.tsv    # check a stack file
+  memdeck import my.tsv      # add stack to collection
+  memdeck export aronson     # dump stack as TSV
+  memdeck stats              # view progress
+EOF
+}
+
+# Ensure the binary is built
+ensure_built() {
+    if [ ! -x "$TUI_BIN" ]; then
+        echo "Building memdeck-tui..."
+        if command -v make >/dev/null 2>&1; then
+            (cd "$PROJECT_DIR" && make) || {
+                echo "Error: build failed. Install ncurses development headers:"
+                echo "  Debian/Ubuntu: sudo apt install libncurses-dev"
+                echo "  macOS:         brew install ncurses"
+                echo "  Fedora:        sudo dnf install ncurses-devel"
+                exit 1
+            }
+        else
+            echo "Error: make not found. Please run 'make' in $PROJECT_DIR"
+            exit 1
+        fi
+    fi
+}
+
+# Import a stack file into user collection
+cmd_import() {
+    file="$1"
+    if [ -z "$file" ]; then
+        echo "Usage: memdeck import <file>" >&2
+        exit 1
+    fi
+    if [ ! -f "$file" ]; then
+        echo "Error: file not found: $file" >&2
+        exit 1
+    fi
+
+    # Validate first
+    ensure_built
+    "$TUI_BIN" validate "$file" || {
+        echo "Error: stack validation failed." >&2
+        exit 1
+    }
+
+    # Copy to user stacks dir
+    mkdir -p "$MEMDECK_USER/stacks"
+    dest="$MEMDECK_USER/stacks/$(basename "$file")"
+
+    if [ -f "$dest" ]; then
+        printf "Stack already exists at %s. Overwrite? [y/N] " "$dest"
+        read -r answer
+        case "$answer" in
+            y|Y) ;;
+            *) echo "Cancelled."; exit 0 ;;
+        esac
+    fi
+
+    cp "$file" "$dest"
+    echo "Imported to: $dest"
+}
+
+# Main dispatch
+case "${1:-}" in
+    help|--help|-h)
+        usage
+        ;;
+    --version|-v)
+        echo "memdeck $VERSION"
+        ;;
+    import)
+        shift
+        cmd_import "$@"
+        ;;
+    validate|stats|reset-progress|export|stacks|list)
+        ensure_built
+        exec "$TUI_BIN" "$@"
+        ;;
+    play|study|"")
+        ensure_built
+        exec "$TUI_BIN" "$@"
+        ;;
+    *)
+        echo "Unknown command: $1" >&2
+        echo "Run 'memdeck help' for usage." >&2
+        exit 1
+        ;;
+esac

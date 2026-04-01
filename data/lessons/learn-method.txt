@@ -1,0 +1,72 @@
+# The Memorized Deck
+
+## What is a Memorized Deck?
+
+A memorized deck is a deck of cards in a specific, known order that a
+magician has committed to memory. Knowing the exact position of every
+card allows for incredibly powerful effects that seem impossible.
+
+## Why Memorize a Deck?
+
+With a memorized deck, you can:
+- Name any card at any position
+- Name the position of any card
+- Know what card comes before or after any other card
+- Perform miracles that require no sleight of hand
+- Combine stack knowledge with other techniques
+
+## Popular Stacks
+
+### Aronson Stack
+Created by Simon Aronson, this is one of the most popular memorized
+stacks in use today. Published in his book "A Stack to Remember" and
+later in "Bound to Please." The stack has many built-in properties
+that enable specific effects.
+
+### Mnemonica
+Created by Juan Tamariz, the Mnemonica stack is detailed in his book
+of the same name. It has the remarkable property of being reachable
+from new deck order through a series of shuffles, making it possible
+to secretly arrange the deck in front of spectators.
+
+## How to Memorize
+
+### Method 1: Brute Force Repetition
+Simply go through the stack repeatedly. Use this app's Study mode
+to browse through the cards, then Practice mode to test yourself.
+Start with positions 1-10, then add more as you master each group.
+
+### Method 2: PAO (Person-Action-Object)
+Assign a Person, Action, and Object to each card. Then create a
+mental story linking the PAO to the position number. This method
+uses the power of visual/narrative memory.
+
+### Method 3: Memory Palace (Method of Loci)
+Place each card at a specific location in a familiar place (your
+home, a route you walk). Walk through the palace to recall the
+sequence.
+
+### Method 4: Chunking
+Break the deck into groups of 4-5 cards. Memorize each chunk as
+a unit, using any mnemonic technique. Then chain the chunks together.
+
+## Practice Tips
+
+1. Start small: learn 10 cards at a time
+2. Practice both directions: position-to-card AND card-to-position
+3. Use the range filter in Practice Settings to focus on weak areas
+4. Practice daily, even just 5 minutes
+5. Test yourself with "next card" drills
+6. Track your progress - watch your accuracy improve
+7. Mix up question types once you're comfortable
+8. Set a goal: know the full stack in under 2 minutes
+
+## Using This App
+
+- **Study**: Browse the stack at your own pace
+- **Practice**: Test yourself with multiple choice or free input
+- **Progress**: Track your improvement over time
+- **Customize**: Add mnemonics to help you remember
+- **Settings**: Adjust difficulty and focus areas
+
+Happy memorizing!
