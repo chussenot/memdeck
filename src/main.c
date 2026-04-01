@@ -259,18 +259,18 @@ int screen_practice(App *app)
             if (ss->answered) {
                 if (is_correct_choice) {
                     attron(COLOR_PAIR(CP_CORRECT) | A_BOLD);
-                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-40s", label);
-                    if (is_selected) printw(" <-- CORRECT!");
-                    else printw(" <-- answer");
+                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-36s", label);
+                    if (is_selected) printw(" CORRECT!");
+                    else printw(" ***");
                     attroff(COLOR_PAIR(CP_CORRECT) | A_BOLD);
                 } else if (is_selected) {
                     attron(COLOR_PAIR(CP_WRONG) | A_BOLD);
-                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-40s", label);
-                    printw(" <-- wrong");
+                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-36s", label);
+                    printw(" X");
                     attroff(COLOR_PAIR(CP_WRONG) | A_BOLD);
                 } else {
                     attron(COLOR_PAIR(CP_DIM));
-                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-40s", label);
+                    mvprintw(cy + i * 2, COLS / 2 - 20, "%-36s", label);
                     attroff(COLOR_PAIR(CP_DIM));
                 }
             } else {
@@ -287,13 +287,27 @@ int screen_practice(App *app)
             }
         }
 
-        /* mnemonic display after answer */
-        if (ss->answered && app->settings.show_mnemonic) {
+        /* show card art + mnemonic after answering */
+        if (ss->answered) {
             StackEntry *ae = &st->entries[ss->current_answer];
-            if (ae->mnemonic[0]) {
+
+            /* mnemonic below choices */
+            if (app->settings.show_mnemonic && ae->mnemonic[0]) {
                 char mn[300];
                 snprintf(mn, sizeof(mn), "Mnemonic: %s", ae->mnemonic);
                 ui_draw_centered(cy + nc * 2 + 1, mn, COLOR_PAIR(CP_DIM));
+            }
+
+            /* card art to the right of choices, only if enough room */
+            int card_x = COLS / 2 + 26;
+            int card_y = qy;
+            if (card_x + CARD_ART_W + 1 < COLS && card_y + CARD_ART_H + 1 < LINES - 1) {
+                ui_draw_card_art(card_y, card_x, &ae->card);
+                char plabel[16];
+                snprintf(plabel, sizeof(plabel), "#%d", ae->position);
+                attron(COLOR_PAIR(CP_SCORE) | A_BOLD);
+                mvprintw(card_y + CARD_ART_H, card_x + (CARD_ART_W - (int)strlen(plabel)) / 2, "%s", plabel);
+                attroff(COLOR_PAIR(CP_SCORE) | A_BOLD);
             }
         }
 
@@ -658,42 +672,44 @@ int screen_study(App *app)
         }
         mvaddch(4, bx + barw, ']');
 
-        /* card display - big and centered */
-        int cy = LINES / 2 - 4;
+        /* card display - ASCII art centered */
+        int cy = LINES / 2 - CARD_ART_H / 2 - 2;
         if (cy < 7) cy = 7;
 
-        char card_disp[16];
-        card_display(&e->card, card_disp, sizeof(card_disp));
-
-        /* big number */
+        /* position number above card */
         char posnum[16];
         snprintf(posnum, sizeof(posnum), "#%d", e->position);
         attron(COLOR_PAIR(CP_SCORE) | A_BOLD);
-        ui_draw_centered(cy, posnum, 0);
+        ui_draw_centered(cy - 1, posnum, 0);
         attroff(COLOR_PAIR(CP_SCORE) | A_BOLD);
 
-        /* card with color */
+        /* draw the card art */
+        int card_x = (COLS - CARD_ART_W) / 2;
+        ui_draw_card_art(cy, card_x, &e->card);
+
+        /* card name below */
         int cp = card_color_pair(&e->card);
-        attron(COLOR_PAIR(cp) | A_BOLD);
         char full_card[64];
-        snprintf(full_card, sizeof(full_card), "%s  %s of %s",
-                 card_disp, card_rank_name(e->card.rank), card_suit_name(e->card.suit));
-        ui_draw_centered(cy + 2, full_card, 0);
+        snprintf(full_card, sizeof(full_card), "%s of %s",
+                 card_rank_name(e->card.rank), card_suit_name(e->card.suit));
+        attron(COLOR_PAIR(cp) | A_BOLD);
+        ui_draw_centered(cy + CARD_ART_H + 1, full_card, 0);
         attroff(COLOR_PAIR(cp) | A_BOLD);
 
         /* mnemonic */
+        int mn_y = cy + CARD_ART_H + 3;
         if (show_mn && e->mnemonic[0]) {
-            ui_draw_centered(cy + 5, e->mnemonic, COLOR_PAIR(CP_DIM));
+            ui_draw_centered(mn_y, e->mnemonic, COLOR_PAIR(CP_DIM));
         } else if (e->mnemonic[0]) {
-            ui_draw_centered(cy + 5, "[Press Space to reveal mnemonic]", COLOR_PAIR(CP_DIM));
+            ui_draw_centered(mn_y, "[Press Space to reveal mnemonic]", COLOR_PAIR(CP_DIM));
         }
 
-        /* navigation hints at sides */
+        /* navigation hints at sides of card */
         if (pos > 0) {
-            mvprintw(cy + 2, 2, "<");
+            mvprintw(cy + CARD_ART_H / 2, card_x - 3, "<");
         }
         if (pos < st->count - 1) {
-            mvprintw(cy + 2, COLS - 3, ">");
+            mvprintw(cy + CARD_ART_H / 2, card_x + CARD_ART_W + 2, ">");
         }
 
         ui_draw_help_bar("h/l or arrows: prev/next  Space: toggle mnemonic  g: jump  Esc: back");
@@ -899,6 +915,35 @@ int screen_stack_view(App *app)
                 attron(COLOR_PAIR(CP_DIM));
                 mvprintw(y, 40, "%.38s", e->mnemonic);
                 attroff(COLOR_PAIR(CP_DIM));
+            }
+        }
+
+        /* card art preview for selected entry */
+        {
+            StackEntry *se = &st->entries[sel];
+            int card_x = COLS - CARD_ART_W - 3;
+            int card_y = 3;
+            if (card_x > 50 && LINES > CARD_ART_H + 6) {
+                ui_draw_card_art(card_y, card_x, &se->card);
+                char plabel[32];
+                snprintf(plabel, sizeof(plabel), "#%d  %s of %s",
+                         se->position,
+                         card_rank_name(se->card.rank),
+                         card_suit_name(se->card.suit));
+                int lx = card_x + (CARD_ART_W - (int)strlen(plabel)) / 2;
+                if (lx < card_x) lx = card_x;
+                attron(COLOR_PAIR(CP_SCORE));
+                mvprintw(card_y + CARD_ART_H, lx, "%s", plabel);
+                attroff(COLOR_PAIR(CP_SCORE));
+                if (se->mnemonic[0]) {
+                    int mx = card_x;
+                    int mmax = COLS - mx - 2;
+                    if (mmax > 0) {
+                        attron(COLOR_PAIR(CP_DIM));
+                        mvprintw(card_y + CARD_ART_H + 1, mx, "%.*s", mmax, se->mnemonic);
+                        attroff(COLOR_PAIR(CP_DIM));
+                    }
+                }
             }
         }
 

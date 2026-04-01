@@ -97,3 +97,87 @@ void ui_draw_card_fancy(int y, int x, const Card *c)
     mvprintw(y, x, "%s", disp);
     attroff(COLOR_PAIR(cp) | A_BOLD);
 }
+
+/*
+ * Draw an ASCII-art playing card at position (y, x).
+ * Card is CARD_ART_W wide x CARD_ART_H tall:
+ *
+ *   ┌───────────┐
+ *   │ A         │
+ *   │ ♠         │
+ *   │           │
+ *   │     ♠     │
+ *   │           │
+ *   │         ♠ │
+ *   │         A │
+ *   └───────────┘
+ */
+void ui_draw_card_art(int y, int x, const Card *c)
+{
+    static const char *ranks[] = {
+        "", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"
+    };
+    const char *rank = ranks[c->rank];
+    const char *suit = card_suit_symbol(c->suit);
+    int cp = card_color_pair(c);
+    int rlen = (int)strlen(rank);
+
+    /* draw card border using ACS characters */
+    mvaddch(y, x, ACS_ULCORNER);
+    for (int i = 1; i < CARD_ART_W - 1; i++) mvaddch(y, x + i, ACS_HLINE);
+    mvaddch(y, x + CARD_ART_W - 1, ACS_URCORNER);
+
+    for (int i = 1; i < CARD_ART_H - 1; i++) {
+        mvaddch(y + i, x, ACS_VLINE);
+        /* clear interior */
+        for (int j = 1; j < CARD_ART_W - 1; j++)
+            mvaddch(y + i, x + j, ' ');
+        mvaddch(y + i, x + CARD_ART_W - 1, ACS_VLINE);
+    }
+
+    mvaddch(y + CARD_ART_H - 1, x, ACS_LLCORNER);
+    for (int i = 1; i < CARD_ART_W - 1; i++) mvaddch(y + CARD_ART_H - 1, x + i, ACS_HLINE);
+    mvaddch(y + CARD_ART_H - 1, x + CARD_ART_W - 1, ACS_LRCORNER);
+
+    /* draw rank and suit in card color */
+    attron(COLOR_PAIR(cp) | A_BOLD);
+
+    /* top-left: rank then suit below */
+    mvprintw(y + 1, x + 2, "%s", rank);
+    mvprintw(y + 2, x + 2, "%s", suit);
+
+    /* center suit */
+    mvprintw(y + 4, x + 6, "%s", suit);
+
+    /* bottom-right: suit then rank below (mirrored) */
+    mvprintw(y + 6, x + CARD_ART_W - 2 - rlen, "%s", rank);
+    mvprintw(y + 7, x + CARD_ART_W - 4, "%s", suit);
+
+    attroff(COLOR_PAIR(cp) | A_BOLD);
+}
+
+/*
+ * Draw a card back (face-down) using a crosshatch pattern.
+ */
+void ui_draw_card_back(int y, int x)
+{
+    attron(COLOR_PAIR(CP_TITLE));
+
+    mvaddch(y, x, ACS_ULCORNER);
+    for (int i = 1; i < CARD_ART_W - 1; i++) mvaddch(y, x + i, ACS_HLINE);
+    mvaddch(y, x + CARD_ART_W - 1, ACS_URCORNER);
+
+    for (int row = 1; row < CARD_ART_H - 1; row++) {
+        mvaddch(y + row, x, ACS_VLINE);
+        for (int col = 1; col < CARD_ART_W - 1; col++) {
+            mvaddch(y + row, x + col, ((row + col) % 2) ? ACS_CKBOARD : ACS_BOARD);
+        }
+        mvaddch(y + row, x + CARD_ART_W - 1, ACS_VLINE);
+    }
+
+    mvaddch(y + CARD_ART_H - 1, x, ACS_LLCORNER);
+    for (int i = 1; i < CARD_ART_W - 1; i++) mvaddch(y + CARD_ART_H - 1, x + i, ACS_HLINE);
+    mvaddch(y + CARD_ART_H - 1, x + CARD_ART_W - 1, ACS_LRCORNER);
+
+    attroff(COLOR_PAIR(CP_TITLE));
+}

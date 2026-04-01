@@ -1,7 +1,7 @@
 #ifndef MEMDECK_H
 #define MEMDECK_H
 
-#include <ncurses.h>
+#include <ncursesw/curses.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -196,6 +196,9 @@ void progress_reset(App *app);
 const char *progress_today(void);
 
 /* ui.c */
+#define CARD_ART_W 13
+#define CARD_ART_H 9
+
 void ui_init(void);
 void ui_cleanup(void);
 void ui_draw_box(int y, int x, int h, int w, const char *title);
@@ -203,6 +206,8 @@ void ui_draw_centered(int y, const char *text, int attr);
 void ui_draw_help_bar(const char *text);
 void ui_draw_title_bar(const char *text);
 void ui_draw_card_fancy(int y, int x, const Card *c);
+void ui_draw_card_art(int y, int x, const Card *c);
+void ui_draw_card_back(int y, int x);
 
 /* screens */
 int screen_menu(App *app);
