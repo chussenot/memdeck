@@ -21,22 +21,27 @@ static const char *logo_lines[LOGO_ROWS] = {
 };
 
 /*
- * Draw the logo with a mirage/heat-shimmer effect.
+ * Draw the logo with a fast rainbow mirage effect.
  *
- * Each row drifts horizontally on a slow sine wave.
- * Each character shimmers between bright, mid, and dim
- * based on a second sine wave that ripples across the text.
+ * Each row drifts horizontally on a rapid sine wave.
+ * Each character cycles through rainbow colors at speed,
+ * with a diagonal wave pattern rippling across the text.
  */
 static void draw_logo_mirage(int cy, int frame)
 {
-    double t = frame * 0.04;   /* slow time progression */
+    static const int rainbow[] = {
+        CP_RAINBOW0, CP_RAINBOW1, CP_RAINBOW2,
+        CP_RAINBOW3, CP_RAINBOW4, CP_RAINBOW5,
+    };
+
+    double t = frame * 0.12;   /* fast time progression */
 
     for (int row = 0; row < LOGO_ROWS; row++) {
         const char *line = logo_lines[row];
         int len = (int)strlen(line);
 
-        /* horizontal displacement: slow wave, amplitude ~1.5 chars */
-        double wave = sin(row * 0.9 + t * 0.7) * 1.5;
+        /* horizontal displacement: faster wave, amplitude ~2 chars */
+        double wave = sin(row * 0.8 + t * 1.4) * 2.0;
         int dx = (int)round(wave);
 
         int base_x = (COLS - len) / 2 + dx;
@@ -47,25 +52,13 @@ static void draw_logo_mirage(int cy, int frame)
             int x = base_x + col;
             if (x < 0 || x >= COLS) continue;
 
-            /* brightness shimmer: ripple across characters */
-            double shimmer = sin(col * 0.15 + row * 1.2 + t * 1.1);
+            /* rainbow: diagonal wave cycling through 6 colors */
+            int ci = (col + row * 3 + frame) % CP_RAINBOW_COUNT;
+            int cp = rainbow[ci];
 
-            int cp;
-            int attr;
-            if (shimmer > 0.4) {
-                cp = CP_TITLE;
-                attr = A_BOLD;
-            } else if (shimmer > -0.3) {
-                cp = CP_LOGO_MID;
-                attr = 0;
-            } else {
-                cp = CP_LOGO_DIM;
-                attr = 0;
-            }
-
-            attron(COLOR_PAIR(cp) | attr);
+            attron(COLOR_PAIR(cp) | A_BOLD);
             mvaddch(cy + row, x, line[col]);
-            attroff(COLOR_PAIR(cp) | attr);
+            attroff(COLOR_PAIR(cp) | A_BOLD);
         }
     }
 }
@@ -120,7 +113,7 @@ int screen_menu(App *app)
         ui_draw_help_bar("j/k or arrows: navigate  Enter: select  q: quit");
         refresh();
 
-        timeout(120);  /* ~8 fps animation */
+        timeout(80);   /* ~12 fps animation */
         ch = getch();
         timeout(-1);
         frame++;

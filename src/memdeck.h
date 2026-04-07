@@ -85,8 +85,13 @@
 #define CP_SCORE     11
 #define CP_DIM       12
 #define CP_SELECTED  13
-#define CP_LOGO_DIM  14
-#define CP_LOGO_MID  15
+#define CP_RAINBOW0  14  /* red */
+#define CP_RAINBOW1  15  /* yellow */
+#define CP_RAINBOW2  16  /* green */
+#define CP_RAINBOW3  17  /* cyan */
+#define CP_RAINBOW4  18  /* blue */
+#define CP_RAINBOW5  19  /* magenta */
+#define CP_RAINBOW_COUNT 6
 
 typedef struct {
     int rank; /* 1=A, 2-10, 11=J, 12=Q, 13=K */
