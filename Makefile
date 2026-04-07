@@ -6,7 +6,9 @@ LDFLAGS ?= -lncursesw -lm
 SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c
 BIN     = bin/memdeck-tui
 
-.PHONY: all clean install uninstall test
+.PHONY: all clean install uninstall test help
+
+.DEFAULT_GOAL := help
 
 all: $(BIN)
 
@@ -37,3 +39,16 @@ test: all
 	@sh tests/test_stacks.sh
 	@sh tests/test_scoring.sh
 	@echo "All tests passed."
+
+help:
+	@echo "MemDeck - Memorized Deck Trainer"
+	@echo ""
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all        Build the memdeck-tui binary"
+	@echo "  clean      Remove compiled binary"
+	@echo "  install    Install to $(PREFIX) (may need sudo)"
+	@echo "  uninstall  Remove installed files from $(PREFIX)"
+	@echo "  test       Run the test suite"
+	@echo "  help       Show this help message (default)"
