@@ -110,7 +110,7 @@ int screen_menu(App *app)
             ui_draw_centered(LINES - 3, streak, COLOR_PAIR(CP_SCORE) | A_BOLD);
         }
 
-        ui_draw_help_bar("j/k or arrows: navigate  Enter: select  q: quit");
+        ui_draw_help_bar("j/k/mouse: navigate  Enter/click: select  q: quit");
         refresh();
 
         timeout(80);   /* ~12 fps animation */
@@ -122,6 +122,24 @@ int screen_menu(App *app)
 
         int next = -1;
         switch (ch) {
+        case KEY_MOUSE: {
+            MEVENT mev;
+            if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                int my = cy + 10;
+                for (int i = 0; i < MENU_COUNT; i++) {
+                    if (mev.y == my + i * 2) {
+                        app->menu_sel = i;
+                        static const int dests[] = {
+                            SCREEN_PLAY, SCREEN_STUDY, SCREEN_STACKS,
+                            SCREEN_PROGRESS, SCREEN_LEARN, SCREEN_QUIT
+                        };
+                        next = dests[i];
+                        break;
+                    }
+                }
+            }
+            break;
+        }
         case 'k': case KEY_UP:
             app->menu_sel = (app->menu_sel - 1 + MENU_COUNT) % MENU_COUNT;
             break;
@@ -200,11 +218,26 @@ int screen_play_menu(App *app)
                  app->settings.range_min, app->settings.range_max,
                  app->settings.answer_style == ANSWER_MCQ ? "Multiple Choice" : "Free Input");
         ui_draw_centered(LINES - 3, stack_info, COLOR_PAIR(CP_DIM));
-        ui_draw_help_bar("j/k: navigate  Enter: select  s: settings  Esc: back");
+        ui_draw_help_bar("j/k/mouse: navigate  Enter/click: select  s: settings  Esc: back");
         refresh();
 
         ch = getch();
         switch (ch) {
+        case KEY_MOUSE: {
+            MEVENT mev;
+            if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                for (int i = 0; i < PLAY_COUNT; i++) {
+                    if (mev.y == my + i * 2) {
+                        app->play_sel = i;
+                        if (i == PLAY_COUNT - 1) return SCREEN_MENU;
+                        if (i == PLAY_COUNT - 2) return SCREEN_SETTINGS;
+                        app->settings.question_type = i;
+                        return SCREEN_PRACTICE;
+                    }
+                }
+            }
+            break;
+        }
         case 'k': case KEY_UP:
             app->play_sel = (app->play_sel - 1 + PLAY_COUNT) % PLAY_COUNT;
             break;
@@ -379,7 +412,7 @@ int screen_practice(App *app)
         if (ss->answered) {
             ui_draw_help_bar("Enter/Space: next question  q: end session");
         } else {
-            ui_draw_help_bar("1-4: answer  j/k: select  Enter: confirm  q: quit");
+            ui_draw_help_bar("1-4/click: answer  j/k: select  Enter: confirm  q: quit");
         }
         refresh();
 
@@ -403,6 +436,19 @@ int screen_practice(App *app)
 
         if (!ss->answered) {
             switch (ch) {
+            case KEY_MOUSE: {
+                MEVENT mev;
+                if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                    for (int i = 0; i < nc; i++) {
+                        if (mev.y == cy + i * 2) {
+                            ss->selected = i;
+                            session_check_answer(app, i);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
             case 'k': case KEY_UP:
                 ss->selected = (ss->selected - 1 + nc) % nc;
                 break;
@@ -422,7 +468,13 @@ int screen_practice(App *app)
                 break;
             }
         } else {
-            if (ch == '\n' || ch == KEY_ENTER || ch == ' ') {
+            if (ch == KEY_MOUSE) {
+                MEVENT mev;
+                if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                    if (session_is_over(app)) return SCREEN_COMPLETE;
+                    session_generate_question(app);
+                }
+            } else if (ch == '\n' || ch == KEY_ENTER || ch == ' ') {
                 if (session_is_over(app)) return SCREEN_COMPLETE;
                 session_generate_question(app);
             }
@@ -606,11 +658,23 @@ int screen_settings(App *app)
             y += 2;
         }
 
-        ui_draw_help_bar("j/k: navigate  h/l or arrows: adjust  Enter: done  Esc: cancel");
+        ui_draw_help_bar("j/k/mouse: navigate  h/l: adjust  Enter: done  Esc: cancel");
         refresh();
 
         int ch = getch();
         switch (ch) {
+        case KEY_MOUSE: {
+            MEVENT mev;
+            if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                for (int i = 0; i < SETTINGS_ITEMS; i++) {
+                    if (mev.y == 4 + i * 2) {
+                        sel = i;
+                        break;
+                    }
+                }
+            }
+            break;
+        }
         case 'k': case KEY_UP:
             sel = (sel - 1 + SETTINGS_ITEMS) % SETTINGS_ITEMS;
             break;
@@ -878,11 +942,23 @@ int screen_stacks(App *app)
             ui_draw_centered(LINES / 2, "No stacks found!", COLOR_PAIR(CP_WRONG));
         }
 
-        ui_draw_help_bar("j/k: navigate  Enter: view  a: set active  v: validate  Esc: back");
+        ui_draw_help_bar("j/k/mouse: navigate  Enter/click: view  a: active  v: validate  Esc: back");
         refresh();
 
         int ch = getch();
         switch (ch) {
+        case KEY_MOUSE: {
+            MEVENT mev;
+            if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                for (int i = 0; i < app->stack_count; i++) {
+                    if (mev.y == y + i * 2) {
+                        app->stack_sel = i;
+                        return SCREEN_STACK_VIEW;
+                    }
+                }
+            }
+            break;
+        }
         case 'k': case KEY_UP:
             if (app->stack_count > 0)
                 app->stack_sel = (app->stack_sel - 1 + app->stack_count) % app->stack_count;
@@ -1020,11 +1096,21 @@ int screen_stack_view(App *app)
             mvprintw(LINES - 2, COLS - 20, "%s", sbar);
         }
 
-        ui_draw_help_bar("j/k: scroll  g: jump  Esc: back to stacks");
+        ui_draw_help_bar("j/k/mouse: scroll  g: jump  Esc: back to stacks");
         refresh();
 
         int ch = getch();
         switch (ch) {
+        case KEY_MOUSE: {
+            MEVENT mev;
+            if (getmouse(&mev) == OK && (mev.bstate & (BUTTON1_CLICKED | BUTTON1_PRESSED))) {
+                int clicked_idx = scroll + (mev.y - 3);
+                if (mev.y >= 3 && clicked_idx >= 0 && clicked_idx < st->count) {
+                    sel = clicked_idx;
+                }
+            }
+            break;
+        }
         case 'k': case KEY_UP:
             if (sel > 0) {
                 sel--;

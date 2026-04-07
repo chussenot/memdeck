@@ -84,7 +84,7 @@ void session_generate_question(App *app)
 
     case Q_CARD_TO_POS:
         snprintf(ss->question_text, sizeof(ss->question_text),
-                 "What position is %s?", card_disp);
+                 "What position is %s ?", card_disp);
         ss->current_answer = qi;
         break;
 

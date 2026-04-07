@@ -8,6 +8,8 @@ void ui_init(void)
     noecho();
     keypad(stdscr, TRUE);
     curs_set(0);
+    mousemask(BUTTON1_CLICKED | BUTTON1_PRESSED | REPORT_MOUSE_POSITION, NULL);
+    mouseinterval(0);
     start_color();
     use_default_colors();
 
