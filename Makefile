@@ -3,7 +3,7 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw -lm
 
-SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c
+SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c
 BIN     = bin/memdeck-tui
 
 .PHONY: all clean install uninstall test help
@@ -26,8 +26,10 @@ install: all
 	install -m 755 $(BIN) $(PREFIX)/bin/memdeck-tui
 	install -d $(PREFIX)/share/memdeck/stacks
 	install -d $(PREFIX)/share/memdeck/lessons
+	install -d $(PREFIX)/share/memdeck/music
 	install -m 644 data/stacks/*.tsv $(PREFIX)/share/memdeck/stacks/
 	install -m 644 data/lessons/*.txt $(PREFIX)/share/memdeck/lessons/
+	install -m 644 data/music/*.abc $(PREFIX)/share/memdeck/music/
 
 uninstall:
 	rm -f $(PREFIX)/bin/memdeck $(PREFIX)/bin/memdeck-tui

@@ -1,0 +1,508 @@
+#include "memdeck.h"
+#include <math.h>
+
+/*
+ * Minimal ABC notation parser for the MemDeck chiptune engine.
+ *
+ * Supports:
+ *   - Header fields: X, T, M, L, Q, K, V (with amp= and staccato directives)
+ *   - Notes: C-B (octave 4), c-b (octave 5), with , (down) and ' (up) modifiers
+ *   - Accidentals: ^ (sharp), _ (flat), = (natural)
+ *   - Rests: z
+ *   - Note lengths: multipliers (e.g. A2 = twice default length)
+ *   - Repeat markers: |: and :|
+ *   - Multi-voice via V: lines
+ */
+
+/* ─── Note frequency table ───────────────────────────────────── */
+
+/* semitone offsets from C: C=0, D=2, E=4, F=5, G=7, A=9, B=11 */
+static const int note_semitones[7] = { 0, 2, 4, 5, 7, 9, 11 };
+
+/* A4 = 440 Hz, MIDI note 69. C4 = MIDI 60. */
+static double semitone_to_freq(int midi_note)
+{
+    if (midi_note < 0) return 0.0;
+    return 440.0 * pow(2.0, (midi_note - 69) / 12.0);
+}
+
+static int note_char_to_index(char c)
+{
+    /* C=0, D=1, E=2, F=3, G=4, A=5, B=6 */
+    switch (c) {
+        case 'C': case 'c': return 0;
+        case 'D': case 'd': return 1;
+        case 'E': case 'e': return 2;
+        case 'F': case 'f': return 3;
+        case 'G': case 'g': return 4;
+        case 'A': case 'a': return 5;
+        case 'B': case 'b': return 6;
+    }
+    return -1;
+}
+
+/* ─── Parser state ───────────────────────────────────────────── */
+
+typedef struct {
+    int beats_per_bar;    /* M: numerator */
+    int beat_unit;        /* M: denominator */
+    int default_len_num;  /* L: numerator (e.g. 1) */
+    int default_len_den;  /* L: denominator (e.g. 16) */
+    int tempo_bpm;        /* Q: beats per minute */
+    int key_sharps;       /* key signature accidentals (positive=sharps, negative=flats) */
+    int key_accidentals[7]; /* per-note accidentals from key: -1=flat, 0=natural, 1=sharp */
+} AbcHeader;
+
+static void parse_key_sig(const char *key_str, AbcHeader *h)
+{
+    memset(h->key_accidentals, 0, sizeof(h->key_accidentals));
+
+    /* Simple key parsing: major keys and Dm */
+    char base = key_str[0];
+    int is_minor = (strstr(key_str, "m") != NULL || strstr(key_str, "min") != NULL);
+
+    /* Determine number of sharps/flats from key */
+    /* Order of sharps: F C G D A E B */
+    /* Order of flats:  B E A D G C F */
+    static const int sharp_order[7] = { 3, 0, 4, 1, 5, 2, 6 }; /* F,C,G,D,A,E,B note indices */
+    static const int flat_order[7]  = { 6, 2, 5, 1, 4, 0, 3 }; /* B,E,A,D,G,C,F */
+
+    /* Map base note to number of sharps in major key (C=0, G=1, D=2...) */
+    int nsharps = 0;
+    switch (base) {
+        case 'C': nsharps = 0; break;
+        case 'G': nsharps = 1; break;
+        case 'D': nsharps = 2; break;
+        case 'A': nsharps = 3; break;
+        case 'E': nsharps = 4; break;
+        case 'B': nsharps = 5; break;
+        case 'F':
+            /* Check for F# */
+            if (key_str[1] == '#') nsharps = 6;
+            else nsharps = -1; /* F major = 1 flat */
+            break;
+        default: nsharps = 0;
+    }
+
+    /* Minor keys: relative minor is 3 semitones below major,
+       which means 3 fewer sharps */
+    if (is_minor) nsharps -= 3;
+
+    /* Check for explicit flats/sharps after note name */
+    if (key_str[1] == 'b' && key_str[1] != '\0') nsharps -= 1; /* e.g. Bb major */
+
+    h->key_sharps = nsharps;
+
+    if (nsharps > 0) {
+        for (int i = 0; i < nsharps && i < 7; i++)
+            h->key_accidentals[sharp_order[i]] = 1;
+    } else if (nsharps < 0) {
+        int nflats = -nsharps;
+        for (int i = 0; i < nflats && i < 7; i++)
+            h->key_accidentals[flat_order[i]] = -1;
+    }
+}
+
+/* ─── Parse a single ABC note from text ──────────────────────── */
+
+/*
+ * Parse one note starting at *p. Returns the number of characters consumed.
+ * Sets *freq to the note frequency and *steps to the number of default-length
+ * units this note occupies.
+ */
+static int parse_note(const char *p, const AbcHeader *h,
+                      double *freq, int *steps)
+{
+    const char *start = p;
+    *freq = 0.0;
+    *steps = 1;
+
+    /* skip barlines, spaces, decorations */
+    while (*p == '|' || *p == ':' || *p == ' ' || *p == '[' || *p == ']')
+        p++;
+
+    if (*p == '\0' || *p == '\n' || *p == '%') {
+        *steps = 0;
+        return (int)(p - start);
+    }
+
+    /* rest */
+    if (*p == 'z' || *p == 'x') {
+        p++;
+        /* parse optional length multiplier */
+        int mult = 0;
+        while (*p >= '0' && *p <= '9') {
+            mult = mult * 10 + (*p - '0');
+            p++;
+        }
+        if (mult > 0) *steps = mult;
+        *freq = 0.0;
+        return (int)(p - start);
+    }
+
+    /* accidental */
+    int accidental = -99; /* -99 = use key signature */
+    if (*p == '^') { accidental = 1; p++; if (*p == '^') { accidental = 2; p++; } }
+    else if (*p == '_') { accidental = -1; p++; if (*p == '_') { accidental = -2; p++; } }
+    else if (*p == '=') { accidental = 0; p++; }
+
+    /* note letter */
+    char note_char = *p;
+    int note_idx = note_char_to_index(note_char);
+    if (note_idx < 0) {
+        *steps = 0;
+        return (int)(p - start);
+    }
+
+    /* ABC: uppercase C-B = octave 4 (C4-B4), lowercase c-b = octave 5 (C5-B5) */
+    int octave = (note_char >= 'a' && note_char <= 'z') ? 5 : 4;
+    p++;
+
+    /* octave modifiers */
+    while (*p == '\'') { octave++; p++; }
+    while (*p == ',')  { octave--; p++; }
+
+    /* compute MIDI note */
+    int semitone = note_semitones[note_idx];
+    if (accidental != -99) {
+        semitone += accidental;
+    } else {
+        semitone += h->key_accidentals[note_idx];
+    }
+    int midi = (octave + 1) * 12 + semitone; /* C4 = (4+1)*12 + 0 = 60 */
+
+    *freq = semitone_to_freq(midi);
+
+    /* parse optional length multiplier */
+    int mult = 0;
+    while (*p >= '0' && *p <= '9') {
+        mult = mult * 10 + (*p - '0');
+        p++;
+    }
+    if (mult > 0) *steps = mult;
+
+    /* handle fractional lengths (e.g. A/ = half, A/2 = half) */
+    if (*p == '/') {
+        p++;
+        int div = 2;
+        if (*p >= '0' && *p <= '9') {
+            div = 0;
+            while (*p >= '0' && *p <= '9') {
+                div = div * 10 + (*p - '0');
+                p++;
+            }
+        }
+        /* fractional notes: round to at least 1 step */
+        if (mult == 0) mult = 1;
+        *steps = (mult > div) ? mult / div : 1;
+    }
+
+    return (int)(p - start);
+}
+
+/* ─── Public API ─────────────────────────────────────────────── */
+
+int abc_load(const char *path, AbcMusic *music)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+
+    memset(music, 0, sizeof(*music));
+    music->voice_count = 0;
+    music->bpm = 120;
+
+    AbcHeader header;
+    memset(&header, 0, sizeof(header));
+    header.beats_per_bar = 4;
+    header.beat_unit = 4;
+    header.default_len_num = 1;
+    header.default_len_den = 16;
+    header.tempo_bpm = 120;
+
+    int current_voice = -1;
+    int in_repeat = 0;
+    char repeat_buf[4096] = {0};
+    int repeat_len = 0;
+
+    char line[1024];
+    while (fgets(line, sizeof(line), f)) {
+        /* strip trailing newline */
+        int len = (int)strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r'))
+            line[--len] = '\0';
+
+        /* skip comments */
+        if (line[0] == '%' && line[1] != '%') continue;
+
+        /* header fields */
+        if (len >= 2 && line[1] == ':' && line[0] != '|') {
+            char field = line[0];
+            const char *val = line + 2;
+            while (*val == ' ') val++;
+
+            switch (field) {
+                case 'X': break; /* reference number, ignored */
+                case 'T': /* title */
+                    snprintf(music->title, sizeof(music->title), "%.127s", val);
+                    break;
+                case 'M': /* meter */
+                    sscanf(val, "%d/%d", &header.beats_per_bar, &header.beat_unit);
+                    break;
+                case 'L': /* default note length */
+                    sscanf(val, "%d/%d", &header.default_len_num, &header.default_len_den);
+                    break;
+                case 'Q': { /* tempo */
+                    int bpm = 120;
+                    /* Q:1/4=120 or Q:120 */
+                    const char *eq = strchr(val, '=');
+                    if (eq) bpm = atoi(eq + 1);
+                    else bpm = atoi(val);
+                    if (bpm > 0) {
+                        header.tempo_bpm = bpm;
+                        music->bpm = bpm;
+                    }
+                    break;
+                }
+                case 'K': /* key */
+                    parse_key_sig(val, &header);
+                    break;
+                case 'V': { /* voice */
+                    /* Find or create voice by name */
+                    char vname[32] = {0};
+                    sscanf(val, "%31s", vname);
+
+                    /* look for existing voice */
+                    int found = -1;
+                    for (int i = 0; i < music->voice_count; i++) {
+                        if (strcmp(music->voices[i].name, vname) == 0) {
+                            found = i;
+                            break;
+                        }
+                    }
+
+                    if (found >= 0) {
+                        current_voice = found;
+                    } else if (music->voice_count < ABC_MAX_VOICES) {
+                        current_voice = music->voice_count++;
+                        AbcVoice *v = &music->voices[current_voice];
+                        memset(v, 0, sizeof(*v));
+                        snprintf(v->name, sizeof(v->name), "%s", vname);
+                        v->amplitude = 40; /* default */
+                        v->staccato = 0;
+                    }
+
+                    /* parse voice directives: amp=N, staccato */
+                    AbcVoice *v = &music->voices[current_voice];
+                    const char *amp = strstr(val, "amp=");
+                    if (amp) v->amplitude = atoi(amp + 4);
+                    if (strstr(val, "staccato")) v->staccato = 1;
+                    break;
+                }
+                default: break;
+            }
+            continue;
+        }
+
+        /* %%voice directive (pseudo-comment) */
+        if (strncmp(line, "%%voice", 7) == 0) {
+            const char *val = line + 7;
+            while (*val == ' ') val++;
+
+            char vname[32] = {0};
+            sscanf(val, "%31s", vname);
+
+            if (music->voice_count < ABC_MAX_VOICES) {
+                current_voice = music->voice_count++;
+                AbcVoice *v = &music->voices[current_voice];
+                memset(v, 0, sizeof(*v));
+                snprintf(v->name, sizeof(v->name), "%s", vname);
+                v->amplitude = 40;
+                v->staccato = 0;
+
+                const char *amp = strstr(val, "amp=");
+                if (amp) v->amplitude = atoi(amp + 4);
+                if (strstr(val, "staccato")) v->staccato = 1;
+            }
+            continue;
+        }
+
+        /* skip other %% directives */
+        if (line[0] == '%') continue;
+
+        /* If no voice defined yet, create a default one */
+        if (current_voice < 0) {
+            if (music->voice_count < ABC_MAX_VOICES) {
+                current_voice = music->voice_count++;
+                AbcVoice *v = &music->voices[current_voice];
+                memset(v, 0, sizeof(*v));
+                snprintf(v->name, sizeof(v->name), "default");
+                v->amplitude = 40;
+            } else {
+                current_voice = 0;
+            }
+        }
+
+        AbcVoice *v = &music->voices[current_voice];
+
+        /* parse note data from this line */
+        const char *p = line;
+        while (*p) {
+            /* skip whitespace and barlines */
+            while (*p == ' ' || *p == '\t') p++;
+            if (*p == '\0' || *p == '%') break;
+
+            /* handle repeat start */
+            if (*p == '|' && *(p+1) == ':') {
+                in_repeat = 1;
+                repeat_len = 0;
+                repeat_buf[0] = '\0';
+                p += 2;
+                continue;
+            }
+
+            /* handle repeat end */
+            if (*p == ':' && *(p+1) == '|') {
+                if (in_repeat && repeat_len > 0) {
+                    /* replay the repeated section */
+                    const char *rp = repeat_buf;
+                    while (*rp) {
+                        double freq;
+                        int steps;
+                        int consumed = parse_note(rp, &header, &freq, &steps);
+                        if (consumed == 0) { rp++; continue; }
+                        rp += consumed;
+                        for (int s = 0; s < steps && v->note_count < ABC_MAX_NOTES; s++) {
+                            v->freqs[v->note_count] = freq;
+                            v->note_count++;
+                        }
+                    }
+                }
+                in_repeat = 0;
+                p += 2;
+                continue;
+            }
+
+            /* handle simple barline */
+            if (*p == '|') { p++; continue; }
+
+            double freq;
+            int steps;
+            int consumed = parse_note(p, &header, &freq, &steps);
+            if (consumed == 0) { p++; continue; }
+
+            /* if in repeat section, also buffer the raw text */
+            if (in_repeat) {
+                int avail = (int)sizeof(repeat_buf) - repeat_len - 1;
+                if (consumed < avail) {
+                    memcpy(repeat_buf + repeat_len, p, consumed);
+                    repeat_len += consumed;
+                    repeat_buf[repeat_len++] = ' ';
+                    repeat_buf[repeat_len] = '\0';
+                }
+            }
+
+            p += consumed;
+
+            for (int s = 0; s < steps && v->note_count < ABC_MAX_NOTES; s++) {
+                v->freqs[v->note_count] = freq;
+                v->note_count++;
+            }
+        }
+    }
+
+    fclose(f);
+
+    /* compute step duration from tempo and default note length */
+    /* default length in beats = default_len_num / default_len_den * beat_unit */
+    /* step_ms = (60000 / bpm) * (default_len / quarter_note) */
+    double quarter_ms = 60000.0 / music->bpm;
+    double note_fraction = (double)header.default_len_num / header.default_len_den;
+    /* note_fraction of a whole note; a quarter note = 1/4 */
+    music->step_ms = (int)(quarter_ms * note_fraction * 4.0);
+    if (music->step_ms < 10) music->step_ms = 125; /* fallback */
+
+    return 0;
+}
+
+int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
+{
+    memset(music, 0, sizeof(*music));
+    music->bpm = 120;
+    music->step_ms = 125;
+
+    for (int i = 0; i < path_count && i < ABC_MAX_VOICES; i++) {
+        AbcMusic single;
+        if (abc_load(paths[i], &single) != 0) continue;
+
+        /* copy first voice from each file */
+        if (single.voice_count > 0 && music->voice_count < ABC_MAX_VOICES) {
+            music->voices[music->voice_count] = single.voices[0];
+            music->voice_count++;
+        }
+
+        /* use tempo from first file */
+        if (i == 0) {
+            music->bpm = single.bpm;
+            music->step_ms = single.step_ms;
+            snprintf(music->title, sizeof(music->title), "%s", single.title);
+        }
+    }
+
+    return (music->voice_count > 0) ? 0 : -1;
+}
+
+unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
+{
+    if (music->voice_count == 0) return NULL;
+
+    /* find the longest voice (in steps) */
+    int max_steps = 0;
+    for (int v = 0; v < music->voice_count; v++) {
+        if (music->voices[v].note_count > max_steps)
+            max_steps = music->voices[v].note_count;
+    }
+    if (max_steps == 0) return NULL;
+
+    int step_samples = (SAMPLE_RATE_ABC * music->step_ms) / 1000;
+    int total_samples = max_steps * step_samples;
+    unsigned char *buf = malloc(total_samples);
+    if (!buf) return NULL;
+
+    memset(buf, 128, total_samples);
+
+    for (int step = 0; step < max_steps; step++) {
+        int base = step * step_samples;
+
+        for (int i = 0; i < step_samples; i++) {
+            int val = 128;
+
+            for (int v = 0; v < music->voice_count; v++) {
+                const AbcVoice *voice = &music->voices[v];
+                if (step >= voice->note_count) continue;
+
+                double freq = voice->freqs[step];
+                if (freq <= 0.0) continue;
+
+                int amp = voice->amplitude;
+                double half_period = SAMPLE_RATE_ABC / (2.0 * freq);
+
+                /* staccato: note sounds for 3/4 of the step */
+                int note_end = voice->staccato
+                    ? step_samples * 3 / 4
+                    : step_samples * 9 / 10;
+
+                if (i < note_end) {
+                    int phase = (int)(i / half_period);
+                    val += (phase % 2 == 0) ? amp : -amp;
+                }
+            }
+
+            if (val < 0) val = 0;
+            if (val > 255) val = 255;
+            buf[base + i] = (unsigned char)val;
+        }
+    }
+
+    *out_len = total_samples;
+    return buf;
+}

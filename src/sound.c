@@ -265,6 +265,51 @@ static unsigned char *music_generate_loop(int *out_len)
     return buf;
 }
 
+/*
+ * Try to load music from ABC files. Returns PCM buffer or NULL on failure.
+ * Searches for individual voice files (menu_bass.abc, menu_arp.abc, menu_lead.abc)
+ * or a combined file (menu.abc) in the data/music/ directory.
+ */
+static unsigned char *music_load_abc(int *out_len, const char *data_dir)
+{
+    /* Try loading individual voice files first */
+    char bass_path[MAX_PATH + 128];
+    char arp_path[MAX_PATH + 128];
+    char lead_path[MAX_PATH + 128];
+
+    /* Derive music dir from data_dir (which points to data/stacks) */
+    char music_dir[MAX_PATH + 96];
+    snprintf(music_dir, sizeof(music_dir), "%s/../music", data_dir);
+
+    snprintf(bass_path, sizeof(bass_path), "%s/menu_bass.abc", music_dir);
+    snprintf(arp_path, sizeof(arp_path), "%s/menu_arp.abc", music_dir);
+    snprintf(lead_path, sizeof(lead_path), "%s/menu_lead.abc", music_dir);
+
+    const char *paths[3] = { bass_path, arp_path, lead_path };
+    AbcMusic music;
+
+    if (abc_load_voices(paths, 3, &music) == 0 && music.voice_count > 0) {
+        return abc_generate_pcm(&music, out_len);
+    }
+
+    /* Fallback: try combined file */
+    char combined[MAX_PATH + 128];
+    snprintf(combined, sizeof(combined), "%s/menu.abc", music_dir);
+    if (abc_load(combined, &music) == 0 && music.voice_count > 0) {
+        return abc_generate_pcm(&music, out_len);
+    }
+
+    return NULL;
+}
+
+/* Global: data_dir is set by sound_set_data_dir() before music starts */
+static char sound_data_dir[MAX_PATH + 64] = {0};
+
+void sound_set_data_dir(const char *dir)
+{
+    snprintf(sound_data_dir, sizeof(sound_data_dir), "%s", dir);
+}
+
 void sound_music_start(void)
 {
     /* Don't start if already playing */
@@ -275,7 +320,16 @@ void sound_music_start(void)
     sound_music_stop();
 
     int loop_len = 0;
-    unsigned char *loop_buf = music_generate_loop(&loop_len);
+    unsigned char *loop_buf = NULL;
+
+    /* Try ABC files first */
+    if (sound_data_dir[0])
+        loop_buf = music_load_abc(&loop_len, sound_data_dir);
+
+    /* Fallback to hardcoded music */
+    if (!loop_buf)
+        loop_buf = music_generate_loop(&loop_len);
+
     if (!loop_buf) return;
 
     /* Parent creates the pipe */

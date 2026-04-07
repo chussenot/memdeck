@@ -239,7 +239,33 @@ void session_build_filter(App *app);
 /* sound.c */
 void sound_success(void);
 void sound_fail(void);
+void sound_set_data_dir(const char *dir);
 void sound_music_start(void);
 void sound_music_stop(void);
+
+/* abc.c — ABC notation parser and PCM generator */
+#define ABC_MAX_VOICES  8
+#define ABC_MAX_NOTES   1024
+#define SAMPLE_RATE_ABC 22050
+
+typedef struct {
+    char name[32];
+    int amplitude;        /* per-voice amplitude (0-127) */
+    int staccato;         /* 1 = staccato (3/4 length), 0 = legato (9/10 length) */
+    double freqs[ABC_MAX_NOTES]; /* frequency per step (0 = rest) */
+    int note_count;
+} AbcVoice;
+
+typedef struct {
+    char title[128];
+    int bpm;
+    int step_ms;          /* duration of one default-length note in ms */
+    AbcVoice voices[ABC_MAX_VOICES];
+    int voice_count;
+} AbcMusic;
+
+int abc_load(const char *path, AbcMusic *music);
+int abc_load_voices(const char *paths[], int path_count, AbcMusic *music);
+unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len);
 
 #endif

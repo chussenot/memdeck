@@ -1588,6 +1588,7 @@ int main(int argc, char **argv)
     }
 
     progress_load(&app);
+    sound_set_data_dir(app.data_dir);
     ui_init();
 
     /* check for direct-launch modes */

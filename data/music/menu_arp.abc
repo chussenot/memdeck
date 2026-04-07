@@ -1,0 +1,10 @@
+X:2
+T:MemDeck Menu - Arpeggio
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=120
+K:Dm
+%%voice arp amp=28 staccato
+|: DFAd DFAd DFAd DFAd | _B,DF_b _B,DF_b A,CEA A,CEA |
+A,CEA A,CEA A,CEA A,CEA | A,CEA A,CEA _B,DF_b DFAd :|
