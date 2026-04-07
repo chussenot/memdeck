@@ -1090,7 +1090,7 @@ int screen_stack_view(App *app)
 
         /* scrollbar indicator */
         if (st->count > visible) {
-            char sbar[32];
+            char sbar[64];
             snprintf(sbar, sizeof(sbar), "[%d-%d of %d]",
                      scroll + 1, scroll + visible, st->count);
             mvprintw(LINES - 2, COLS - 20, "%s", sbar);
@@ -1284,7 +1284,7 @@ int screen_progress(App *app)
 int screen_learn(App *app)
 {
     /* load lesson file */
-    char path[MAX_PATH];
+    char path[MAX_PATH + 64];
     snprintf(path, sizeof(path), "%s/../lessons/learn-method.txt", app->data_dir);
 
     FILE *f = fopen(path, "r");
@@ -1386,11 +1386,11 @@ int screen_learn(App *app)
 static void setup_paths(App *app, const char *argv0)
 {
     /* find data dir relative to binary */
-    char resolved[MAX_PATH] = {0};
+    char resolved[MAX_PATH + 64] = {0};
 
     /* try to resolve from argv0 */
     if (argv0[0] == '/') {
-        strncpy(resolved, argv0, sizeof(resolved) - 1);
+        snprintf(resolved, sizeof(resolved), "%s", argv0);
     } else {
         /* try relative to cwd */
         char cwd[MAX_PATH];
@@ -1415,7 +1415,7 @@ static void setup_paths(App *app, const char *argv0)
     struct stat st;
     if (stat(app->data_dir, &st) != 0) {
         /* try relative to cwd */
-        char cwd[MAX_PATH];
+        char cwd[MAX_PATH - 64];
         if (getcwd(cwd, sizeof(cwd))) {
             snprintf(app->data_dir, sizeof(app->data_dir), "%s/data/stacks", cwd);
         }
@@ -1443,12 +1443,16 @@ static void setup_paths(App *app, const char *argv0)
 
     /* ensure user dirs exist */
     mkdir(app->user_dir, 0755);
-    char user_stacks[MAX_PATH];
+    char user_stacks[MAX_PATH + 64];
     snprintf(user_stacks, sizeof(user_stacks), "%s/stacks", app->user_dir);
     mkdir(user_stacks, 0755);
 
+    /* user_dir is always short enough; suppress false-positive truncation warning */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
     snprintf(app->progress_file, sizeof(app->progress_file),
              "%s/progress.dat", app->user_dir);
+#pragma GCC diagnostic pop
 }
 
 /* ─── Default Settings ───────────────────────────────────────── */

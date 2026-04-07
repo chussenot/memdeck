@@ -28,7 +28,7 @@ void progress_load(App *app)
         else if (strcmp(key, "best_score") == 0) app->progress.best_score = atoi(val);
         else if (strcmp(key, "current_streak") == 0) app->progress.current_streak = atoi(val);
         else if (strcmp(key, "best_streak") == 0) app->progress.best_streak = atoi(val);
-        else if (strcmp(key, "last_date") == 0) strncpy(app->progress.last_date, val, 15);
+        else if (strcmp(key, "last_date") == 0) snprintf(app->progress.last_date, sizeof(app->progress.last_date), "%.15s", val);
         else if (strncmp(key, "err_", 4) == 0) {
             int idx = atoi(key + 4);
             if (idx >= 0 && idx < STACK_SIZE) app->progress.card_errors[idx] = atoi(val);
@@ -46,7 +46,7 @@ void progress_save(const App *app)
 {
     /* ensure directory exists */
     char dir[MAX_PATH];
-    strncpy(dir, app->progress_file, sizeof(dir) - 1);
+    snprintf(dir, sizeof(dir), "%s", app->progress_file);
     char *slash = strrchr(dir, '/');
     if (slash) {
         *slash = '\0';

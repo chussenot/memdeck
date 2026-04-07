@@ -16,7 +16,7 @@
 #define MAX_STACKS      32
 #define STACK_SIZE      52
 #define MAX_NAME        64
-#define MAX_PATH        512
+#define MAX_PATH        1024
 #define MAX_MNEMONIC    256
 #define MAX_CHOICES     6
 #define DEFAULT_CHOICES 4

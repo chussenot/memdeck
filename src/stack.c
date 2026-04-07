@@ -48,7 +48,7 @@ int stack_load(Stack *s, const char *path)
         StackEntry *e = &s->entries[s->count];
         e->position = pos;
         if (card_parse(cardstr, &e->card) != 0) continue;
-        strncpy(e->mnemonic, mnemonic, sizeof(e->mnemonic) - 1);
+        snprintf(e->mnemonic, sizeof(e->mnemonic), "%s", mnemonic);
         s->count++;
     }
 
@@ -156,7 +156,7 @@ void stack_discover(App *app)
             char *ext = strrchr(ent->d_name, '.');
             if (!ext || strcmp(ext, ".tsv") != 0) continue;
 
-            char path[MAX_PATH];
+            char path[MAX_PATH + 512];
             snprintf(path, sizeof(path), "%s/%s", app->data_dir, ent->d_name);
 
             Stack *s = &app->stacks[app->stack_count];
@@ -169,7 +169,7 @@ void stack_discover(App *app)
     }
 
     /* load from user dir (custom stacks) */
-    char user_stacks[MAX_PATH];
+    char user_stacks[MAX_PATH + 64];
     snprintf(user_stacks, sizeof(user_stacks), "%s/stacks", app->user_dir);
     d = opendir(user_stacks);
     if (d) {
@@ -178,7 +178,7 @@ void stack_discover(App *app)
             char *ext = strrchr(ent->d_name, '.');
             if (!ext || strcmp(ext, ".tsv") != 0) continue;
 
-            char path[MAX_PATH];
+            char path[MAX_PATH + 512];
             snprintf(path, sizeof(path), "%s/%s", user_stacks, ent->d_name);
 
             Stack *s = &app->stacks[app->stack_count];
