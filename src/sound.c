@@ -266,41 +266,74 @@ static unsigned char *music_generate_loop(int *out_len)
 }
 
 /*
- * Try to load music from ABC files. Returns PCM buffer or NULL on failure.
- * Searches for individual voice files (menu_bass.abc, menu_arp.abc, menu_lead.abc)
- * or a combined file (menu.abc) in the data/music/ directory.
+ * Try to load music from ABC files. Discovers all available tracks
+ * (menu_bass/arp/lead.abc, menu2_bass/arp/lead.abc, ...) and picks one
+ * at random. Falls back to a combined menu.abc if no voice files found.
  */
-static unsigned char *music_load_abc(int *out_len, const char *data_dir)
+static char music_track_title[128] = {0};
+
+static unsigned char *music_try_track(int *out_len, const char *music_dir,
+                                      const char *prefix)
 {
-    /* Try loading individual voice files first */
     char bass_path[MAX_PATH + 128];
     char arp_path[MAX_PATH + 128];
     char lead_path[MAX_PATH + 128];
 
-    /* Derive music dir from data_dir (which points to data/stacks) */
-    char music_dir[MAX_PATH + 96];
-    snprintf(music_dir, sizeof(music_dir), "%s/../music", data_dir);
-
-    snprintf(bass_path, sizeof(bass_path), "%s/menu_bass.abc", music_dir);
-    snprintf(arp_path, sizeof(arp_path), "%s/menu_arp.abc", music_dir);
-    snprintf(lead_path, sizeof(lead_path), "%s/menu_lead.abc", music_dir);
+    snprintf(bass_path, sizeof(bass_path), "%s/%s_bass.abc", music_dir, prefix);
+    snprintf(arp_path, sizeof(arp_path), "%s/%s_arp.abc", music_dir, prefix);
+    snprintf(lead_path, sizeof(lead_path), "%s/%s_lead.abc", music_dir, prefix);
 
     const char *paths[3] = { bass_path, arp_path, lead_path };
     AbcMusic music;
 
     if (abc_load_voices(paths, 3, &music) == 0 && music.voice_count > 0) {
+        snprintf(music_track_title, sizeof(music_track_title), "%.127s", music.title);
         return abc_generate_pcm(&music, out_len);
     }
-
-    /* Fallback: try combined file */
-    char combined[MAX_PATH + 128];
-    snprintf(combined, sizeof(combined), "%s/menu.abc", music_dir);
-    if (abc_load(combined, &music) == 0 && music.voice_count > 0) {
-        return abc_generate_pcm(&music, out_len);
-    }
-
     return NULL;
 }
+
+static unsigned char *music_load_abc(int *out_len, const char *data_dir)
+{
+    /* Derive music dir from data_dir (which points to data/stacks) */
+    char music_dir[MAX_PATH + 96];
+    snprintf(music_dir, sizeof(music_dir), "%s/../music", data_dir);
+
+    /* Discover available tracks: menu, menu2, menu3, ... */
+    static const char *prefixes[] = {
+        "menu", "menu2", "menu3", "menu4", "menu5", "menu6", "menu7", "menu8"
+    };
+    int available[8];
+    int count = 0;
+
+    for (int i = 0; i < 8; i++) {
+        char test[MAX_PATH + 128];
+        snprintf(test, sizeof(test), "%s/%s_bass.abc", music_dir, prefixes[i]);
+        if (access(test, R_OK) == 0)
+            available[count++] = i;
+    }
+
+    /* Pick one at random */
+    if (count > 0) {
+        int pick = rand() % count;
+        unsigned char *buf = music_try_track(out_len, music_dir, prefixes[available[pick]]);
+        if (buf) return buf;
+    }
+
+    /* Fallback: try combined menu.abc */
+    char combined[MAX_PATH + 128];
+    snprintf(combined, sizeof(combined), "%s/menu.abc", music_dir);
+    AbcMusic music;
+    if (abc_load(combined, &music) == 0 && music.voice_count > 0) {
+        snprintf(music_track_title, sizeof(music_track_title), "%.127s", music.title);
+        return abc_generate_pcm(&music, out_len);
+    }
+
+    music_track_title[0] = '\0';
+    return NULL;
+}
+
+const char *sound_music_title(void) { return music_track_title; }
 
 /* Global: data_dir is set by sound_set_data_dir() before music starts */
 static char sound_data_dir[MAX_PATH + 64] = {0};

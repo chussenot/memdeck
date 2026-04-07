@@ -1,0 +1,10 @@
+X:2
+T:MemDeck Menu - C64 Nostalgia (Arp)
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=135
+K:Am
+%%voice arp amp=25 staccato
+|: A,CEA A,CEA A,CEA A,CEA | F,A,CF F,A,CF E,^G,BE E,^G,BE |
+DFAd DFAd CEGc CEGc | E,^G,BE E,^G,BE E,^G,BE E,^G,BE :|

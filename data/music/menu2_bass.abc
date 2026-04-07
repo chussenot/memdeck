@@ -1,0 +1,10 @@
+X:1
+T:MemDeck Menu - C64 Nostalgia (Bass)
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=135
+K:Am
+%%voice bass amp=50
+|: A,,zA,z A,,zA,z A,,zA,z A,,zA,z | F,,zF,z F,,zF,z E,,zE,z E,,zE,z |
+D,,zD,z D,,zD,z C,,zC,z C,,zC,z | E,,zE,z E,,zE,z E,,zE,z E,,zE,z :|
