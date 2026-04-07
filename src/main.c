@@ -82,6 +82,16 @@ int screen_menu(App *app)
 
         ui_draw_centered(cy + 6, "Memorized Deck Trainer", COLOR_PAIR(CP_DIM));
 
+        /* music source indicator */
+        {
+            int src = sound_music_source();
+            const char *msg = (src == 1) ? "~ ABC music loaded ~"
+                            : (src == 2) ? "~ Built-in music ~"
+                            :              "";
+            if (msg[0])
+                ui_draw_centered(cy + 7, msg, COLOR_PAIR(CP_DIM));
+        }
+
         /* stack info */
         if (app->stack_count > 0) {
             char info[128];

@@ -304,6 +304,9 @@ static unsigned char *music_load_abc(int *out_len, const char *data_dir)
 
 /* Global: data_dir is set by sound_set_data_dir() before music starts */
 static char sound_data_dir[MAX_PATH + 64] = {0};
+static int  music_source = 0; /* 0=none, 1=abc, 2=hardcoded */
+
+int sound_music_source(void) { return music_source; }
 
 void sound_set_data_dir(const char *dir)
 {
@@ -326,9 +329,13 @@ void sound_music_start(void)
     if (sound_data_dir[0])
         loop_buf = music_load_abc(&loop_len, sound_data_dir);
 
-    /* Fallback to hardcoded music */
-    if (!loop_buf)
+    if (loop_buf) {
+        music_source = 1; /* ABC */
+    } else {
+        /* Fallback to hardcoded music */
         loop_buf = music_generate_loop(&loop_len);
+        if (loop_buf) music_source = 2; /* hardcoded */
+    }
 
     if (!loop_buf) return;
 

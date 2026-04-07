@@ -242,6 +242,7 @@ void sound_fail(void);
 void sound_set_data_dir(const char *dir);
 void sound_music_start(void);
 void sound_music_stop(void);
+int  sound_music_source(void); /* 0=none, 1=abc, 2=hardcoded */
 
 /* abc.c — ABC notation parser and PCM generator */
 #define ABC_MAX_VOICES  8
