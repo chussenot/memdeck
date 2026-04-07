@@ -1,179 +1,152 @@
 # MemDeck
 
-A terminal-first trainer for memorized decks used by magicians. Practice card-at-position, position-of-card, next/previous card drills, and more — all from your terminal.
+![MemDeck Home Screen](home.png)
+
+A terminal-first trainer for memorized decks used by card magicians. Practice card-at-position, position-of-card, next/previous card drills, suit and value drills — all from your terminal with chiptune sounds, rainbow animations, and mouse support.
 
 ## Quick Start
 
 ```sh
-# Build
-make
-
-# Run
-./bin/memdeck
+make all     # Build
+./bin/memdeck  # Run
 ```
 
 ### Dependencies
 
 - C compiler (cc/gcc/clang)
-- ncurses development headers
+- ncurses wide-character headers (`libncursesw`)
+- `aplay` (ALSA utils) for chiptune audio
 - POSIX shell (sh)
 
-Install ncurses headers:
 ```sh
 # Debian/Ubuntu
-sudo apt install libncurses-dev
+sudo apt install libncursesw5-dev alsa-utils
 
 # macOS
 brew install ncurses
 
 # Fedora
-sudo dnf install ncurses-devel
+sudo dnf install ncurses-devel alsa-utils
 
 # Arch
-sudo pacman -S ncurses
+sudo pacman -S ncurses alsa-utils
 ```
+
+## Features
+
+- **7 practice modes** — position-to-card, card-to-position, next/previous card, suit drill, value drill, and mixed mode
+- **Configurable sessions** — 2-6 MCQ choices, card range, suit/color/face filters, time/question/lives limits
+- **Chiptune sound engine** — dark synth D-minor background music on the home screen, success/fail sound effects during practice
+- **Animated rainbow logo** — mirage heat-shimmer effect with fast color cycling
+- **Mouse support** — click to navigate all menus and answer questions
+- **Progress tracking** — persistent stats, day streaks, per-card error tracking, hardest positions
+- **3 built-in stacks** — Aronson, Mnemonica, and Memorandum
+- **Custom stacks** — import your own TSV files
+- **ASCII card art** — colored suit symbols with proper card layout
 
 ## Usage
 
+### Interactive
+
 ```sh
-memdeck              # Launch interactive TUI
-memdeck play         # Jump into practice
-memdeck study        # Jump into study mode
-memdeck stacks       # List available stacks
-memdeck validate f   # Validate a stack file
-memdeck import f     # Import a stack file
-memdeck export name  # Export stack to stdout (TSV)
-memdeck stats        # Show progress statistics
-memdeck reset-progress  # Reset all progress
+memdeck           # Launch the TUI
+memdeck play      # Jump straight into practice
+memdeck study     # Jump into study mode
 ```
 
-## Built-in Stacks
+### CLI Commands
 
-- **Aronson** — Simon Aronson's stack from *A Stack to Remember*
-- **Mnemonica** — Juan Tamariz's stack from *Mnemonica*
-- **Example Custom** — A simple sequential stack with sample mnemonics
+```sh
+memdeck stacks           # List available stacks
+memdeck validate FILE    # Validate a stack TSV file
+memdeck import FILE      # Import a stack to your collection
+memdeck export NAME      # Export a stack to stdout (TSV)
+memdeck stats            # Show progress statistics
+memdeck reset-progress   # Reset all progress data
+```
 
 ## Screens
 
-### Main Menu
-Navigate between Play, Study, Stacks, Progress, Learn, and Quit.
-
-### Practice
-Multiple choice drills with immediate feedback, score tracking, and streaks.
-
-Modes:
-- Position -> Card
-- Card -> Position
-- Next Card / Previous Card
-- Suit Drill / Value Drill
-- Mixed Mode (random question types)
-
-### Practice Settings
-Configure sessions with:
-- Stack selection
-- Answer style (MCQ or free input)
-- Number of choices (2-6)
-- Card range (e.g., positions 1-26)
-- Card filters (all, black, red, by suit, face cards, numbers)
-- Limit mode (none, time, question count, lives)
-- Mnemonic display toggle
-
-### Study
-Browse the stack one card at a time. Navigate with arrow keys, reveal mnemonics with Space, jump to any position with `g`.
-
-### Stacks
-View and manage stacks. Set the active stack, validate, or browse all entries.
-
-### Progress
-Track total sessions, accuracy, best scores, day streaks, and hardest positions.
-
-### Learn
-Read about the memorized deck method, popular stacks, and memorization techniques.
+| Screen | Description |
+|--------|-------------|
+| **Menu** | Animated home screen with rainbow logo and background music |
+| **Play** | Choose a practice mode (7 drill types) |
+| **Practice** | Answer MCQ questions with immediate feedback and sound effects |
+| **Settings** | Configure stack, choices, range, filters, limits, mnemonics |
+| **Study** | Browse the stack card by card, reveal mnemonics |
+| **Stacks** | View, validate, and set active stack |
+| **Progress** | Stats, accuracy, streaks, hardest positions, reset button |
+| **Learn** | Read about the memorized deck method |
 
 ## Keybindings
 
 | Key | Action |
 |-----|--------|
 | `j`/`k` or arrows | Navigate up/down |
-| `h`/`l` or arrows | Navigate left/right, adjust settings |
-| `Enter` | Confirm / select |
-| `1`-`4` | Quick answer in MCQ |
+| `h`/`l` or arrows | Adjust settings left/right |
+| `Enter` or click | Select / confirm |
+| `1`-`6` | Quick answer in practice |
 | `Space` | Reveal mnemonic / next question |
-| `g` or `/` | Jump to position (study mode) |
-| `q` or `Esc` | Go back / quit |
-| `?` | Help (context dependent) |
+| `g` / `G` | Jump to start / end |
+| `r` | Reset progress (on progress screen) |
+| `q` / `Esc` | Go back / quit |
+| Mouse click | Navigate menus, select answers |
 
 ## Stack File Format
 
-Plain TSV with optional comments:
+Plain TSV with optional comments and mnemonics:
 
 ```tsv
-# Stack Name
-# position	card	mnemonic
-1	JS	Jack of Spades - first card
-2	KC	King of Clubs - second card
+# My Custom Stack
+# position  card  mnemonic
+1	JS	Jack holds a Spade
+2	KC	King wears a Crown
 ...
-52	10H	Ten of Hearts - last card
+52	10H	Ten red Hearts
 ```
 
-**Card codes:** `A`, `2`-`10`, `J`, `Q`, `K` followed by `S` (spades), `H` (hearts), `C` (clubs), `D` (diamonds).
-
-Examples: `AS`, `10H`, `KD`, `3C`
-
-### Adding a New Built-in Stack
-
-1. Create a `.tsv` file in `data/stacks/`
-2. Follow the format above with 52 unique cards at 52 unique positions
-3. Validate: `memdeck validate data/stacks/your-stack.tsv`
-
-### Custom Stacks
-
-Import a stack file:
-```sh
-memdeck import my-stack.tsv
-```
+Card codes: `A`, `2`-`10`, `J`, `Q`, `K` followed by `S` (spades), `H` (hearts), `C` (clubs), `D` (diamonds). Examples: `AS`, `10H`, `KD`, `3C`.
 
 Custom stacks are stored in `~/.local/share/memdeck/stacks/`.
+
+## Build Targets
+
+```
+make          # Show help (default)
+make all      # Build the binary
+make test     # Run test suite
+make install  # Install to /usr/local (sudo)
+make clean    # Remove binary
+```
 
 ## Project Structure
 
 ```
 memdeck/
-  bin/memdeck          POSIX shell entrypoint
-  bin/memdeck-tui      Compiled ncurses binary
-  src/                 C source code
-    main.c             Screens and main loop
-    card.c             Card parsing and display
-    stack.c            Stack loading and validation
-    session.c          Practice session logic
-    progress.c         Progress persistence
-    ui.c               ncurses drawing utilities
-    memdeck.h          Shared header
+  bin/
+    memdeck          POSIX shell wrapper (CLI commands)
+    memdeck-tui      Compiled ncurses binary
+  src/
+    main.c           Screens, animation, main loop
+    session.c        Practice session and answer checking
+    card.c           Card parsing and display
+    stack.c          Stack loading and validation
+    progress.c       Progress persistence
+    ui.c             ncurses drawing, card art, colors
+    sound.c          Chiptune engine (PCM square waves)
+    memdeck.h        Shared types and constants
   data/
-    stacks/            Built-in stack files (TSV)
-    lessons/           Learning content
-  tests/               Automated test scripts
+    stacks/          Built-in stack files (TSV)
+    lessons/         Learning content
+  tests/             Shell-based test scripts
   Makefile
 ```
 
 ## Data Storage
 
-Progress is stored in `~/.local/share/memdeck/progress.dat` (XDG compliant). Override with `XDG_DATA_HOME`.
+Progress: `~/.local/share/memdeck/progress.dat` (XDG compliant, override with `XDG_DATA_HOME`)
 
-Stack data is stored in `data/stacks/` (built-in) and `~/.local/share/memdeck/stacks/` (custom). Override data location with `MEMDECK_DATA`.
-
-## Testing
-
-```sh
-make test
-```
-
-## Install System-wide
-
-```sh
-sudo make install              # installs to /usr/local
-sudo make PREFIX=/opt install  # custom prefix
-```
+Custom stacks: `~/.local/share/memdeck/stacks/` (override data location with `MEMDECK_DATA`)
 
 ## License
 
