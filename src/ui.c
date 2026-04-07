@@ -24,6 +24,8 @@ void ui_init(void)
     init_pair(CP_SCORE,     COLOR_YELLOW, -1);
     init_pair(CP_DIM,       COLOR_WHITE, -1);
     init_pair(CP_SELECTED,  COLOR_BLACK, COLOR_WHITE);
+    init_pair(CP_LOGO_DIM,  COLOR_BLUE, -1);
+    init_pair(CP_LOGO_MID,  COLOR_CYAN, -1);
 }
 
 void ui_cleanup(void)

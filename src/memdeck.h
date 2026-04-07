@@ -85,6 +85,8 @@
 #define CP_SCORE     11
 #define CP_DIM       12
 #define CP_SELECTED  13
+#define CP_LOGO_DIM  14
+#define CP_LOGO_MID  15
 
 typedef struct {
     int rank; /* 1=A, 2-10, 11=J, 12=Q, 13=K */
@@ -232,5 +234,7 @@ void session_build_filter(App *app);
 /* sound.c */
 void sound_success(void);
 void sound_fail(void);
+void sound_music_start(void);
+void sound_music_stop(void);
 
 #endif

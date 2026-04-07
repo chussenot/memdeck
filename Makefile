@@ -1,7 +1,7 @@
 PREFIX  ?= /usr/local
 CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
-LDFLAGS ?= -lncursesw
+LDFLAGS ?= -lncursesw -lm
 
 SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c
 BIN     = bin/memdeck-tui

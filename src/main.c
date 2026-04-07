@@ -1,4 +1,5 @@
 #include "memdeck.h"
+#include <math.h>
 
 /* ─── Main Menu ──────────────────────────────────────────────── */
 
@@ -7,9 +8,75 @@ static const char *menu_items[] = {
 };
 #define MENU_COUNT 6
 
+/* ─── Mirage logo animation ──────────────────────────────────── */
+
+#define LOGO_ROWS 5
+
+static const char *logo_lines[LOGO_ROWS] = {
+    "  __  __                ____            _    ",
+    " |  \\/  | ___ _ __ ___|  _ \\  ___  ___| | __",
+    " | |\\/| |/ _ \\ '_ ` _ \\ | | |/ _ \\/ __| |/ /",
+    " | |  | |  __/ | | | | | |_| |  __/ (__|   < ",
+    " |_|  |_|\\___|_| |_| |_|____/ \\___|\\___|_|\\_\\",
+};
+
+/*
+ * Draw the logo with a mirage/heat-shimmer effect.
+ *
+ * Each row drifts horizontally on a slow sine wave.
+ * Each character shimmers between bright, mid, and dim
+ * based on a second sine wave that ripples across the text.
+ */
+static void draw_logo_mirage(int cy, int frame)
+{
+    double t = frame * 0.04;   /* slow time progression */
+
+    for (int row = 0; row < LOGO_ROWS; row++) {
+        const char *line = logo_lines[row];
+        int len = (int)strlen(line);
+
+        /* horizontal displacement: slow wave, amplitude ~1.5 chars */
+        double wave = sin(row * 0.9 + t * 0.7) * 1.5;
+        int dx = (int)round(wave);
+
+        int base_x = (COLS - len) / 2 + dx;
+        if (base_x < 0) base_x = 0;
+
+        for (int col = 0; col < len; col++) {
+            if (line[col] == ' ') continue;
+            int x = base_x + col;
+            if (x < 0 || x >= COLS) continue;
+
+            /* brightness shimmer: ripple across characters */
+            double shimmer = sin(col * 0.15 + row * 1.2 + t * 1.1);
+
+            int cp;
+            int attr;
+            if (shimmer > 0.4) {
+                cp = CP_TITLE;
+                attr = A_BOLD;
+            } else if (shimmer > -0.3) {
+                cp = CP_LOGO_MID;
+                attr = 0;
+            } else {
+                cp = CP_LOGO_DIM;
+                attr = 0;
+            }
+
+            attron(COLOR_PAIR(cp) | attr);
+            mvaddch(cy + row, x, line[col]);
+            attroff(COLOR_PAIR(cp) | attr);
+        }
+    }
+}
+
+/* ─── Menu screen ────────────────────────────────────────────── */
+
 int screen_menu(App *app)
 {
+    sound_music_start();
     int ch;
+    int frame = 0;
     for (;;) {
         erase();
         ui_draw_title_bar("MEMDECK");
@@ -18,13 +85,7 @@ int screen_menu(App *app)
         int cy = LINES / 2 - MENU_COUNT - 2;
         if (cy < 3) cy = 3;
 
-        attron(COLOR_PAIR(CP_TITLE) | A_BOLD);
-        ui_draw_centered(cy,     "  __  __                ____            _    ", 0);
-        ui_draw_centered(cy + 1, " |  \\/  | ___ _ __ ___|  _ \\  ___  ___| | __", 0);
-        ui_draw_centered(cy + 2, " | |\\/| |/ _ \\ '_ ` _ \\ | | |/ _ \\/ __| |/ /", 0);
-        ui_draw_centered(cy + 3, " | |  | |  __/ | | | | | |_| |  __/ (__|   < ", 0);
-        ui_draw_centered(cy + 4, " |_|  |_|\\___|_| |_| |_|____/ \\___|\\___|_|\\_\\", 0);
-        attroff(COLOR_PAIR(CP_TITLE) | A_BOLD);
+        draw_logo_mirage(cy, frame);
 
         ui_draw_centered(cy + 6, "Memorized Deck Trainer", COLOR_PAIR(CP_DIM));
 
@@ -59,7 +120,14 @@ int screen_menu(App *app)
         ui_draw_help_bar("j/k or arrows: navigate  Enter: select  q: quit");
         refresh();
 
+        timeout(120);  /* ~8 fps animation */
         ch = getch();
+        timeout(-1);
+        frame++;
+
+        if (ch == ERR) continue;  /* timeout: just redraw next frame */
+
+        int next = -1;
         switch (ch) {
         case 'k': case KEY_UP:
             app->menu_sel = (app->menu_sel - 1 + MENU_COUNT) % MENU_COUNT;
@@ -69,26 +137,30 @@ int screen_menu(App *app)
             break;
         case '\n': case KEY_ENTER:
             switch (app->menu_sel) {
-            case 0: return SCREEN_PLAY;
-            case 1: return SCREEN_STUDY;
-            case 2: return SCREEN_STACKS;
-            case 3: return SCREEN_PROGRESS;
-            case 4: return SCREEN_LEARN;
-            case 5: return SCREEN_QUIT;
+            case 0: next = SCREEN_PLAY; break;
+            case 1: next = SCREEN_STUDY; break;
+            case 2: next = SCREEN_STACKS; break;
+            case 3: next = SCREEN_PROGRESS; break;
+            case 4: next = SCREEN_LEARN; break;
+            case 5: next = SCREEN_QUIT; break;
             }
             break;
         case 'q':
-            return SCREEN_QUIT;
+            next = SCREEN_QUIT; break;
         case 'p': case '1':
-            return SCREEN_PLAY;
+            next = SCREEN_PLAY; break;
         case 's': case '2':
-            return SCREEN_STUDY;
+            next = SCREEN_STUDY; break;
         case '3':
-            return SCREEN_STACKS;
+            next = SCREEN_STACKS; break;
         case '4':
-            return SCREEN_PROGRESS;
+            next = SCREEN_PROGRESS; break;
         case 'l': case '5':
-            return SCREEN_LEARN;
+            next = SCREEN_LEARN; break;
+        }
+        if (next >= 0) {
+            sound_music_stop();
+            return next;
         }
     }
 }
@@ -1464,6 +1536,7 @@ int main(int argc, char **argv)
         app.screen = next;
     }
 
+    sound_music_stop();
     progress_save(&app);
     ui_cleanup();
     return 0;
