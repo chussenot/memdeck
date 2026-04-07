@@ -3,7 +3,7 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw
 
-SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c
+SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c
 BIN     = bin/memdeck-tui
 
 .PHONY: all clean install uninstall test

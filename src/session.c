@@ -213,12 +213,14 @@ void session_check_answer(App *app, int choice)
         if (ss->streak > ss->best_streak)
             ss->best_streak = ss->streak;
         progress_update(app, 1, correct_idx);
+        sound_success();
     } else {
         ss->incorrect++;
         ss->streak = 0;
         if (app->settings.limit_mode == LIMIT_LIVES)
             ss->lives--;
         progress_update(app, 0, correct_idx);
+        sound_fail();
     }
 
     ss->questions_asked++;

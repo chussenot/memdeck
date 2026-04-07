@@ -10,6 +10,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <locale.h>
 
 #define MAX_STACKS      32
@@ -227,5 +228,9 @@ void session_generate_question(App *app);
 void session_check_answer(App *app, int choice);
 int session_is_over(App *app);
 void session_build_filter(App *app);
+
+/* sound.c */
+void sound_success(void);
+void sound_fail(void);
 
 #endif
