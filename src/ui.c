@@ -111,14 +111,17 @@ void ui_draw_card_fancy(int y, int x, const Card *c)
  * Card is CARD_ART_W wide x CARD_ART_H tall:
  *
  *   ┌───────────┐
- *   │ A         │
- *   │ ♠         │
+ *   │ A♠        │
  *   │           │
- *   │     ♠     │
  *   │           │
- *   │         ♠ │
- *   │         A │
+ *   │           │
+ *   │           │
+ *   │           │
+ *   │        A♠ │
  *   └───────────┘
+ *
+ * Rank and suit are on the same line at top-left and bottom-right
+ * indices, like a real playing card.
  */
 void ui_draw_card_art(int y, int x, const Card *c)
 {
@@ -129,6 +132,8 @@ void ui_draw_card_art(int y, int x, const Card *c)
     const char *suit = card_suit_symbol(c->suit);
     int cp = card_color_pair(c);
     int rlen = (int)strlen(rank);
+    /* suit symbols are UTF-8 multi-byte but render as 1 column */
+    int swidth = 1;
 
     /* draw card border using ACS characters */
     mvaddch(y, x, ACS_ULCORNER);
@@ -137,7 +142,6 @@ void ui_draw_card_art(int y, int x, const Card *c)
 
     for (int i = 1; i < CARD_ART_H - 1; i++) {
         mvaddch(y + i, x, ACS_VLINE);
-        /* clear interior */
         for (int j = 1; j < CARD_ART_W - 1; j++)
             mvaddch(y + i, x + j, ' ');
         mvaddch(y + i, x + CARD_ART_W - 1, ACS_VLINE);
@@ -147,19 +151,15 @@ void ui_draw_card_art(int y, int x, const Card *c)
     for (int i = 1; i < CARD_ART_W - 1; i++) mvaddch(y + CARD_ART_H - 1, x + i, ACS_HLINE);
     mvaddch(y + CARD_ART_H - 1, x + CARD_ART_W - 1, ACS_LRCORNER);
 
-    /* draw rank and suit in card color */
+    /* draw rank+suit in card color */
     attron(COLOR_PAIR(cp) | A_BOLD);
 
-    /* top-left: rank then suit below */
-    mvprintw(y + 1, x + 2, "%s", rank);
-    mvprintw(y + 2, x + 2, "%s", suit);
+    /* top-left index: "A♠" tight against the border edge */
+    mvprintw(y + 1, x + 1, "%s%s", rank, suit);
 
-    /* center suit */
-    mvprintw(y + 4, x + 6, "%s", suit);
-
-    /* bottom-right: suit then rank below (mirrored) */
-    mvprintw(y + 6, x + CARD_ART_W - 2 - rlen, "%s", rank);
-    mvprintw(y + 7, x + CARD_ART_W - 4, "%s", suit);
+    /* bottom-right index: "A♠" flush right inside border */
+    int idx_width = rlen + swidth;
+    mvprintw(y + CARD_ART_H - 2, x + CARD_ART_W - 2 - idx_width, "%s%s", rank, suit);
 
     attroff(COLOR_PAIR(cp) | A_BOLD);
 }
