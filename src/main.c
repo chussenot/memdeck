@@ -355,7 +355,7 @@ int screen_practice(App *app)
             card_display(&ce->card, card_disp, sizeof(card_disp));
 
             /* format choice based on question type */
-            if (strstr(ss->question_text, "position") && !strstr(ss->question_text, "at position")) {
+            if (strstr(ss->question_text, "What position")) {
                 snprintf(label, sizeof(label), "  %d) Position %d", i + 1, ce->position);
             } else if (strstr(ss->question_text, "suit")) {
                 snprintf(label, sizeof(label), "  %d) %s %s", i + 1,
