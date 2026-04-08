@@ -1,6 +1,6 @@
 # MemDeck
 
-[![asciicast](https://asciinema.org/a/S27uRe4Qys9IM44S.svg)](https://asciinema.org/a/S27uRe4Qys9IM44S)
+[![asciicast](https://asciinema.org/a/nUGcYvN3fqNC9JFi.svg)](https://asciinema.org/a/nUGcYvN3fqNC9JFi)
 
 A terminal-first trainer for memorized decks used by card magicians. Practice card-at-position, position-of-card, next/previous card drills, suit and value drills — all from your terminal with chiptune sounds, rainbow animations, and mouse support.
 
