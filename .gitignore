@@ -3,3 +3,4 @@ bin/memdeck-tui
 *.dSYM/
 .DS_Store
 var/
+.env
