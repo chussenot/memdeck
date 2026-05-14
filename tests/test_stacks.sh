@@ -72,7 +72,7 @@ assert_contains "mnemonica export has KS" "52	KS" "$output"
 assert_ok "validate exported stack" "$BIN" validate "$TMPDIR/exported.tsv"
 
 # Test that each built-in stack has exactly 52 entries
-for stack in aronson mnemonica example-custom; do
+for stack in aronson mnemonica memorandum; do
     count=$(grep -v '^#' "$PROJECT_DIR/data/stacks/$stack.tsv" | grep -c '[0-9]')
     assert_eq "$stack has 52 entries" "52" "$count"
 done
