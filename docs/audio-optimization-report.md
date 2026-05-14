@@ -33,9 +33,9 @@
 Environment: CI sandbox, native Linux build, `-O2`, benchmark binary `bin/bench-audio`.
 
 Observed run:
-- oscillator: `204460000 ns`
-- mix loop: `2688025000 ns`
-- stepper: `454283000 ns`
+- oscillator: `112286000 ns`
+- mix loop: `2441615000 ns`
+- stepper: `454981000 ns`
 
 Notes:
 - These are microbenchmark wallclock approximations from `clock()` tick conversion.
