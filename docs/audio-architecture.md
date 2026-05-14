@@ -10,6 +10,7 @@
 - `src/sound.c` = native backend orchestration (`fork`, `pipe`, `aplay`) + hardcoded fallback music.
 - `src/abc.c` = ABC parsing and PCM rendering.
 - `src/audio_dsp.c/.h` = platform-neutral DSP core used by both renderers.
+- Naming stays as `audio_dsp` for now to avoid broad file churn, but it remains the portable audio core layer.
 
 ## DSP core (`audio_dsp`)
 - **Oscillator abstraction**: `DspOscillator` with waveforms:
@@ -46,10 +47,26 @@
   - `duty=N` (pulse duty cycle, 1..99)
 - Defaults remain square-like to preserve project sound identity.
 
+## Render-path optimization
+- `abc_generate_pcm()` now precompiles a lightweight per-voice step timeline before mixing.
+- Consecutive identical notes reuse oscillator state instead of reinitializing on every step.
+- `sound.c` applies the same repeated-note reuse for the hardcoded fallback loop.
+
 ## Portability strategy
 - Keep DSP logic in `audio_dsp` free of platform I/O APIs.
 - Keep backend-specific output in `sound.c` (Linux process/audio piping today).
 - This split allows future wasm/native output backends without changing oscillator/mixer kernels.
+
+## Verification
+- Native verification chain remains:
+  - `make clean`
+  - `make all`
+  - `make test`
+  - `make bench-audio`
+- WASM verification now includes:
+  - `make -C wasm verify`
+  - `node wasm/verify-audio.js`
+  - `make -C wasm`
 
 ## Future SIMD/WASM-ready direction
 - `dsp_osc_next()` and per-step mix loops are isolated kernels.

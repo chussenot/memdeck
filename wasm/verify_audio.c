@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../src/audio_dsp.h"
 #include "../src/memdeck.h"
 
 int main(void)

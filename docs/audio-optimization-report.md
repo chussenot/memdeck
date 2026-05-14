@@ -35,6 +35,11 @@
 - PCM generation uses per-voice oscillator state arrays per step.
 - Added lightweight waveform directives for future extension while preserving defaults.
 
+8. Repeated-note reuse
+- ABC rendering now precompiles a lightweight timeline with per-step gate data.
+- Consecutive identical notes reuse oscillator state instead of paying setup cost every step.
+- The hardcoded fallback loop in `sound.c` uses the same reuse rule.
+
 ## Deterministic regression tests
 
 - `tests/test_audio_dsp.c` exercises every public DSP function with exact
@@ -42,7 +47,8 @@
   for square and pulse waveforms, triangle wave at phase 0, noise LFSR
   variation, stepper distribution, and stepper-sum identity.
 - `tests/test_abc.c` validates ABC parser + PCM generation end-to-end for
-  both shipped music tracks.
+  both shipped music tracks plus a fixed golden fixture with expected PCM
+  length, FNV-1a checksum, and first-sample assertions.
 - Both run as part of `make test`. Neither requires external dependencies.
 
 ## Benchmarks
@@ -62,7 +68,9 @@ Representative run (values vary by hardware/load):
 | `make test-audio` | Builds and runs `bin/test-audio-dsp` (DSP regression) |
 | `make test-abc` | Builds and runs `bin/test-abc` (ABC parser + PCM) |
 | `make bench-audio` | Builds and runs `bin/bench-audio` (microbenchmark) |
-| `make -C wasm` | WASM build — `audio_dsp.c` is intentionally excluded; Web Audio API handles sound in the browser |
+| `make -C wasm verify` | Builds wasm audio verification harness with `abc.c` + `audio_dsp.c` |
+| `node wasm/verify-audio.js` | Executes the wasm audio verification harness |
+| `make -C wasm` | WASM app build |
 
 
 - Maintains retro/chiptune character (square-first synthesis, pulse arp flavor).
