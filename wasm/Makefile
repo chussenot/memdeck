@@ -72,6 +72,8 @@ $(VERIFY_OUT): verify_audio.c ../src/abc.c ../src/audio_dsp.c ../src/audio_dsp.h
 	$(EMCC) $(CFLAGS) verify_audio.c ../src/abc.c ../src/audio_dsp.c \
 	  -o $@ \
 	  -s WASM=1 \
+	  -s SINGLE_FILE=1 \
+	  -s ENVIRONMENT=node \
 	  -s ASSERTIONS=0
 
 clean:
