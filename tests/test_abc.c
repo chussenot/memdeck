@@ -69,8 +69,11 @@ static void test_golden_fixture(void)
 {
     static const unsigned char expected_prefix[] = {
         188, 188, 188, 188, 188, 188, 188, 188,
-        188, 188, 188, 188, 188, 188, 188, 188
+        188, 188, 188, 188, 188, 188, 188, 188,
+        188, 140, 140, 140, 140, 140, 140, 140,
+        140, 140, 140, 140, 140, 140, 140, 140
     };
+    static const uint64_t expected_checksum = 0x2091046a2beeb9d3ull;
     const char *path = "tests/fixtures/golden_small.abc";
     AbcMusic music;
     int pcm_len = 0;
@@ -97,9 +100,11 @@ static void test_golden_fixture(void)
     }
 
     uint64_t checksum = fnv1a64(pcm, pcm_len);
-    if (checksum != 0) {
-        printf("[Golden Fixture] PCM checksum: 0x%016llx\n",
-               (unsigned long long)checksum);
+    if (checksum != expected_checksum) {
+        printf("FAIL golden fixture: got checksum 0x%016llx, expected 0x%016llx\n",
+               (unsigned long long)checksum,
+               (unsigned long long)expected_checksum);
+        g_failures++;
     }
 
     if (memcmp(pcm, expected_prefix, sizeof(expected_prefix)) != 0) {
