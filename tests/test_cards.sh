@@ -46,7 +46,7 @@ echo "=== Card Tests ==="
 # Test valid stack files
 assert_ok "validate aronson" "$BIN" validate "$PROJECT_DIR/data/stacks/aronson.tsv"
 assert_ok "validate mnemonica" "$BIN" validate "$PROJECT_DIR/data/stacks/mnemonica.tsv"
-assert_ok "validate example" "$BIN" validate "$PROJECT_DIR/data/stacks/example-custom.tsv"
+assert_ok "validate memorandum" "$BIN" validate "$PROJECT_DIR/data/stacks/memorandum.tsv"
 
 # Test invalid: missing cards
 cat > "$TMPDIR/short.tsv" <<'EOF'
