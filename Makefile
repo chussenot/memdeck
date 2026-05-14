@@ -3,11 +3,13 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw -lm
 
-SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c
-BIN     = bin/memdeck-tui
-BENCH   = bin/bench-audio
+SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c
+BIN          = bin/memdeck-tui
+BENCH        = bin/bench-audio
+TEST_DSP     = bin/test-audio-dsp
+TEST_ABC_BIN = bin/test-abc
 
-.PHONY: all clean install uninstall test bench-audio help
+.PHONY: all clean install uninstall test test-audio test-abc bench-audio help
 
 .DEFAULT_GOAL := help
 
@@ -19,7 +21,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -36,17 +38,34 @@ uninstall:
 	rm -f $(PREFIX)/bin/memdeck $(PREFIX)/bin/memdeck-tui
 	rm -rf $(PREFIX)/share/memdeck
 
-test: all
+test: all test-audio test-abc
 	@echo "Running tests..."
 	@sh tests/test_cards.sh
 	@sh tests/test_stacks.sh
 	@sh tests/test_scoring.sh
 	@echo "All tests passed."
 
+test-audio: $(TEST_DSP)
+	@echo "Running audio DSP regression tests..."
+	@$(TEST_DSP)
+
+$(TEST_DSP): tests/test_audio_dsp.c src/audio_dsp.c src/audio_dsp.h
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $@ tests/test_audio_dsp.c src/audio_dsp.c $(LDFLAGS)
+
+test-abc: $(TEST_ABC_BIN)
+	@echo "Running ABC parser tests..."
+	@$(TEST_ABC_BIN)
+
+$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/memdeck.h
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c $(LDFLAGS)
+
 bench-audio: src/audio_dsp.c tests/bench_audio.c
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $(BENCH) tests/bench_audio.c src/audio_dsp.c $(LDFLAGS)
 	@echo "Build complete: $(BENCH)"
+	@$(BENCH)
 
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
@@ -58,6 +77,8 @@ help:
 	@echo "  clean      Remove compiled binary"
 	@echo "  install    Install to $(PREFIX) (may need sudo)"
 	@echo "  uninstall  Remove installed files from $(PREFIX)"
-	@echo "  test       Run the test suite"
-	@echo "  bench-audio Build/run microbenchmark binary"
+	@echo "  test       Run the test suite (cards, stacks, scoring, audio DSP, ABC)"
+	@echo "  test-audio Build and run audio DSP regression tests"
+	@echo "  test-abc   Build and run ABC parser tests"
+	@echo "  bench-audio Build and run audio microbenchmark"
 	@echo "  help       Show this help message (default)"

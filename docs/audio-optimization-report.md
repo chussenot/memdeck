@@ -29,19 +29,36 @@
 - PCM generation uses per-voice oscillator state arrays per step.
 - Added lightweight waveform directives for future extension while preserving defaults.
 
+## Deterministic regression tests
+
+- `tests/test_audio_dsp.c` exercises every public DSP function with exact
+  integer expected values: clamp, sample helpers, oscillator phase transitions
+  for square and pulse waveforms, triangle wave at phase 0, noise LFSR
+  variation, stepper distribution, and stepper-sum identity.
+- `tests/test_abc.c` validates ABC parser + PCM generation end-to-end for
+  both shipped music tracks.
+- Both run as part of `make test`. Neither requires external dependencies.
+
 ## Benchmarks
-Environment: CI sandbox, native Linux build, `-O2`, benchmark binary `bin/bench-audio`.
+Environment: Linux native build, `-O2`, `bin/bench-audio` (`make bench-audio`).
 
-Observed run:
-- oscillator: `97191329 ns`
-- mix loop: `2524899975 ns`
-- stepper: `454424266 ns`
+Representative run (values vary by hardware/load):
+- oscillator: ~72 ms  (22050 × 2000 = 44.1 M samples)
+- mix loop:   ~2050 ms (3-channel mix, 64 steps × 2000 iterations)
+- stepper:    ~378 ms  (stepper only, 64 steps × 2 000 000 iterations)
 
-Notes:
-- These are microbenchmark wallclock approximations from `clock()` tick conversion.
-- Primary value is relative tracking across future revisions.
+## Build target summary
 
-## Behavioral compatibility notes
+| Target | Action |
+|---|---|
+| `make all` | Native TUI binary (includes `audio_dsp.c`) |
+| `make test` | Runs all tests including `test-audio` and `test-abc` |
+| `make test-audio` | Builds and runs `bin/test-audio-dsp` (DSP regression) |
+| `make test-abc` | Builds and runs `bin/test-abc` (ABC parser + PCM) |
+| `make bench-audio` | Builds and runs `bin/bench-audio` (microbenchmark) |
+| `make -C wasm` | WASM build — `audio_dsp.c` is intentionally excluded; Web Audio API handles sound in the browser |
+
+
 - Maintains retro/chiptune character (square-first synthesis, pulse arp flavor).
 - Music loading behavior and fallback flow are unchanged.
 - Native tests remain passing.

@@ -1,6 +1,7 @@
 /*
  * Verify ABC parser for both menu tracks.
- * Build: cc -Wall -O2 -std=c99 -D_DEFAULT_SOURCE -o test_abc tests/test_abc.c src/abc.c src/card.c -lm -lncursesw
+ * Build (via Makefile target "test-abc"):
+ *   $(CC) $(CFLAGS) -o bin/test-abc tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c $(LDFLAGS)
  */
 #include <stdio.h>
 #include <math.h>
