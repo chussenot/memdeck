@@ -42,6 +42,13 @@ static int note_char_to_index(char c)
     return -1;
 }
 
+static DspWaveform validate_waveform(int waveform)
+{
+    if (waveform < DSP_WAVE_SQUARE || waveform > DSP_WAVE_NOISE)
+        return DSP_WAVE_SQUARE;
+    return (DspWaveform)waveform;
+}
+
 static int parse_waveform_name(const char *s)
 {
     if (!s) return DSP_WAVE_SQUARE;
@@ -512,9 +519,10 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
             if (step >= voice->note_count) continue;
             if (voice->freqs[step] <= 0.0) continue;
 
-            dsp_osc_init(&oscs[v], (DspWaveform)voice->waveform, voice->amplitude);
+            DspWaveform wf = validate_waveform(voice->waveform);
+            dsp_osc_init(&oscs[v], wf, voice->amplitude);
             dsp_osc_set_frequency(&oscs[v], voice->freqs[step], SAMPLE_RATE_ABC);
-            if (voice->waveform == DSP_WAVE_PULSE)
+            if (wf == DSP_WAVE_PULSE)
                 dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
             note_end[v] = voice->staccato
                 ? (step_samples * 3) / 4

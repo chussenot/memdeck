@@ -33,9 +33,9 @@
 Environment: CI sandbox, native Linux build, `-O2`, benchmark binary `bin/bench-audio`.
 
 Observed run:
-- oscillator: `112286000 ns`
-- mix loop: `2441615000 ns`
-- stepper: `454981000 ns`
+- oscillator: `97191329 ns`
+- mix loop: `2524899975 ns`
+- stepper: `454424266 ns`
 
 Notes:
 - These are microbenchmark wallclock approximations from `clock()` tick conversion.
@@ -48,4 +48,4 @@ Notes:
 
 ## Known constraints
 - Writer-side underrun reporting is coarse (pipe failure based) by design to stay lightweight.
-- wasm build validation requires `emcc` toolchain in environment.
+- WASM build validation requires `emcc` toolchain in environment.

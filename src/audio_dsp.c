@@ -3,11 +3,17 @@
 #include <limits.h>
 #include <string.h>
 
+#define DSP_PHASE_SCALE_U32 4294967296.0
+#define DSP_PHASE_MAX_U32   ((double)UINT32_MAX)
+#if defined(CLOCK_MONOTONIC)
+#define DSP_PROFILE_TICKS_ARE_NS 1
+#endif
+
 static uint32_t u32_from_fraction(double x)
 {
     if (x <= 0.0) return 0;
     if (x >= 1.0) return UINT32_MAX;
-    return (uint32_t)(x * 4294967295.0);
+    return (uint32_t)(x * DSP_PHASE_MAX_U32);
 }
 
 void dsp_osc_init(DspOscillator *osc, DspWaveform waveform, int amplitude)
@@ -25,7 +31,7 @@ void dsp_osc_set_frequency(DspOscillator *osc, double freq_hz, int sample_rate)
         osc->increment = 0;
         return;
     }
-    osc->increment = (uint32_t)((freq_hz * 4294967296.0) / (double)sample_rate);
+    osc->increment = (uint32_t)((freq_hz * DSP_PHASE_SCALE_U32) / (double)sample_rate);
     if (osc->increment == 0) osc->increment = 1;
 }
 
@@ -131,11 +137,20 @@ void dsp_profile_add_write(DspProfile *p, int bytes, int requested, int is_error
 
 uint64_t dsp_profile_now_ticks(void)
 {
+#if defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+        return ((uint64_t)ts.tv_sec * 1000000000ull) + (uint64_t)ts.tv_nsec;
+#endif
     return (uint64_t)clock();
 }
 
 uint64_t dsp_profile_ticks_to_ns(uint64_t ticks)
 {
+#if defined(DSP_PROFILE_TICKS_ARE_NS)
+    return ticks;
+#else
     if (CLOCKS_PER_SEC <= 0) return 0;
     return (ticks * 1000000000ull) / (uint64_t)CLOCKS_PER_SEC;
+#endif
 }
