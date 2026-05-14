@@ -162,6 +162,17 @@ static pid_t aplay_pid  = 0;
 static pid_t writer_pid = 0;
 static int   music_fd   = -1;   /* parent's copy of pipe write-end */
 
+static void writer_collect_status(int block)
+{
+    if (writer_pid <= 0) return;
+    int status = 0;
+    pid_t rc = waitpid(writer_pid, &status, block ? 0 : WNOHANG);
+    if (rc != writer_pid) return;
+    if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
+        g_sound_profile.underruns++;
+    writer_pid = 0;
+}
+
 /*
  * Dark synth chiptune in D minor, ~120 BPM.
  *
@@ -372,6 +383,7 @@ void sound_set_data_dir(const char *dir)
 
 void sound_music_start(void)
 {
+    writer_collect_status(0);
     /* Don't start if already playing */
     if (writer_pid > 0 && kill(writer_pid, 0) == 0) return;
     if (aplay_pid > 0 && kill(aplay_pid, 0) == 0) return;
@@ -441,15 +453,9 @@ void sound_music_start(void)
             while (off < loop_len) {
                 ssize_t w = write(pipefd[1], loop_buf + off, (size_t)(loop_len - off));
                 if (w <= 0) {
-                    if (MEMDECK_AUDIO_PROFILE) {
-                        dsp_profile_add_write(&g_sound_profile, (int)w, loop_len - off, 1);
-                    }
                     close(pipefd[1]);
                     free(loop_buf);
-                    _exit(0);
-                }
-                if (MEMDECK_AUDIO_PROFILE) {
-                    dsp_profile_add_write(&g_sound_profile, (int)w, loop_len - off, 0);
+                    _exit(2);
                 }
                 off += (int)w;
             }
@@ -469,8 +475,7 @@ void sound_music_stop(void)
     /* 1. Kill writer first → stops producing data */
     if (writer_pid > 0) {
         kill(writer_pid, SIGKILL);
-        waitpid(writer_pid, NULL, 0);
-        writer_pid = 0;
+        writer_collect_status(1);
     }
 
     /* 2. Close parent's pipe FD → aplay sees EOF (no more writers) */
