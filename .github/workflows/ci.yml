@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Native clean
+        run: make clean
+      - name: Native build
+        run: make all
+      - name: Audio DSP regression
+        run: make test-audio
+      - name: ABC audio regression
+        run: make test-abc
+      - name: Full test suite
+        run: make test
+      - name: Audio benchmark build and smoke run
+        run: make bench-audio
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install Emscripten
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y emscripten
+      - name: WASM audio verification
+        run: |
+          make -C wasm clean verify
+          node wasm/verify-audio.js
+      - name: WASM application build
+        run: make -C wasm

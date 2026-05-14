@@ -5,7 +5,26 @@
  */
 #include <stdio.h>
 #include <math.h>
+#include <stdint.h>
 #include "../src/memdeck.h"
+
+static int g_failures = 0;
+
+static uint64_t fnv1a64(const unsigned char *data, int len)
+{
+    uint64_t hash = 1469598103934665603ull;
+    for (int i = 0; i < len; i++) {
+        hash ^= (uint64_t)data[i];
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+static void failf(const char *label, const char *msg)
+{
+    printf("FAIL %s: %s\n", label, msg);
+    g_failures++;
+}
 
 static int test_track(const char *bass, const char *arp, const char *lead,
                       const char *label, int expect_steps)
@@ -46,6 +65,52 @@ static int test_track(const char *bass, const char *arp, const char *lead,
     return ok;
 }
 
+static void test_golden_fixture(void)
+{
+    static const unsigned char expected_prefix[] = {
+        188, 188, 188, 188, 188, 188, 188, 188,
+        188, 188, 188, 188, 188, 188, 188, 188
+    };
+    const char *path = "tests/fixtures/golden_small.abc";
+    AbcMusic music;
+    int pcm_len = 0;
+    unsigned char *pcm = NULL;
+
+    if (abc_load(path, &music) != 0) {
+        failf("golden fixture", "could not load tests/fixtures/golden_small.abc");
+        return;
+    }
+
+    pcm = abc_generate_pcm(&music, &pcm_len);
+    if (!pcm) {
+        failf("golden fixture", "PCM generation returned NULL");
+        return;
+    }
+
+    if (music.voice_count != 2) {
+        printf("FAIL golden fixture: got %d voices, expected 2\n", music.voice_count);
+        g_failures++;
+    }
+    if (pcm_len != 44100) {
+        printf("FAIL golden fixture: got PCM len %d, expected 44100\n", pcm_len);
+        g_failures++;
+    }
+
+    uint64_t checksum = fnv1a64(pcm, pcm_len);
+    if (checksum != 0) {
+        printf("[Golden Fixture] PCM checksum: 0x%016llx\n",
+               (unsigned long long)checksum);
+    }
+
+    if (memcmp(pcm, expected_prefix, sizeof(expected_prefix)) != 0) {
+        printf("FAIL golden fixture: first %zu samples mismatch\n",
+               sizeof(expected_prefix));
+        g_failures++;
+    }
+
+    free(pcm);
+}
+
 int main(void)
 {
     int ok = 1;
@@ -66,6 +131,10 @@ int main(void)
         "data/music/menu2_lead.abc",
         "Track 2", 128);
 
+    printf("\n");
+    test_golden_fixture();
+
+    if (g_failures > 0) ok = 0;
     printf("\n%s\n", ok ? "All tests passed." : "Some tests FAILED.");
     return ok ? 0 : 1;
 }
