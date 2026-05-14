@@ -1,4 +1,5 @@
 #include "memdeck.h"
+#include "audio_dsp.h"
 #include <math.h>
 
 /*
@@ -39,6 +40,32 @@ static int note_char_to_index(char c)
         case 'B': case 'b': return 6;
     }
     return -1;
+}
+
+static int parse_waveform_name(const char *s)
+{
+    if (!s) return DSP_WAVE_SQUARE;
+    if (strncmp(s, "pulse", 5) == 0) return DSP_WAVE_PULSE;
+    if (strncmp(s, "triangle", 8) == 0) return DSP_WAVE_TRIANGLE;
+    if (strncmp(s, "noise", 5) == 0) return DSP_WAVE_NOISE;
+    return DSP_WAVE_SQUARE;
+}
+
+static void parse_voice_directives(AbcVoice *v, const char *val)
+{
+    const char *amp = strstr(val, "amp=");
+    const char *wave = strstr(val, "wave=");
+    const char *duty = strstr(val, "duty=");
+
+    if (amp) v->amplitude = atoi(amp + 4);
+    if (strstr(val, "staccato")) v->staccato = 1;
+    if (wave) v->waveform = parse_waveform_name(wave + 5);
+    if (duty) {
+        int pct = atoi(duty + 5);
+        if (pct < 1) pct = 1;
+        if (pct > 99) pct = 99;
+        v->duty_cycle = pct;
+    }
 }
 
 /* ─── Parser state ───────────────────────────────────────────── */
@@ -289,13 +316,13 @@ int abc_load(const char *path, AbcMusic *music)
                         snprintf(v->name, sizeof(v->name), "%s", vname);
                         v->amplitude = 40; /* default */
                         v->staccato = 0;
+                        v->waveform = DSP_WAVE_SQUARE;
+                        v->duty_cycle = 25;
                     }
 
                     /* parse voice directives: amp=N, staccato */
                     AbcVoice *v = &music->voices[current_voice];
-                    const char *amp = strstr(val, "amp=");
-                    if (amp) v->amplitude = atoi(amp + 4);
-                    if (strstr(val, "staccato")) v->staccato = 1;
+                    parse_voice_directives(v, val);
                     break;
                 }
                 default: break;
@@ -318,10 +345,10 @@ int abc_load(const char *path, AbcMusic *music)
                 snprintf(v->name, sizeof(v->name), "%s", vname);
                 v->amplitude = 40;
                 v->staccato = 0;
+                v->waveform = DSP_WAVE_SQUARE;
+                v->duty_cycle = 25;
 
-                const char *amp = strstr(val, "amp=");
-                if (amp) v->amplitude = atoi(amp + 4);
-                if (strstr(val, "staccato")) v->staccato = 1;
+                parse_voice_directives(v, val);
             }
             continue;
         }
@@ -337,6 +364,8 @@ int abc_load(const char *path, AbcMusic *music)
                 memset(v, 0, sizeof(*v));
                 snprintf(v->name, sizeof(v->name), "default");
                 v->amplitude = 40;
+                v->waveform = DSP_WAVE_SQUARE;
+                v->duty_cycle = 25;
             } else {
                 current_voice = 0;
             }
@@ -463,44 +492,47 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
     }
     if (max_steps == 0) return NULL;
 
-    int step_samples = (SAMPLE_RATE_ABC * music->step_ms) / 1000;
-    int total_samples = max_steps * step_samples;
+    int total_samples = dsp_total_samples_for_steps(SAMPLE_RATE_ABC, music->step_ms, max_steps);
     unsigned char *buf = malloc(total_samples);
     if (!buf) return NULL;
 
     memset(buf, 128, total_samples);
+    DspSampleStepper stepper;
+    dsp_stepper_init(&stepper, SAMPLE_RATE_ABC, music->step_ms);
+    int base = 0;
 
     for (int step = 0; step < max_steps; step++) {
-        int base = step * step_samples;
+        int step_samples = dsp_stepper_next(&stepper);
+        DspOscillator oscs[ABC_MAX_VOICES];
+        int voice_on[ABC_MAX_VOICES] = {0};
+        int note_end[ABC_MAX_VOICES] = {0};
+
+        for (int v = 0; v < music->voice_count; v++) {
+            const AbcVoice *voice = &music->voices[v];
+            if (step >= voice->note_count) continue;
+            if (voice->freqs[step] <= 0.0) continue;
+
+            dsp_osc_init(&oscs[v], (DspWaveform)voice->waveform, voice->amplitude);
+            dsp_osc_set_frequency(&oscs[v], voice->freqs[step], SAMPLE_RATE_ABC);
+            if (voice->waveform == DSP_WAVE_PULSE)
+                dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
+            note_end[v] = voice->staccato
+                ? (step_samples * 3) / 4
+                : (step_samples * 9) / 10;
+            voice_on[v] = 1;
+        }
 
         for (int i = 0; i < step_samples; i++) {
             int val = 128;
 
             for (int v = 0; v < music->voice_count; v++) {
-                const AbcVoice *voice = &music->voices[v];
-                if (step >= voice->note_count) continue;
-
-                double freq = voice->freqs[step];
-                if (freq <= 0.0) continue;
-
-                int amp = voice->amplitude;
-                double half_period = SAMPLE_RATE_ABC / (2.0 * freq);
-
-                /* staccato: note sounds for 3/4 of the step */
-                int note_end = voice->staccato
-                    ? step_samples * 3 / 4
-                    : step_samples * 9 / 10;
-
-                if (i < note_end) {
-                    int phase = (int)(i / half_period);
-                    val += (phase % 2 == 0) ? amp : -amp;
-                }
+                if (!voice_on[v] || i >= note_end[v]) continue;
+                val += dsp_osc_next(&oscs[v]);
             }
 
-            if (val < 0) val = 0;
-            if (val > 255) val = 255;
-            buf[base + i] = (unsigned char)val;
+            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
         }
+        base += step_samples;
     }
 
     *out_len = total_samples;

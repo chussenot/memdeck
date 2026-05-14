@@ -1,7 +1,7 @@
 #include "memdeck.h"
+#include "audio_dsp.h"
 #include <signal.h>
 #include <sys/wait.h>
-#include <math.h>
 
 /*
  * Chiptune sound engine.
@@ -14,6 +14,12 @@
 
 #define SAMPLE_RATE 22050
 #define SFX_AMP     96
+#ifndef MEMDECK_AUDIO_PROFILE
+#define MEMDECK_AUDIO_PROFILE 0
+#endif
+
+static DspProfile g_sound_profile;
+static int g_last_loop_samples = 0;
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
 
@@ -44,22 +50,26 @@ static void sfx_track(pid_t pid)
         sfx_pids[sfx_count++] = pid;
 }
 
-/* Generate a square wave tone. Returns number of samples written. */
-static int gen_square(unsigned char *buf, int max_samples,
-                      double freq, int duration_ms, int amplitude)
+static void profile_generation(int samples, uint64_t ticks)
 {
-    int n = (SAMPLE_RATE * duration_ms) / 1000;
+    if (!MEMDECK_AUDIO_PROFILE) return;
+    dsp_profile_add_generation(&g_sound_profile, samples, ticks);
+}
+
+static int gen_tone(unsigned char *buf, int max_samples, double freq, int duration_ms,
+                    int amplitude, DspWaveform waveform)
+{
+    int n = dsp_samples_from_ms(SAMPLE_RATE, duration_ms);
     if (n > max_samples) n = max_samples;
     if (freq <= 0.0) {
         memset(buf, 128, n);
         return n;
     }
-    double half_period = SAMPLE_RATE / (2.0 * freq);
+    DspOscillator osc;
+    dsp_osc_init(&osc, waveform, amplitude);
+    dsp_osc_set_frequency(&osc, freq, SAMPLE_RATE);
     for (int i = 0; i < n; i++) {
-        int phase = (int)(i / half_period);
-        buf[i] = (phase % 2 == 0)
-            ? (unsigned char)(128 + amplitude)
-            : (unsigned char)(128 - amplitude);
+        buf[i] = (unsigned char)dsp_clamp_u8(128 + dsp_osc_next(&osc));
     }
     return n;
 }
@@ -89,7 +99,12 @@ static void sound_play(const unsigned char *data, int len)
         _exit(0);
     }
     close(pipefd[0]);
-    (void)!write(pipefd[1], data, len);
+    int off = 0;
+    while (off < len) {
+        ssize_t w = write(pipefd[1], data + off, (size_t)(len - off));
+        if (w <= 0) break;
+        off += (int)w;
+    }
     close(pipefd[1]);
     waitpid(p2, NULL, 0);
     _exit(0);
@@ -100,29 +115,29 @@ static void sound_play(const unsigned char *data, int len)
 void sound_success(void)
 {
     static const double notes[] = { 523.25, 659.25, 783.99, 1046.50 };
-    int dur = 60;
-    int total = (SAMPLE_RATE * dur / 1000) * 4;
-    unsigned char *buf = malloc(total);
-    if (!buf) return;
+    enum { DUR_MS = 60 };
+    enum { TOTAL = (SAMPLE_RATE * DUR_MS / 1000) * 4 };
+    unsigned char buf[TOTAL];
+    uint64_t t0 = dsp_profile_now_ticks();
     int off = 0;
     for (int i = 0; i < 4; i++)
-        off += gen_square(buf + off, total - off, notes[i], dur, SFX_AMP);
+        off += gen_tone(buf + off, TOTAL - off, notes[i], DUR_MS, SFX_AMP, DSP_WAVE_SQUARE);
+    profile_generation(off, dsp_profile_now_ticks() - t0);
     sound_play(buf, off);
-    free(buf);
 }
 
 void sound_fail(void)
 {
     static const double notes[] = { 392.00, 261.63 };
-    int dur = 100;
-    int total = (SAMPLE_RATE * dur / 1000) * 2;
-    unsigned char *buf = malloc(total);
-    if (!buf) return;
+    enum { DUR_MS = 100 };
+    enum { TOTAL = (SAMPLE_RATE * DUR_MS / 1000) * 2 };
+    unsigned char buf[TOTAL];
+    uint64_t t0 = dsp_profile_now_ticks();
     int off = 0;
     for (int i = 0; i < 2; i++)
-        off += gen_square(buf + off, total - off, notes[i], dur, SFX_AMP);
+        off += gen_tone(buf + off, TOTAL - off, notes[i], DUR_MS, SFX_AMP, DSP_WAVE_SQUARE);
+    profile_generation(off, dsp_profile_now_ticks() - t0);
     sound_play(buf, off);
-    free(buf);
 }
 
 /* ─── Background music ────────────────────────────────────────── */
@@ -223,44 +238,53 @@ static const double lead_notes[STEPS] = {
 
 static unsigned char *music_generate_loop(int *out_len)
 {
-    int loop_samples = STEPS * STEP_SAMPLES;
+    int loop_samples = dsp_total_samples_for_steps(SAMPLE_RATE, STEP_MS, STEPS);
     unsigned char *buf = malloc(loop_samples);
     if (!buf) return NULL;
 
     memset(buf, 128, loop_samples);
-    int note_samples = (SAMPLE_RATE * NOTE_MS) / 1000;
+    int note_samples = dsp_samples_from_ms(SAMPLE_RATE, NOTE_MS);
+    DspSampleStepper stepper;
+    dsp_stepper_init(&stepper, SAMPLE_RATE, STEP_MS);
+    int base = 0;
+    uint64_t t0 = dsp_profile_now_ticks();
 
     for (int step = 0; step < STEPS; step++) {
-        int base = step * STEP_SAMPLES;
+        int step_samples = dsp_stepper_next(&stepper);
         double bf = bass_notes[step];
         double af = arp_notes[step];
         double lf = lead_notes[step];
+        int lead_samples = (step_samples * 9) / 10;
+        DspOscillator bass, arp, lead;
+        int bass_on = (bf > 0.0);
+        int arp_on = (af > 0.0);
+        int lead_on = (lf > 0.0);
 
-        double b_hp = (bf > 0) ? SAMPLE_RATE / (2.0 * bf) : 0;
-        double a_hp = (af > 0) ? SAMPLE_RATE / (2.0 * af) : 0;
-        double l_hp = (lf > 0) ? SAMPLE_RATE / (2.0 * lf) : 0;
-        int lead_samples = STEP_SAMPLES * 9 / 10;
-
-        for (int i = 0; i < STEP_SAMPLES; i++) {
-            int val = 128;
-            if (bf > 0 && b_hp > 0) {
-                int phase = (int)(i / b_hp);
-                val += (phase % 2 == 0) ? BASS_AMP : -BASS_AMP;
-            }
-            if (af > 0 && a_hp > 0 && i < note_samples) {
-                int phase = (int)(i / a_hp);
-                val += (phase % 2 == 0) ? ARP_AMP : -ARP_AMP;
-            }
-            if (lf > 0 && l_hp > 0 && i < lead_samples) {
-                int phase = (int)(i / l_hp);
-                val += (phase % 2 == 0) ? LEAD_AMP : -LEAD_AMP;
-            }
-            if (val < 0) val = 0;
-            if (val > 255) val = 255;
-            buf[base + i] = (unsigned char)val;
+        if (bass_on) {
+            dsp_osc_init(&bass, DSP_WAVE_SQUARE, BASS_AMP);
+            dsp_osc_set_frequency(&bass, bf, SAMPLE_RATE);
         }
+        if (arp_on) {
+            dsp_osc_init(&arp, DSP_WAVE_PULSE, ARP_AMP);
+            dsp_osc_set_frequency(&arp, af, SAMPLE_RATE);
+            dsp_osc_set_pulse_width_percent(&arp, 25);
+        }
+        if (lead_on) {
+            dsp_osc_init(&lead, DSP_WAVE_SQUARE, LEAD_AMP);
+            dsp_osc_set_frequency(&lead, lf, SAMPLE_RATE);
+        }
+
+        for (int i = 0; i < step_samples; i++) {
+            int val = 128;
+            if (bass_on) val += dsp_osc_next(&bass);
+            if (arp_on && i < note_samples) val += dsp_osc_next(&arp);
+            if (lead_on && i < lead_samples) val += dsp_osc_next(&lead);
+            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
+        }
+        base += step_samples;
     }
 
+    profile_generation(loop_samples, dsp_profile_now_ticks() - t0);
     *out_len = loop_samples;
     return buf;
 }
@@ -371,6 +395,7 @@ void sound_music_start(void)
     }
 
     if (!loop_buf) return;
+    g_last_loop_samples = loop_len;
 
     /* Parent creates the pipe */
     int pipefd[2];
@@ -412,8 +437,22 @@ void sound_music_start(void)
         /* Writer child: loop forever writing PCM data */
         close(music_fd);  /* don't inherit parent's extra copy (not set yet, harmless) */
         for (;;) {
-            ssize_t w = write(pipefd[1], loop_buf, loop_len);
-            if (w <= 0) break;   /* pipe broken → aplay died → exit */
+            int off = 0;
+            while (off < loop_len) {
+                ssize_t w = write(pipefd[1], loop_buf + off, (size_t)(loop_len - off));
+                if (w <= 0) {
+                    if (MEMDECK_AUDIO_PROFILE) {
+                        dsp_profile_add_write(&g_sound_profile, (int)w, loop_len - off, 1);
+                    }
+                    close(pipefd[1]);
+                    free(loop_buf);
+                    _exit(0);
+                }
+                if (MEMDECK_AUDIO_PROFILE) {
+                    dsp_profile_add_write(&g_sound_profile, (int)w, loop_len - off, 0);
+                }
+                off += (int)w;
+            }
         }
         close(pipefd[1]);
         free(loop_buf);
@@ -446,4 +485,20 @@ void sound_music_stop(void)
         waitpid(aplay_pid, NULL, 0);
         aplay_pid = 0;
     }
+}
+
+void sound_profile_reset(void)
+{
+    dsp_profile_reset(&g_sound_profile);
+}
+
+int sound_profile_snapshot(SoundProfile *out)
+{
+    if (!out) return -1;
+    out->generated_samples = g_sound_profile.generated_samples;
+    out->generation_calls = g_sound_profile.generation_calls;
+    out->generation_ns = dsp_profile_ticks_to_ns(g_sound_profile.generation_ticks);
+    out->estimated_latency_ms = (unsigned long long)((g_last_loop_samples * 1000ull) / SAMPLE_RATE);
+    out->underruns = g_sound_profile.underruns;
+    return 0;
 }

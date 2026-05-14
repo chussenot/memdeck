@@ -244,6 +244,15 @@ void sound_music_start(void);
 void sound_music_stop(void);
 int  sound_music_source(void); /* 0=none, 1=abc, 2=hardcoded */
 const char *sound_music_title(void);
+typedef struct {
+    unsigned long long generated_samples;
+    unsigned long long generation_calls;
+    unsigned long long generation_ns;
+    unsigned long long estimated_latency_ms;
+    unsigned long long underruns;
+} SoundProfile;
+void sound_profile_reset(void);
+int  sound_profile_snapshot(SoundProfile *out);
 
 /* abc.c — ABC notation parser and PCM generator */
 #define ABC_MAX_VOICES  8
@@ -254,6 +263,8 @@ typedef struct {
     char name[32];
     int amplitude;        /* per-voice amplitude (0-127) */
     int staccato;         /* 1 = staccato (3/4 length), 0 = legato (9/10 length) */
+    int waveform;         /* 0=square, 1=pulse, 2=triangle, 3=noise */
+    int duty_cycle;       /* pulse duty cycle percent (1-99), ignored otherwise */
     double freqs[ABC_MAX_NOTES]; /* frequency per step (0 = rest) */
     int note_count;
 } AbcVoice;
