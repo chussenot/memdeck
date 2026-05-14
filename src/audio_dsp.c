@@ -5,6 +5,7 @@
 
 #define DSP_PHASE_SCALE_U32 4294967296.0
 #define DSP_PHASE_MAX_U32   ((double)UINT32_MAX)
+#define DSP_TRI_RAMP_MASK   0x7fffu
 #if defined(CLOCK_MONOTONIC)
 #define DSP_PROFILE_TICKS_ARE_NS 1
 #endif
@@ -57,8 +58,8 @@ int dsp_osc_next(DspOscillator *osc)
         case DSP_WAVE_TRIANGLE: {
             uint32_t p = phase >> 16;
             int tri = (phase & 0x80000000u)
-                ? (int)(65535u - ((p & 0x7fffu) << 1))
-                : (int)((p & 0x7fffu) << 1);
+                ? (int)(65535u - ((p & DSP_TRI_RAMP_MASK) << 1))
+                : (int)((p & DSP_TRI_RAMP_MASK) << 1);
             sample = ((tri - 32768) * osc->amplitude) / 32768;
             break;
         }

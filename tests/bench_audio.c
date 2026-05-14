@@ -89,7 +89,7 @@ int main(void)
     uint64_t mix_ticks = run_mix_bench();
     uint64_t step_ticks = run_stepper_bench();
 
-    printf("Audio microbench (ticks + ns)\n");
+    printf("Audio microbenchmark (ticks + ns)\n");
     printf("oscillator: %llu ticks (%llu ns)\n",
            (unsigned long long)osc_ticks,
            (unsigned long long)dsp_profile_ticks_to_ns(osc_ticks));
