@@ -22,6 +22,7 @@ SRC = ../src/card.c \
       memdeck_wasm.c
 
 OUT = memdeck.js
+VERIFY_OUT = verify-audio.js
 
 EXPORTED_FUNCTIONS = \
   _md_init,\
@@ -49,9 +50,11 @@ EXPORTED_FUNCTIONS = \
 
 EXPORTED_RUNTIME = ccall,cwrap,UTF8ToString,stringToUTF8,lengthBytesUTF8
 
-.PHONY: all clean serve
+.PHONY: all clean serve verify
 
 all: $(OUT)
+
+verify: $(VERIFY_OUT)
 
 $(OUT): $(SRC) ../src/memdeck.h ncursesw/curses.h
 	$(EMCC) $(CFLAGS) $(SRC) \
@@ -65,8 +68,14 @@ $(OUT): $(SRC) ../src/memdeck.h ncursesw/curses.h
 	  -s NO_EXIT_RUNTIME=1 \
 	  -s ASSERTIONS=0
 
+$(VERIFY_OUT): verify_audio.c ../src/abc.c ../src/audio_dsp.c ../src/audio_dsp.h ../src/memdeck.h
+	$(EMCC) $(CFLAGS) verify_audio.c ../src/abc.c ../src/audio_dsp.c \
+	  -o $@ \
+	  -s WASM=1 \
+	  -s ASSERTIONS=0
+
 clean:
-	rm -f memdeck.js memdeck.wasm
+	rm -f memdeck.js memdeck.wasm $(VERIFY_OUT) verify-audio.wasm
 
 # Serve from the project root so data/stacks/ is reachable if needed
 serve: all

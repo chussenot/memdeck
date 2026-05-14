@@ -273,6 +273,49 @@ static int parse_note(const char *p, const AbcHeader *h,
     return (int)(p - start);
 }
 
+typedef struct {
+    double freq;
+    int note_end;
+    unsigned char active;
+    unsigned char reuse_prev;
+} AbcRenderStep;
+
+typedef struct {
+    AbcRenderStep steps[ABC_MAX_NOTES];
+} AbcRenderVoice;
+
+static void compile_render_timeline(const AbcMusic *music, int max_steps,
+                                    int step_samples[ABC_MAX_NOTES],
+                                    AbcRenderVoice timeline[ABC_MAX_VOICES])
+{
+    DspSampleStepper stepper;
+    dsp_stepper_init(&stepper, SAMPLE_RATE_ABC, music->step_ms);
+
+    for (int step = 0; step < max_steps; step++)
+        step_samples[step] = dsp_stepper_next(&stepper);
+
+    memset(timeline, 0, sizeof(AbcRenderVoice) * ABC_MAX_VOICES);
+    for (int v = 0; v < music->voice_count; v++) {
+        const AbcVoice *voice = &music->voices[v];
+        for (int step = 0; step < max_steps; step++) {
+            AbcRenderStep *entry = &timeline[v].steps[step];
+            if (step >= voice->note_count || voice->freqs[step] <= 0.0)
+                continue;
+
+            entry->freq = voice->freqs[step];
+            entry->note_end = voice->staccato
+                ? (step_samples[step] * 3) / 4
+                : (step_samples[step] * 9) / 10;
+            entry->active = 1;
+            if (step > 0 &&
+                step - 1 < voice->note_count &&
+                voice->freqs[step - 1] > 0.0 &&
+                voice->freqs[step - 1] == entry->freq)
+                entry->reuse_prev = 1;
+        }
+    }
+}
+
 /* ─── Public API ─────────────────────────────────────────────── */
 
 int abc_load(const char *path, AbcMusic *music)
@@ -543,43 +586,46 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
     if (!buf) return NULL;
 
     memset(buf, 128, total_samples);
-    DspSampleStepper stepper;
-    dsp_stepper_init(&stepper, SAMPLE_RATE_ABC, music->step_ms);
+    int step_samples[ABC_MAX_NOTES];
+    AbcRenderVoice timeline[ABC_MAX_VOICES];
+    DspOscillator oscs[ABC_MAX_VOICES];
+    int osc_ready[ABC_MAX_VOICES] = {0};
+    compile_render_timeline(music, max_steps, step_samples, timeline);
     int base = 0;
 
     for (int step = 0; step < max_steps; step++) {
-        int step_samples = dsp_stepper_next(&stepper);
-        DspOscillator oscs[ABC_MAX_VOICES];
-        int voice_on[ABC_MAX_VOICES] = {0};
-        int note_end[ABC_MAX_VOICES] = {0};
+        int samples_this_step = step_samples[step];
 
         for (int v = 0; v < music->voice_count; v++) {
             const AbcVoice *voice = &music->voices[v];
-            if (step >= voice->note_count) continue;
-            if (voice->freqs[step] <= 0.0) continue;
+            const AbcRenderStep *entry = &timeline[v].steps[step];
+            if (!entry->active) {
+                osc_ready[v] = 0;
+                continue;
+            }
 
             DspWaveform wf = sanitize_waveform(voice->waveform);
-            dsp_osc_init(&oscs[v], wf, voice->amplitude);
-            dsp_osc_set_frequency(&oscs[v], voice->freqs[step], SAMPLE_RATE_ABC);
-            if (wf == DSP_WAVE_PULSE)
-                dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
-            note_end[v] = voice->staccato
-                ? (step_samples * 3) / 4
-                : (step_samples * 9) / 10;
-            voice_on[v] = 1;
+            if (!osc_ready[v] || !entry->reuse_prev) {
+                dsp_osc_init(&oscs[v], wf, voice->amplitude);
+                dsp_osc_set_frequency(&oscs[v], entry->freq, SAMPLE_RATE_ABC);
+                if (wf == DSP_WAVE_PULSE)
+                    dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
+                osc_ready[v] = 1;
+            }
         }
 
-        for (int i = 0; i < step_samples; i++) {
+        for (int i = 0; i < samples_this_step; i++) {
             int val = 128;
 
             for (int v = 0; v < music->voice_count; v++) {
-                if (!voice_on[v] || i >= note_end[v]) continue;
+                const AbcRenderStep *entry = &timeline[v].steps[step];
+                if (!entry->active || i >= entry->note_end) continue;
                 val += dsp_osc_next(&oscs[v]);
             }
 
             buf[base + i] = (unsigned char)dsp_clamp_u8(val);
         }
-        base += step_samples;
+        base += samples_this_step;
     }
 
     *out_len = total_samples;

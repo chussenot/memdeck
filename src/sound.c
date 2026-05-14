@@ -259,6 +259,13 @@ static unsigned char *music_generate_loop(int *out_len)
     int note_samples = dsp_samples_from_ms(SAMPLE_RATE, NOTE_MS);
     DspSampleStepper stepper;
     dsp_stepper_init(&stepper, SAMPLE_RATE, STEP_MS);
+    DspOscillator bass_osc, arp_osc, lead_osc;
+    int bass_ready = 0;
+    int arp_ready = 0;
+    int lead_ready = 0;
+    double prev_bass = 0.0;
+    double prev_arp = 0.0;
+    double prev_lead = 0.0;
     int base = 0;
     uint64_t t0 = dsp_profile_now_ticks();
 
@@ -268,30 +275,41 @@ static unsigned char *music_generate_loop(int *out_len)
         double af = arp_notes[step];
         double lf = lead_notes[step];
         int lead_samples = (step_samples * 9) / 10;
-        DspOscillator bass, arp, lead;
         int bass_on = (bf > 0.0);
         int arp_on = (af > 0.0);
         int lead_on = (lf > 0.0);
 
         if (bass_on) {
-            dsp_osc_init(&bass, DSP_WAVE_SQUARE, BASS_AMP);
-            dsp_osc_set_frequency(&bass, bf, SAMPLE_RATE);
-        }
+            if (!bass_ready || prev_bass != bf) {
+                dsp_osc_init(&bass_osc, DSP_WAVE_SQUARE, BASS_AMP);
+                dsp_osc_set_frequency(&bass_osc, bf, SAMPLE_RATE);
+                bass_ready = 1;
+                prev_bass = bf;
+            }
+        } else bass_ready = 0;
         if (arp_on) {
-            dsp_osc_init(&arp, DSP_WAVE_PULSE, ARP_AMP);
-            dsp_osc_set_frequency(&arp, af, SAMPLE_RATE);
-            dsp_osc_set_pulse_width_percent(&arp, 25);
-        }
+            if (!arp_ready || prev_arp != af) {
+                dsp_osc_init(&arp_osc, DSP_WAVE_PULSE, ARP_AMP);
+                dsp_osc_set_frequency(&arp_osc, af, SAMPLE_RATE);
+                dsp_osc_set_pulse_width_percent(&arp_osc, 25);
+                arp_ready = 1;
+                prev_arp = af;
+            }
+        } else arp_ready = 0;
         if (lead_on) {
-            dsp_osc_init(&lead, DSP_WAVE_SQUARE, LEAD_AMP);
-            dsp_osc_set_frequency(&lead, lf, SAMPLE_RATE);
-        }
+            if (!lead_ready || prev_lead != lf) {
+                dsp_osc_init(&lead_osc, DSP_WAVE_SQUARE, LEAD_AMP);
+                dsp_osc_set_frequency(&lead_osc, lf, SAMPLE_RATE);
+                lead_ready = 1;
+                prev_lead = lf;
+            }
+        } else lead_ready = 0;
 
         for (int i = 0; i < step_samples; i++) {
             int val = 128;
-            if (bass_on) val += dsp_osc_next(&bass);
-            if (arp_on && i < note_samples) val += dsp_osc_next(&arp);
-            if (lead_on && i < lead_samples) val += dsp_osc_next(&lead);
+            if (bass_on) val += dsp_osc_next(&bass_osc);
+            if (arp_on && i < note_samples) val += dsp_osc_next(&arp_osc);
+            if (lead_on && i < lead_samples) val += dsp_osc_next(&lead_osc);
             buf[base + i] = (unsigned char)dsp_clamp_u8(val);
         }
         base += step_samples;

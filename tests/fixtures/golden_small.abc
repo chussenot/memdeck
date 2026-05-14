@@ -1,0 +1,10 @@
+X:1
+T:Golden Small Fixture
+M:4/4
+L:1/8
+Q:1/4=120
+K:C
+V:bass amp=36 wave=square
+C2 z2 G,2 z2
+V:lead amp=24 wave=pulse duty=25 staccato
+E G A B
