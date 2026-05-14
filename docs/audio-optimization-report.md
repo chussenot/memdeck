@@ -14,7 +14,13 @@
 - Introduced `DspSampleStepper` to distribute fractional samples across steps.
 - Removes drift in both hardcoded music and ABC rendering.
 
-4. Buffer/allocation improvements
+4. MIDI frequency lookup table
+- Replaced per-note `pow()` calls in `semitone_to_freq()` with a precomputed
+  128-entry `midi_freq_table[]` (MIDI notes 0–127).
+- `<math.h>` removed from `abc.c`; no floating-point transcendentals remain
+  in the parsing or render hot paths.
+
+5. Buffer/allocation improvements
 - SFX now use stack buffers (removed per-trigger malloc/free).
 - PCM generation remains contiguous and cache-friendly.
 - Pipe writes now correctly handle partial writes.
