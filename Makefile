@@ -3,10 +3,11 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw -lm
 
-SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c
+SRC     = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c
 BIN     = bin/memdeck-tui
+BENCH   = bin/bench-audio
 
-.PHONY: all clean install uninstall test help
+.PHONY: all clean install uninstall test bench-audio help
 
 .DEFAULT_GOAL := help
 
@@ -18,7 +19,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN)
+	rm -f $(BIN) $(BENCH)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -42,6 +43,11 @@ test: all
 	@sh tests/test_scoring.sh
 	@echo "All tests passed."
 
+bench-audio: src/audio_dsp.c tests/bench_audio.c
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $(BENCH) tests/bench_audio.c src/audio_dsp.c $(LDFLAGS)
+	@echo "Build complete: $(BENCH)"
+
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
 	@echo ""
@@ -53,4 +59,5 @@ help:
 	@echo "  install    Install to $(PREFIX) (may need sudo)"
 	@echo "  uninstall  Remove installed files from $(PREFIX)"
 	@echo "  test       Run the test suite"
+	@echo "  bench-audio Build/run microbenchmark binary"
 	@echo "  help       Show this help message (default)"
