@@ -161,6 +161,8 @@ void sound_fail(void)
 static pid_t aplay_pid  = 0;
 static pid_t writer_pid = 0;
 static int   music_fd   = -1;   /* parent's copy of pipe write-end */
+/* Writer child exits with this code when pipe write fails (underrun/broken sink). */
+#define WRITER_EXIT_UNDERRUN 2
 
 static void writer_collect_status(int block)
 {
@@ -168,7 +170,7 @@ static void writer_collect_status(int block)
     int status = 0;
     pid_t rc = waitpid(writer_pid, &status, block ? 0 : WNOHANG);
     if (rc != writer_pid) return;
-    if (WIFEXITED(status) && WEXITSTATUS(status) == 2)
+    if (WIFEXITED(status) && WEXITSTATUS(status) == WRITER_EXIT_UNDERRUN)
         g_sound_profile.underruns++;
     writer_pid = 0;
 }
@@ -455,7 +457,7 @@ void sound_music_start(void)
                 if (w <= 0) {
                     close(pipefd[1]);
                     free(loop_buf);
-                    _exit(2);
+                    _exit(WRITER_EXIT_UNDERRUN);
                 }
                 off += (int)w;
             }
