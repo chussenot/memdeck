@@ -7,5 +7,7 @@ var/
 # WebAssembly build artefacts
 wasm/memdeck.js
 wasm/memdeck.wasm
+wasm/verify-audio.js
+wasm/verify-audio.wasm
 
 bin/bench-audio
