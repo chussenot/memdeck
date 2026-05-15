@@ -73,7 +73,7 @@ static void test_golden_fixture(void)
         188, 140, 140, 140, 140, 140, 140, 140,
         140, 140, 140, 140, 140, 140, 140, 140
     };
-    static const uint64_t expected_checksum = 0x2091046a2beeb9d3ull;
+    static const uint64_t expected_checksum = 0xa8f7ce1aa65292bbull;
     const char *path = "tests/fixtures/golden_small.abc";
     AbcMusic music;
     int pcm_len = 0;

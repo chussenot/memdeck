@@ -34,6 +34,22 @@ static uint64_t fnv1a64(const unsigned char *data, int len)
     return hash;
 }
 
+static void test_preset_initialization(void)
+{
+    int count = 0;
+    const SeqInstrument *presets = audio_builtin_instrument_presets(&count);
+    check_int("preset_count", count, MEMDECK_PRESET_COUNT);
+    check_true("preset_ptr", presets != NULL);
+    check_true("preset_name_bass",
+               strcmp(audio_builtin_instrument_preset_name(MEMDECK_PRESET_BASS_PULSE), "memdeck_bass_pulse") == 0);
+    check_true("preset_name_snare",
+               strcmp(audio_builtin_instrument_preset_name(MEMDECK_PRESET_NOISE_SNARE), "memdeck_noise_snare") == 0);
+    check_true("preset_has_adsr", presets[MEMDECK_PRESET_BASS_PULSE].envelope.attack_ms >= 0);
+    check_true("preset_gate_valid",
+               presets[MEMDECK_PRESET_DARK_ARP].envelope.gate_percent > 0 &&
+               presets[MEMDECK_PRESET_DARK_ARP].envelope.gate_percent <= 100);
+}
+
 static void test_builtin_timeline(void)
 {
     const SeqSong *song = audio_builtin_menu_song();
@@ -42,7 +58,7 @@ static void test_builtin_timeline(void)
     check_int("builtin_total_steps", seq_song_total_steps(song), 64);
     check_int("builtin_compile", seq_compile_timeline(song, 22050, &timeline), 0);
     check_int("builtin_timeline_steps", timeline.total_steps, 64);
-    check_int("builtin_timeline_tracks", timeline.max_track_count, 3);
+    check_int("builtin_timeline_tracks", timeline.max_track_count, 4);
     check_int("builtin_timeline_samples", timeline.total_samples, 176400);
     check_int("builtin_pattern_0_start", timeline.steps[0].pattern_index, 0);
     check_int("builtin_pattern_0_end", timeline.steps[15].pattern_index, 0);
@@ -50,6 +66,20 @@ static void test_builtin_timeline(void)
     check_int("builtin_pattern_2_start", timeline.steps[32].pattern_index, 2);
     check_int("builtin_pattern_3_start", timeline.steps[48].pattern_index, 3);
     check_int("builtin_pattern_3_end_step", timeline.steps[63].pattern_step, 15);
+}
+
+static void test_note_events(void)
+{
+    const SeqSong *song = audio_builtin_menu_song();
+    SeqTimeline timeline;
+    SeqNoteEvent events[SEQ_MAX_STEP_EVENTS];
+    int n;
+
+    check_int("events_compile", seq_compile_timeline(song, 22050, &timeline), 0);
+    n = seq_collect_step_events(song, &timeline, 0, events);
+    check_true("events_step0_count", n >= 2);
+    check_int("events_step0_first_track", events[0].track_index, 0);
+    check_true("events_step0_gate", events[0].gate_percent > 0);
 }
 
 static void test_swing_timing(void)
@@ -62,10 +92,14 @@ static void test_swing_timing(void)
     song.swing_pct = 60;
     song.steps_per_beat = 4;
     song.instrument_count = 1;
-    song.instruments[0].oscillator = 0;
-    song.instruments[0].envelope_gate = 75;
-    song.instruments[0].duty_cycle = 50;
+    song.instruments[0].waveform = DSP_WAVE_SQUARE;
+    song.instruments[0].pulse_width = 50;
     song.instruments[0].amplitude = 32;
+    song.instruments[0].envelope.attack_ms = 0;
+    song.instruments[0].envelope.decay_ms = 0;
+    song.instruments[0].envelope.sustain_level = 100;
+    song.instruments[0].envelope.release_ms = 0;
+    song.instruments[0].envelope.gate_percent = 75;
     song.pattern_count = 1;
     song.patterns[0].length = 4;
     song.patterns[0].track_count = 1;
@@ -89,10 +123,10 @@ static void test_swing_timing(void)
 static void test_builtin_render(void)
 {
     static const unsigned char expected_prefix[16] = {
-        196, 196, 196, 196, 196, 196, 196, 196,
-        196, 196, 196, 196, 196, 196, 196, 196
+        168, 168, 91, 170, 93, 172, 95, 173,
+        98, 98, 176, 101, 101, 161, 159, 85
     };
-    static const uint64_t expected_checksum = 0x40f4b08670b0037aull;
+    static const uint64_t expected_checksum = 0xccd99a1e11ef0c3cull;
     const SeqSong *song = audio_builtin_menu_song();
     unsigned char *pcm = NULL;
     int pcm_len = 0;
@@ -121,7 +155,9 @@ int main(void)
 {
     printf("=== Audio sequencer regression tests ===\n");
 
+    test_preset_initialization();
     test_builtin_timeline();
+    test_note_events();
     test_swing_timing();
     test_builtin_render();
 

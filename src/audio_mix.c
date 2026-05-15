@@ -3,20 +3,40 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
+#define MIX_VOICES_PER_TRACK 3
+#define MIX_MAX_STACKED_OSC  2
 
 typedef struct {
     int active;
-    int note_end;
+    int instrument_index;
+    int note;
     int fx_bus;
     int fx_trigger;
-} MixTrackStep;
+    int osc_count;
+    int detune_cents;
+    int base_amplitude;
+    int pulse_width;
+    int pwm_depth;
+    int pwm_rate;
+    int vibrato_depth;
+    int vibrato_rate;
+    int sample_rate;
+    DspWaveform waveform;
+    DspOscillator oscs[MIX_MAX_STACKED_OSC];
+    DspEnvelopeRuntime env;
+    double target_freq;
+    double current_freq;
+    double glide_step;
+    int glide_remaining;
+    uint32_t vibrato_phase;
+    uint32_t pwm_phase;
+} MixVoiceState;
 
 typedef struct {
-    DspOscillator osc;
-    int ready;
-    int instrument;
-    int note;
-    int amplitude;
+    MixVoiceState voices[MIX_VOICES_PER_TRACK];
+    double last_freq;
 } MixTrackState;
 
 static int clampi(int value, int lo, int hi)
@@ -24,6 +44,14 @@ static int clampi(int value, int lo, int hi)
     if (value < lo) return lo;
     if (value > hi) return hi;
     return value;
+}
+
+static DspWaveform sanitize_waveform(int waveform, int noise_mode)
+{
+    if (noise_mode) return DSP_WAVE_NOISE;
+    if (waveform < DSP_WAVE_SQUARE || waveform > DSP_WAVE_NOISE)
+        return DSP_WAVE_SQUARE;
+    return (DspWaveform)waveform;
 }
 
 static double midi_note_to_freq(int note)
@@ -46,9 +74,30 @@ static double midi_note_to_freq(int note)
         5274.040911, 5587.651703, 5919.910763, 6271.926976, 6644.875161, 7040.000000, 7458.620184, 7902.132820,
         8372.018090, 8869.844191, 9397.272573, 9956.063479, 10548.081821, 11175.303406, 11839.821527, 12543.853951
     };
-
     if (note < 0 || note > 127) return 0.0;
     return midi_freq_table[note];
+}
+
+static int tri_lfo_q15(uint32_t *phase, int rate_mhz, int sample_rate)
+{
+    uint64_t increment;
+    uint32_t p;
+    int tri;
+
+    if (rate_mhz <= 0 || sample_rate <= 0) return 0;
+    increment = ((uint64_t)rate_mhz << 32) / ((uint64_t)sample_rate * 1000ull);
+    *phase += (uint32_t)increment;
+    p = *phase >> 16;
+    tri = (*phase & 0x80000000u)
+        ? (int)(65535u - ((p & 0x7fffu) << 1))
+        : (int)((p & 0x7fffu) << 1);
+    return tri - 32768;
+}
+
+static double freq_with_cents(double freq, int cents)
+{
+    if (freq <= 0.0 || cents == 0) return freq;
+    return freq * pow(2.0, (double)cents / 1200.0);
 }
 
 static int track_amplitude(const SeqSong *song, const SeqTrack *track,
@@ -64,18 +113,117 @@ static int track_amplitude(const SeqSong *song, const SeqTrack *track,
     return clampi(amplitude, 0, 127);
 }
 
-static int track_gate(const SeqInstrument *instrument, const SeqStep *step)
+static MixVoiceState *pick_voice_slot(MixTrackState *track)
 {
-    int gate = step->gate > 0 ? step->gate : instrument->envelope_gate;
-    return clampi(gate, 1, 100);
+    MixVoiceState *quietest = &track->voices[0];
+    for (int i = 0; i < MIX_VOICES_PER_TRACK; i++) {
+        if (!track->voices[i].active)
+            return &track->voices[i];
+        if (track->voices[i].env.level_q15 < quietest->env.level_q15)
+            quietest = &track->voices[i];
+    }
+    return quietest;
+}
+
+static void voice_set_frequency(MixVoiceState *voice, int sample_rate)
+{
+    int vib = (voice->vibrato_depth > 0 && voice->vibrato_rate > 0)
+        ? (tri_lfo_q15(&voice->vibrato_phase, voice->vibrato_rate, sample_rate) * voice->vibrato_depth) / 32767
+        : 0;
+    double base = freq_with_cents(voice->current_freq, vib);
+
+    if (voice->osc_count == 1) {
+        dsp_osc_set_frequency(&voice->oscs[0], base, sample_rate);
+    } else {
+        int detune = clampi(voice->detune_cents, 0, 200);
+        dsp_osc_set_frequency(&voice->oscs[0], freq_with_cents(base, -detune), sample_rate);
+        dsp_osc_set_frequency(&voice->oscs[1], freq_with_cents(base, detune), sample_rate);
+    }
+}
+
+static void voice_init(MixVoiceState *voice, const SeqInstrument *instrument,
+                       int sample_rate, int amplitude, double target_freq,
+                       double from_freq, int gate_samples, int instrument_index,
+                       int note, int fx_trigger)
+{
+    int pulse = clampi(instrument->pulse_width, 1, 99);
+    int glide_samples = dsp_samples_from_ms(sample_rate, instrument->glide_ms);
+
+    memset(voice, 0, sizeof(*voice));
+    voice->active = 1;
+    voice->instrument_index = instrument_index;
+    voice->note = note;
+    voice->fx_bus = instrument->fx_send;
+    voice->fx_trigger = fx_trigger;
+    voice->detune_cents = instrument->detune_cents;
+    voice->base_amplitude = amplitude;
+    voice->pulse_width = pulse;
+    voice->pwm_depth = clampi(instrument->pwm_depth, 0, 40);
+    voice->pwm_rate = instrument->pwm_rate;
+    voice->vibrato_depth = clampi(instrument->vibrato_depth_cents, 0, 120);
+    voice->vibrato_rate = instrument->vibrato_rate;
+    voice->sample_rate = sample_rate;
+    voice->waveform = sanitize_waveform(instrument->waveform, instrument->noise_mode);
+    voice->osc_count = (instrument->stacked_voices > 1) ? 2 : 1;
+    if (voice->waveform == DSP_WAVE_NOISE) voice->osc_count = 1;
+    if (voice->osc_count < 1) voice->osc_count = 1;
+    if (voice->osc_count > MIX_MAX_STACKED_OSC) voice->osc_count = MIX_MAX_STACKED_OSC;
+
+    for (int i = 0; i < voice->osc_count; i++) {
+        int amp = (voice->osc_count == 1) ? amplitude : amplitude / 2;
+        dsp_osc_init(&voice->oscs[i], voice->waveform, amp);
+        if (voice->waveform == DSP_WAVE_PULSE)
+            dsp_osc_set_pulse_width_percent(&voice->oscs[i], pulse);
+    }
+
+    voice->target_freq = target_freq;
+    voice->current_freq = (from_freq > 0.0 && glide_samples > 0) ? from_freq : target_freq;
+    voice->glide_remaining = (from_freq > 0.0 && glide_samples > 0) ? glide_samples : 0;
+    voice->glide_step = (voice->glide_remaining > 0)
+        ? (target_freq - voice->current_freq) / (double)voice->glide_remaining
+        : 0.0;
+    voice_set_frequency(voice, sample_rate);
+    dsp_envelope_init(&voice->env, &instrument->envelope, sample_rate, gate_samples);
+}
+
+static int voice_next(MixVoiceState *voice)
+{
+    int env_q15;
+    int mixed = 0;
+
+    if (!voice->active) return 0;
+    if (voice->glide_remaining > 0) {
+        voice->current_freq += voice->glide_step;
+        voice->glide_remaining--;
+        if (voice->glide_remaining <= 0)
+            voice->current_freq = voice->target_freq;
+    }
+    voice_set_frequency(voice, voice->sample_rate);
+
+    if (voice->waveform == DSP_WAVE_PULSE && voice->pwm_depth > 0 && voice->pwm_rate > 0) {
+        int mod = (tri_lfo_q15(&voice->pwm_phase, voice->pwm_rate, voice->sample_rate) * voice->pwm_depth) / 32767;
+        int duty = clampi(voice->pulse_width + mod, 1, 99);
+        for (int i = 0; i < voice->osc_count; i++)
+            dsp_osc_set_pulse_width_percent(&voice->oscs[i], duty);
+    }
+
+    env_q15 = dsp_envelope_next_q15(&voice->env);
+    if (voice->env.phase == DSP_ENV_IDLE) {
+        voice->active = 0;
+        return 0;
+    }
+
+    for (int i = 0; i < voice->osc_count; i++)
+        mixed += dsp_osc_next(&voice->oscs[i]);
+    mixed = mixed / voice->osc_count;
+    return (mixed * env_q15) / 32767;
 }
 
 unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline *timeline,
                                          int sample_rate, int *out_len)
 {
     unsigned char *buf;
-    MixTrackState track_state[SEQ_MAX_TRACKS];
-    MixTrackStep step_state[SEQ_MAX_TRACKS];
+    MixTrackState tracks[SEQ_MAX_TRACKS];
     int fx_bus_levels[SEQ_MAX_FX_BUSES];
     int base = 0;
 
@@ -84,82 +232,50 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
 
     buf = malloc((size_t)timeline->total_samples);
     if (!buf) return NULL;
-
     memset(buf, 128, (size_t)timeline->total_samples);
-    memset(track_state, 0, sizeof(track_state));
+    memset(tracks, 0, sizeof(tracks));
 
     for (int absolute_step = 0; absolute_step < timeline->total_steps; absolute_step++) {
+        SeqNoteEvent events[SEQ_MAX_STEP_EVENTS];
+        int event_count = seq_collect_step_events(song, timeline, absolute_step, events);
         const SeqTimelineStep *timeline_step = &timeline->steps[absolute_step];
         const SeqPattern *pattern = &song->patterns[timeline_step->pattern_index];
         int samples_this_step = timeline_step->samples;
 
-        memset(step_state, 0, sizeof(step_state));
-        for (int track_index = 0; track_index < timeline->max_track_count; track_index++) {
-            const SeqTrack *track;
-            const SeqStep *step;
-            const SeqInstrument *instrument;
-            int amplitude;
+        for (int e = 0; e < event_count; e++) {
+            const SeqNoteEvent *event = &events[e];
+            const SeqTrack *track = &pattern->tracks[event->track_index];
+            const SeqStep *step = &track->steps[event->step_index];
+            const SeqInstrument *instrument = &song->instruments[event->instrument_index];
+            int amp = track_amplitude(song, track, step, event->step_index);
+            int gate_samples = (event->duration_samples * event->gate_percent) / 100;
+            double target_freq = midi_note_to_freq(event->note);
+            MixTrackState *track_state = &tracks[event->track_index];
+            MixVoiceState *voice = pick_voice_slot(track_state);
 
-            if (track_index >= pattern->track_count) {
-                track_state[track_index].ready = 0;
-                continue;
-            }
-
-            track = &pattern->tracks[track_index];
-            if (track->instrument < 0 || track->instrument >= song->instrument_count) {
-                track_state[track_index].ready = 0;
-                continue;
-            }
-
-            step = &track->steps[timeline_step->pattern_step];
-            if (step->note == SEQ_NOTE_REST || step->velocity == 0) {
-                track_state[track_index].ready = 0;
-                continue;
-            }
-
-            instrument = &song->instruments[track->instrument];
-            amplitude = track_amplitude(song, track, step, timeline_step->pattern_step);
-            step_state[track_index].active = 1;
-            step_state[track_index].note_end = (samples_this_step * track_gate(instrument, step)) / 100;
-            step_state[track_index].fx_bus = instrument->fx_send;
-            step_state[track_index].fx_trigger = step->fx_trigger;
-
-            if (!track_state[track_index].ready ||
-                track_state[track_index].instrument != track->instrument ||
-                track_state[track_index].note != step->note ||
-                track_state[track_index].amplitude != amplitude) {
-                dsp_osc_init(&track_state[track_index].osc,
-                             (DspWaveform)instrument->oscillator, amplitude);
-                dsp_osc_set_frequency(&track_state[track_index].osc,
-                                      midi_note_to_freq(step->note), sample_rate);
-                if (instrument->oscillator == DSP_WAVE_PULSE)
-                    dsp_osc_set_pulse_width_percent(&track_state[track_index].osc,
-                                                    clampi(instrument->duty_cycle, 1, 99));
-                track_state[track_index].ready = 1;
-                track_state[track_index].instrument = track->instrument;
-                track_state[track_index].note = step->note;
-                track_state[track_index].amplitude = amplitude;
-            }
+            voice_init(voice, instrument, sample_rate, amp, target_freq,
+                       track_state->last_freq, gate_samples, event->instrument_index,
+                       event->note, event->fx_trigger);
+            track_state->last_freq = target_freq;
         }
 
         for (int i = 0; i < samples_this_step; i++) {
             int val = 128;
-
             memset(fx_bus_levels, 0, sizeof(fx_bus_levels));
-            for (int track_index = 0; track_index < timeline->max_track_count; track_index++) {
-                int sample;
-                int fx_bus;
-                if (!step_state[track_index].active || i >= step_state[track_index].note_end)
-                    continue;
-                sample = dsp_osc_next(&track_state[track_index].osc);
-                val += sample;
 
-                fx_bus = step_state[track_index].fx_bus;
-                if (step_state[track_index].fx_trigger > 0 &&
-                    fx_bus >= 0 && fx_bus < song->fx_bus_count) {
-                    const SeqFxBus *bus = &song->fx_buses[fx_bus];
-                    int drive = clampi(bus->drive, 0, 200);
-                    fx_bus_levels[fx_bus] += (sample * step_state[track_index].fx_trigger * drive) / 10000;
+            for (int track_index = 0; track_index < timeline->max_track_count; track_index++) {
+                for (int v = 0; v < MIX_VOICES_PER_TRACK; v++) {
+                    MixVoiceState *voice = &tracks[track_index].voices[v];
+                    int sample;
+                    if (!voice->active) continue;
+                    sample = voice_next(voice);
+                    val += sample;
+                    if (voice->fx_trigger > 0 &&
+                        voice->fx_bus >= 0 && voice->fx_bus < song->fx_bus_count) {
+                        const SeqFxBus *bus = &song->fx_buses[voice->fx_bus];
+                        int drive = clampi(bus->drive, 0, 200);
+                        fx_bus_levels[voice->fx_bus] += (sample * voice->fx_trigger * drive) / 10000;
+                    }
                 }
             }
 

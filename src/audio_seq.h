@@ -2,6 +2,7 @@
 #define MEMDECK_AUDIO_SEQ_H
 
 #include <stdint.h>
+#include "audio_dsp.h"
 
 #define SEQ_MAX_STEPS        64
 #define SEQ_MAX_TRACKS       4
@@ -19,13 +20,20 @@ typedef struct {
 } SeqFxBus;
 
 typedef struct {
-    int oscillator;
-    int envelope_gate;
-    int modulation;
-    int fx_send;
-    int duty_cycle;
-    int accent_gain;
+    int waveform;
     int amplitude;
+    int pulse_width;
+    DspEnvelope envelope;
+    int detune_cents;
+    int vibrato_depth_cents;
+    int vibrato_rate;
+    int pwm_depth;
+    int pwm_rate;
+    int glide_ms;
+    int noise_mode;
+    int stacked_voices;
+    int fx_send;
+    int accent_gain;
 } SeqInstrument;
 
 typedef struct {
@@ -76,7 +84,24 @@ typedef struct {
     SeqTimelineStep steps[SEQ_MAX_TIMELINE_STEPS];
 } SeqTimeline;
 
+typedef struct {
+    int active;
+    int track_index;
+    int instrument_index;
+    int note;
+    int velocity;
+    int accent;
+    int fx_trigger;
+    int gate_percent;
+    int duration_samples;
+    int step_index;
+} SeqNoteEvent;
+
+#define SEQ_MAX_STEP_EVENTS SEQ_MAX_TRACKS
+
 int seq_song_total_steps(const SeqSong *song);
 int seq_compile_timeline(const SeqSong *song, int sample_rate, SeqTimeline *timeline);
+int seq_collect_step_events(const SeqSong *song, const SeqTimeline *timeline,
+                            int absolute_step, SeqNoteEvent events[SEQ_MAX_STEP_EVENTS]);
 
 #endif

@@ -8,8 +8,8 @@
 
 ## Layered structure
 - `src/audio_song_builtin.c` = built-in retro song definitions using reusable song/pattern/track/step data.
-- `src/audio_seq.c/.h` = portable sequencing layer with arrangement expansion, pattern chaining, tempo timing, and swing.
-- `src/audio_mix.c/.h` = portable PCM renderer that consumes sequencer timelines and instrument data.
+- `src/audio_seq.c/.h` = portable sequencing layer with arrangement expansion, pattern chaining, tempo timing, swing, and note-event emission.
+- `src/audio_mix.c/.h` = portable PCM renderer that consumes sequencer note events with instrument + envelope + modulation state.
 - `src/audio_dsp.c/.h` = low-level oscillator/timing/profile primitives.
 - `src/abc.c` = ABC parsing + ABC-specific render path.
 - `src/sound.c` = native output backend (`fork`, `pipe`, `aplay`) and SFX orchestration.
@@ -76,7 +76,9 @@ classDiagram
 
 ## Mixing model
 - Mono U8 PCM centered at 128.
-- Each active track owns one oscillator state that can continue across repeated notes.
+- Mixer tracks own lightweight voice slots, enabling release tails and overlapping notes.
+- Voices render with `DspOscillator` + `DspEnvelopeRuntime` per sample.
+- Optional modulation is applied in the mixer: vibrato, PWM, detune stack, glide.
 - Velocity, gate, accent, and per-track automation shape note output before sample summing.
 - FX buses stay intentionally lightweight: they are simple per-sample send accumulators instead of a heavyweight realtime effects graph.
 
@@ -88,8 +90,8 @@ sequenceDiagram
     participant DSP
     participant Backend as sound.c
     Song->>Seq: seq_compile_timeline()
-    Seq-->>Mix: SeqTimeline
-    Mix->>DSP: oscillator setup / sample stepping
+    Seq->>Mix: seq_collect_step_events()
+    Mix->>DSP: oscillator setup + envelope stepping
     DSP-->>Mix: signed voice samples
     Mix-->>Backend: rendered PCM loop
     Backend->>Backend: fork writer + pipe to aplay

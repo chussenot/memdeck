@@ -107,3 +107,48 @@ int seq_compile_timeline(const SeqSong *song, int sample_rate, SeqTimeline *time
     timeline->max_track_count = max_track_count;
     return 0;
 }
+
+int seq_collect_step_events(const SeqSong *song, const SeqTimeline *timeline,
+                            int absolute_step, SeqNoteEvent events[SEQ_MAX_STEP_EVENTS])
+{
+    const SeqTimelineStep *timeline_step;
+    const SeqPattern *pattern;
+    int count = 0;
+
+    if (!song || !timeline || !events) return 0;
+    if (absolute_step < 0 || absolute_step >= timeline->total_steps) return 0;
+
+    memset(events, 0, sizeof(SeqNoteEvent) * SEQ_MAX_STEP_EVENTS);
+    timeline_step = &timeline->steps[absolute_step];
+    pattern = &song->patterns[timeline_step->pattern_index];
+
+    for (int track_index = 0; track_index < pattern->track_count && count < SEQ_MAX_STEP_EVENTS; track_index++) {
+        const SeqTrack *track = &pattern->tracks[track_index];
+        const SeqStep *step = &track->steps[timeline_step->pattern_step];
+        const SeqInstrument *instrument;
+        int gate;
+
+        if (track->instrument < 0 || track->instrument >= song->instrument_count)
+            continue;
+        if (step->note == SEQ_NOTE_REST || step->velocity <= 0)
+            continue;
+
+        instrument = &song->instruments[track->instrument];
+        gate = (step->gate > 0 ? step->gate : instrument->envelope.gate_percent);
+        gate = clampi(gate, 1, 100);
+
+        events[count].active = 1;
+        events[count].track_index = track_index;
+        events[count].instrument_index = track->instrument;
+        events[count].note = step->note;
+        events[count].velocity = step->velocity;
+        events[count].accent = step->accent;
+        events[count].fx_trigger = step->fx_trigger;
+        events[count].gate_percent = gate;
+        events[count].duration_samples = timeline_step->samples;
+        events[count].step_index = timeline_step->pattern_step;
+        count++;
+    }
+
+    return count;
+}
