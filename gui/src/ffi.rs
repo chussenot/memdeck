@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_double, c_int};
 use std::path::Path;
+use std::ptr;
 use std::slice;
 use std::sync::{LazyLock, Mutex};
 
@@ -184,33 +185,83 @@ unsafe extern "C" {
 static LAST_RENDER_STATS: LazyLock<Mutex<Option<AudioRenderStats>>> =
     LazyLock::new(|| Mutex::new(None));
 
-fn copy_and_release_buffer(buffer: *mut u8, len: c_int) -> Result<Vec<u8>, String> {
-    if buffer.is_null() || len <= 0 {
-        return Err("audio render failed or returned empty PCM buffer".to_string());
+struct RenderedBuffer {
+    ptr: *mut u8,
+    len: usize,
+}
+
+impl RenderedBuffer {
+    fn from_raw(ptr: *mut u8, len: c_int) -> Result<Self, String> {
+        if ptr.is_null() {
+            return Err("render failure: engine returned a null PCM buffer".to_string());
+        }
+        if len <= 0 {
+            free_buffer(ptr);
+            return Err("render failure: engine returned an empty PCM buffer".to_string());
+        }
+
+        Ok(Self {
+            ptr,
+            len: len as usize,
+        })
     }
 
-    let samples = unsafe {
-        let slice = slice::from_raw_parts(buffer as *const u8, len as usize);
-        slice.to_vec()
-    };
+    fn into_vec(mut self) -> Vec<u8> {
+        let samples = unsafe {
+            let slice = slice::from_raw_parts(self.ptr as *const u8, self.len);
+            slice.to_vec()
+        };
+        self.release();
+        samples
+    }
 
-    free_buffer(buffer);
-    Ok(samples)
+    fn release(&mut self) {
+        if !self.ptr.is_null() {
+            free_buffer(self.ptr);
+            self.ptr = ptr::null_mut();
+        }
+    }
+}
+
+impl Drop for RenderedBuffer {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+fn normalized_demo_path(path: &Path) -> Result<String, String> {
+    if !path.exists() {
+        return Err(format!("missing demo file: {}", path.display()));
+    }
+    if !path.is_file() {
+        return Err(format!("demo path is not a file: {}", path.display()));
+    }
+
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| format!("demo path is not valid UTF-8: {}", path.display()))?;
+    CString::new(path_str)
+        .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
+    Ok(path_str.to_string())
 }
 
 pub fn render_abc_file(path: &Path) -> Result<Vec<u8>, String> {
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| "demo path is not valid UTF-8".to_string())?;
-    let c_path = CString::new(path_str).map_err(|_| "demo path contains NUL byte".to_string())?;
+    let path_str = normalized_demo_path(path)?;
+    let c_path = CString::new(path_str.clone())
+        .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
 
-    let mut pcm_len = 0;
-    let mut stats = AudioRenderStats::default();
+    let render_result = std::panic::catch_unwind(|| {
+        let mut pcm_len = 0;
+        let mut stats = AudioRenderStats::default();
+        let buffer = unsafe {
+            audio_engine_render_abc_file(c_path.as_ptr(), SAMPLE_RATE_ABC, &mut pcm_len, &mut stats)
+        };
+        (buffer, pcm_len, stats)
+    });
 
-    let buffer = unsafe {
-        audio_engine_render_abc_file(c_path.as_ptr(), SAMPLE_RATE_ABC, &mut pcm_len, &mut stats)
-    };
-    let samples = copy_and_release_buffer(buffer, pcm_len)?;
+    let (buffer, pcm_len, stats) = render_result
+        .map_err(|_| format!("render failure: engine call panicked for {}", path.display()))?;
+    let samples = RenderedBuffer::from_raw(buffer, pcm_len)?.into_vec();
 
     if let Ok(mut last_stats) = LAST_RENDER_STATS.lock() {
         *last_stats = Some(stats);
@@ -220,13 +271,13 @@ pub fn render_abc_file(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 pub fn load_demo_overview(path: &Path) -> Result<DemoOverview, String> {
-    let path_str = path
-        .to_str()
-        .ok_or_else(|| "demo path is not valid UTF-8".to_string())?;
-    let c_path = CString::new(path_str).map_err(|_| "demo path contains NUL byte".to_string())?;
+    let path_str = normalized_demo_path(path)?;
+    let c_path = CString::new(path_str)
+        .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
     let mut music = AbcMusic::default();
 
-    let result = unsafe { abc_load(c_path.as_ptr(), &mut music) };
+    let result = std::panic::catch_unwind(|| unsafe { abc_load(c_path.as_ptr(), &mut music) })
+        .map_err(|_| format!("invalid ABC: parser panicked for {}", path.display()))?;
     if result != 0 {
         return Err(format!("invalid ABC or unreadable demo: {}", path.display()));
     }

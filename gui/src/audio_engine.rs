@@ -52,8 +52,10 @@ pub struct DemoEntry {
 pub struct RenderState {
     pub demo_key: String,
     pub samples: Vec<u8>,
-    pub stats: Option<ffi::AudioRenderStats>,
+    pub stats: Option<AudioRenderStats>,
 }
+
+pub type AudioRenderStats = ffi::AudioRenderStats;
 
 #[derive(Default)]
 pub struct GuiAudioEngine;
@@ -103,4 +105,67 @@ fn repository_root() -> PathBuf {
         .join("..")
         .canonicalize()
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn demo_catalog_loads() {
+        let engine = GuiAudioEngine::new();
+        let catalog = engine.demo_catalog();
+
+        assert!(!catalog.is_empty(), "demo catalog should not be empty");
+        assert!(
+            catalog.iter().any(|entry| entry.key == "dark_moroder"),
+            "catalog should include dark_moroder"
+        );
+    }
+
+    #[test]
+    fn invalid_path_fails_cleanly() {
+        let engine = GuiAudioEngine::new();
+        let invalid = PathBuf::from("/definitely/not/a/real/memdeck-demo.abc");
+
+        let result = engine.render_demo("missing_demo", &invalid);
+        assert!(result.is_err(), "missing file should return an error");
+        let error = result.err().unwrap_or_default();
+        assert!(
+            error.contains("missing demo file"),
+            "error should mention missing demo file, got: {error}"
+        );
+    }
+
+    #[test]
+    fn render_valid_demo_succeeds() {
+        let engine = GuiAudioEngine::new();
+        let demo = engine
+            .demo_catalog()
+            .into_iter()
+            .find(|entry| entry.key == "dark_moroder" && entry.overview.is_some())
+            .expect("dark_moroder demo should be available");
+
+        let render = engine
+            .render_demo(&demo.key, &demo.path)
+            .expect("valid demo should render");
+        assert!(!render.samples.is_empty(), "rendered sample buffer should be non-empty");
+    }
+
+    #[test]
+    fn repeated_render_does_not_crash() {
+        let engine = GuiAudioEngine::new();
+        let demo = engine
+            .demo_catalog()
+            .into_iter()
+            .find(|entry| entry.key == "dark_moroder" && entry.overview.is_some())
+            .expect("dark_moroder demo should be available");
+
+        for _ in 0..3 {
+            let render = engine
+                .render_demo(&demo.key, &demo.path)
+                .expect("repeated render should succeed");
+            assert!(!render.samples.is_empty(), "rendered sample buffer should be non-empty");
+        }
+    }
 }

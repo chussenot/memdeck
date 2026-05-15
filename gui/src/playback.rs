@@ -7,31 +7,63 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::ffi::SAMPLE_RATE_ABC;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PlaybackState {
+    Stopped,
+    Playing,
+    Error(String),
+}
+
+impl Default for PlaybackState {
+    fn default() -> Self {
+        Self::Stopped
+    }
+}
+
 #[derive(Default)]
 pub struct PlaybackController {
     child: Option<Child>,
     temp_path: Option<PathBuf>,
+    state: PlaybackState,
 }
 
 impl PlaybackController {
     pub fn is_playing(&self) -> bool {
-        self.child.is_some()
+        matches!(self.state, PlaybackState::Playing)
     }
 
-    pub fn start(&mut self, samples: &[u8]) -> Result<(), String> {
+    pub fn state(&self) -> &PlaybackState {
+        &self.state
+    }
+
+    pub fn start_pcm(&mut self, samples: &[u8]) -> Result<(), String> {
+        if samples.is_empty() {
+            let message = "empty PCM buffer".to_string();
+            self.state = PlaybackState::Error(message.clone());
+            return Err(message);
+        }
+
         self.stop().map_err(|err| format!("could not reset playback: {err}"))?;
 
         let path = playback_temp_path();
         write_wav_u8_mono(&path, samples, SAMPLE_RATE_ABC as u32)
             .map_err(|err| format!("could not write playback buffer: {err}"))?;
 
-        let mut command = playback_command(&path)?;
-        let child = command
-            .spawn()
-            .map_err(|err| format!("could not start playback command: {err}"))?;
-
+        self.start_wav(&path)?;
         self.temp_path = Some(path);
+        Ok(())
+    }
+
+    pub fn start_wav(&mut self, path: &Path) -> Result<(), String> {
+        let mut command = playback_command(&path)?;
+        let child = command.spawn().map_err(|err| {
+            let message = format!("could not start playback command: {err}");
+            self.state = PlaybackState::Error(message.clone());
+            message
+        })?;
+
         self.child = Some(child);
+        self.state = PlaybackState::Playing;
         Ok(())
     }
 
@@ -43,6 +75,7 @@ impl PlaybackController {
             if let Err(err) = child.kill() {
                 if err.kind() != io::ErrorKind::InvalidInput {
                     self.cleanup_temp_file();
+                    self.state = PlaybackState::Error(err.to_string());
                     return Err(err.to_string());
                 }
             }
@@ -50,6 +83,7 @@ impl PlaybackController {
         }
 
         self.cleanup_temp_file();
+        self.state = PlaybackState::Stopped;
         Ok(stopped)
     }
 
@@ -61,7 +95,9 @@ impl PlaybackController {
                 Err(err) => {
                     self.child = None;
                     self.cleanup_temp_file();
-                    return Some(Err(format!("could not poll playback process: {err}")));
+                    let message = format!("could not poll playback process: {err}");
+                    self.state = PlaybackState::Error(message.clone());
+                    return Some(Err(message));
                 }
             },
             None => return None,
@@ -71,9 +107,12 @@ impl PlaybackController {
         self.cleanup_temp_file();
 
         if status.success() {
+            self.state = PlaybackState::Stopped;
             Some(Ok(()))
         } else {
-            Some(Err(format!("playback exited with status {status}")))
+            let message = format!("playback exited with status {status}");
+            self.state = PlaybackState::Error(message.clone());
+            Some(Err(message))
         }
     }
 
@@ -149,4 +188,41 @@ fn write_wav_u8_mono(path: &Path, pcm: &[u8], sample_rate: u32) -> io::Result<()
     file.write_all(&data_size.to_le_bytes())?;
     file.write_all(pcm)?;
     file.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_state_is_stopped() {
+        let playback = PlaybackController::default();
+        assert_eq!(playback.state(), &PlaybackState::Stopped);
+        assert!(!playback.is_playing());
+    }
+
+    #[test]
+    fn empty_pcm_start_sets_error_state() {
+        let mut playback = PlaybackController::default();
+        let result = playback.start_pcm(&[]);
+
+        assert!(result.is_err());
+        assert!(matches!(playback.state(), PlaybackState::Error(_)));
+    }
+
+    #[test]
+    fn stop_transitions_to_stopped_state() {
+        let mut playback = PlaybackController::default();
+        let _ = playback.start_pcm(&[]);
+        let _ = playback.stop();
+
+        assert_eq!(playback.state(), &PlaybackState::Stopped);
+    }
+
+    #[test]
+    fn poll_when_stopped_returns_none() {
+        let mut playback = PlaybackController::default();
+        assert!(playback.poll().is_none());
+        assert_eq!(playback.state(), &PlaybackState::Stopped);
+    }
 }
