@@ -1,65 +1,48 @@
 # MemDeck GUI Inspector
 
-The MemDeck GUI inspector surfaces runtime metadata about the selected demo. It is strictly read-only — no parameter editing is possible.
+The inspector surface is split into two dedicated read-only panels driven by the selected track.
 
-## Current Inspector Surface (Render Stats Panel)
+## Track selection
 
-The `RENDER STATS` panel acts as the primary inspector. It displays:
+- `Up` / `Down` change the selected track whenever focus is outside the Demo Browser
+- the Pattern Overview highlights the selected row
+- both inspectors stay locked to the same selected track
 
-| Field | Source | Description |
-|---|---|---|
-| demo | `DemoEntry.key` | Short name of the selected demo |
-| bpm | `DemoOverview.bpm` | Tempo in beats per minute |
-| swing | `DemoOverview.swing_pct` | Swing percentage (50 = straight) |
-| duration | `AudioRenderStats.duration_ms` | Total rendered duration in ms |
-| samples | `AudioRenderStats.sample_count` | Total PCM sample count |
-| clipping | `AudioRenderStats.clipping_count` | Number of clipped samples (red if > 0) |
-| peak | `AudioRenderStats.peak` | Peak PCM amplitude value |
-| min/max | `AudioRenderStats.min_sample` / `max_sample` | Amplitude range |
-| render ms | `AudioRenderStats.render_time_ms` | C engine wall time for PCM generation |
-| checksum | `AudioRenderStats.checksum` | Deterministic render fingerprint |
-| render | derived | `success` (green) or `pending` (dim) |
+## Instrument Inspector
 
-Stats are populated after a successful render (`Enter`). Fields show `--` before the first render.
+The instrument panel shows selected-track voice metadata from `TrackOverview`:
 
-A compact summary line below the grid shows:
+- waveform glyph + waveform name
+- amplitude meter
+- duty meter
+- gate meter
+- ADSR scope
+- glide meter
+- vibrato depth/rate meter
+- detune meter
+- preset label when present
 
-```
-PATTERNS N • STEPS N • TRACKS N
-```
+All visuals are non-interactive. They are diagnostic only.
 
-And if voices exceed the renderer limit:
+## FX Inspector
 
-```
-RENDERER SHOWS FIRST N TRACKS • N HIDDEN
-```
+The FX panel shows the selected track's routed bus from `FxBusOverview`:
 
-## Playback State
+- bus index
+- active / bypass state
+- delay meter with steps / feedback / mix
+- drive meter
+- low-pass meter
+- sidechain meter with release
+- bus mix meter
 
-The panel also shows the current playback state:
+## Data source
 
-- `STATE  PLAYING` (ACCENT green) — audio process is active
-- `STATE  IDLE` (TEXT_DIM) — no audio process running
+`gui/src/ffi.rs` extracts track and bus detail from `AbcMusic` and normalizes it into GUI-facing structs. The GUI does not mutate any of this data.
 
-## No Instrument / FX Inspector
+## Explicit non-goals
 
-The current implementation does not render a dedicated instrument or FX inspector panel. The ABC metadata for instruments (`AbcInstrument`) and FX buses (`AbcFxBus`) is parsed via `ffi.rs` but not currently forwarded to the UI beyond the `instrument` field on each `TrackOverview` (shown in the pattern label column as `track / instrument_ref`).
-
-Future expansion of the inspector (without editing) would surface:
-
-- waveform type (square/pulse/triangle/noise)
-- ADSR envelope values
-- gate/duty cycle
-- vibrato cents and rate
-- glide ms
-- FX bus assignment
-- FX bus parameters (delay, drive, lowpass, sidechain)
-
-This would require extending `DemoOverview` with per-voice and per-bus detail structs, populated from `AbcInstrument` and `AbcFxBus` in `build_demo_overview()`.
-
-## Design Constraints
-
-- All fields are labels — no interactive widgets.
-- No editing of any parameter.
-- No ADSR graph or oscilloscope widget.
-- Compact monospace grid only.
+- no knobs, sliders, or editable fields
+- no oscilloscope editing surface
+- no tracker instrument editor
+- no DAW mixer behavior

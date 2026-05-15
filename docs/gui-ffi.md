@@ -2,66 +2,50 @@
 
 ## Rust/C boundary
 
-The GUI crate (`gui/`) calls the C audio engine through `gui/src/ffi.rs` only.
+Only `gui/src/ffi.rs` crosses the unsafe boundary.
 
-Rust invokes:
+Rust calls:
 
-- `audio_engine_render_abc_file(path, sample_rate, out_len, out_stats) -> *mut u8`
+- `audio_engine_render_abc_file(path, sample_rate, out_len, out_stats)`
 - `audio_engine_free_buffer(buffer)`
 - `abc_load(path, music_out)`
 
-No other GUI module performs direct FFI calls.
+No UI code performs direct FFI calls.
+
+## Metadata extraction
+
+`abc_load` is used to build the read-only GUI overview before any render occurs. The FFI layer converts `AbcMusic` into:
+
+- `DemoOverview`
+- `TrackOverview`
+- `FxBusOverview`
+- `PatternBlock`
+- `StepState`
+
+This is where waveform names, inferred beat markers, arrangement blocks, and bus details are normalized for the GUI.
 
 ## Memory ownership
 
-Rendered audio memory is allocated by the C engine and returned as a raw pointer.
+Rendered PCM is allocated by the C engine.
 
-- C owns allocation.
-- Rust must always release returned buffers with `audio_engine_free_buffer`.
-- `ffi.rs` wraps returned pointers in an internal owned buffer type with `Drop`, so release still happens on early errors.
+1. Rust validates the path and converts it to a C string.
+2. Rust calls the C renderer.
+3. The returned raw pointer is wrapped in an owned helper with `Drop`.
+4. PCM is copied into Rust-owned memory.
+5. The original C allocation is always freed.
+6. The latest `AudioRenderStats` snapshot is cached for the UI.
 
-## Buffer lifecycle
+## Playback boundary
 
-Render path (`ffi::render_abc_file`):
+`gui/src/playback.rs` is intentionally outside the FFI layer.
 
-1. Validate path (exists, file, UTF-8, no interior NUL for C string).
-2. Call C renderer.
-3. Wrap raw pointer + length in owned Rust wrapper.
-4. Copy to `Vec<u8>` for GUI/runtime ownership.
-5. Free original C buffer.
-6. Store latest `AudioRenderStats` snapshot.
+- rendered PCM becomes a temporary mono 8-bit WAV
+- the GUI spawns `afplay`, `SoundPlayer`, or `aplay`
+- playback progress is tracked from process start + expected duration
+- stop/poll always clean up the child process and temp file
 
-Failure behavior:
+## Limitations
 
-- Null pointer, invalid length, invalid path, CString conversion failure, and parser/render errors return `Result::Err`.
-- Failed render paths do not leak the C buffer.
-
-## Render flow
-
-1. `GuiAudioEngine::demo_catalog` discovers showcase demo files and tries `ffi::load_demo_overview`.
-2. `GuiAudioEngine::render_demo` calls `ffi::render_abc_file`.
-3. App stores render output (`RenderState`) separately from selected metadata.
-4. Status line shows success/error and checksum/stats when available.
-
-## Playback flow
-
-Playback is intentionally simple (`gui/src/playback.rs`):
-
-1. GUI requests playback of rendered PCM (`start_pcm`).
-2. PCM is written as a temporary mono 8-bit WAV at engine sample rate.
-3. Platform command is spawned (`afplay`, PowerShell `SoundPlayer`, or `aplay`).
-4. UI polls process status (`poll`) without blocking the frame loop.
-5. Stop uses process kill + cleanup (`stop`), and temp file is removed.
-
-`PlaybackState` exposed to UI:
-
-- `Stopped`
-- `Playing`
-- `Error(String)`
-
-## Known limitations
-
-- Playback relies on external system audio commands.
-- WAV wrapping is used for portability; no real-time low-latency mixer is implemented in Rust.
-- GUI keeps C engine as source of truth for rendering and statistics.
-- This layer is render/playback only (no tracker, editor, piano roll, or DAW behavior).
+- playback depends on platform audio tools
+- no low-latency Rust mixer is introduced
+- metadata is for inspection only; the GUI never edits the C structures

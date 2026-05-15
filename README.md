@@ -4,6 +4,46 @@
 
 A terminal-first trainer for memorized decks used by card magicians. Practice card-at-position, position-of-card, next/previous card drills, suit and value drills — all from your terminal with chiptune sounds, rainbow animations, and mouse support.
 
+## Rust GUI Status
+
+MemDeck also includes a **read-only Rust GUI** in `gui/` for browsing and rendering the showcase synth demos.
+
+- Atari/ST-inspired composition workstation presentation
+- demo browser, render stats, waveform view, pattern overview, instrument inspector, FX inspector
+- keyboard-first runtime UX
+- strictly **read-only** — no tracker editing, no piano roll, no arrangement editing, no DAW behavior
+
+### Run the GUI
+
+```sh
+make gui-check
+make gui-test
+make gui-run
+```
+
+On headless Linux environments:
+
+```sh
+xvfb-run -a cargo run --manifest-path gui/Cargo.toml
+```
+
+### GUI Keybindings
+
+| Key | Action |
+| --- | --- |
+| `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
+| `Enter` | Render selected demo |
+| `Space` | Start or stop playback |
+| `Esc` | Stop playback |
+| `Tab` | Cycle focus across GUI panels |
+| `D` / `S` / `W` / `P` / `I` / `F` | Focus Demo Browser / Render Stats / Waveform / Pattern / Instrument / FX panels |
+
+### GUI Limitations
+
+- playback uses simple rendered-WAV handoff to the host audio command
+- the GUI is a runtime shell over the existing C renderer, not a new editor architecture
+- screenshots and architecture notes live under `docs/gui-*.md`
+
 ## Quick Start
 
 ```sh
@@ -115,6 +155,9 @@ Custom stacks are stored in `~/.local/share/memdeck/stacks/`.
 make          # Show help (default)
 make all      # Build the binary
 make test     # Run test suite
+make gui-check # Check the Rust GUI crate
+make gui-test  # Test the Rust GUI crate
+make gui-run   # Launch the Rust GUI crate
 make render-demos  # Render all showcase tracks with deterministic metrics
 make play-demo DEMO=dark_moroder  # Render one demo quickly
 make test-audio-seq  # Run sequencer regression tests
@@ -161,6 +204,7 @@ memdeck/
   docs/
     composer-guide.md  Composition workflow and preset guidance
     showcase-tracks.md Showcase track notes and catalog
+    gui-*.md          Rust GUI architecture, layout, runtime, and design docs
   tests/             Shell-based test scripts
   Makefile
 ```
