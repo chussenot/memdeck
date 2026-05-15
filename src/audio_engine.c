@@ -1,7 +1,8 @@
-#include "memdeck.h"
+#include "audio_engine.h"
 #include "audio_fx.h"
 #include "audio_mix.h"
 #include "audio_song_builtin.h"
+#include "memdeck.h"
 
 #include <stdlib.h>
 #include <string.h>

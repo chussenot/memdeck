@@ -1,15 +1,15 @@
 #include "memdeck.h"
+#include "audio_engine.h"
 #include "audio_dsp.h"
 #include <signal.h>
 #include <sys/wait.h>
 
 /*
- * Chiptune sound engine.
+ * Native audio backend.
  *
  * SFX:  short one-shot sounds (success/fail) forked and forgotten.
- * Music: looping background track with parent-owned pipe for reliable stop.
- *
- * All audio is generated as unsigned 8-bit PCM square waves and piped to aplay.
+ * Music: looping background track, PCM rendered via audio_engine.h,
+ *        streamed to aplay through a parent-owned pipe for reliable stop.
  */
 
 #define SAMPLE_RATE 22050
@@ -210,8 +210,10 @@ static unsigned char *music_try_track(int *out_len, const char *music_dir,
     AbcMusic music;
 
     if (abc_load_voices(paths, 3, &music) == 0 && music.voice_count > 0) {
+        SeqSong song;
         snprintf(music_track_title, sizeof(music_track_title), "%.127s", music.title);
-        return abc_generate_pcm(&music, out_len);
+        if (abc_build_seq_song(&music, &song) != 0) return NULL;
+        return audio_engine_render_song(&song, SAMPLE_RATE, out_len, NULL);
     }
     return NULL;
 }
