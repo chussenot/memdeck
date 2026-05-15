@@ -225,9 +225,7 @@ static void test_builtin_render_fx_disabled(void)
     int pcm_len = 0;
     uint64_t checksum;
 
-    for (int i = 0; i < song.fx_bus_count; i++) {
-        memset(&song.fx_buses[i], 0, sizeof(song.fx_buses[i]));
-    }
+    memset(song.fx_buses, 0, sizeof(SeqFxBus) * (size_t)song.fx_bus_count);
     pcm = audio_mix_render_song(&song, 22050, &pcm_len);
     check_true("builtin_fx_off_pcm_alloc", pcm != NULL);
     if (!pcm) return;
