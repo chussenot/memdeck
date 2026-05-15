@@ -24,6 +24,8 @@ static const int note_semitones[7] = { 0, 2, 4, 5, 7, 9, 11 };
 #define ABC_EFFECT_DRIVE "drive"
 #define ABC_EFFECT_LOWPASS "lowpass"
 #define ABC_TO_SEQ_AMP_PCT 60
+#define ABC_DEFAULT_SIDECHAIN_RELEASE_MS 180
+#define ABC_DEFAULT_FX_BUS_COUNT 1
 
 /*
  * Precomputed MIDI note frequencies (Hz).
@@ -691,11 +693,11 @@ int abc_load(const char *path, AbcMusic *music)
     music->voice_count = 0;
     music->bpm = 120;
     music->swing_pct = 0;
-    music->fx_sidechain_release_ms = 180;
+    music->fx_sidechain_release_ms = ABC_DEFAULT_SIDECHAIN_RELEASE_MS;
     music->instrument_count = 0;
     music->pattern_count = 0;
     music->arrangement_length = 0;
-    music->fx_bus_count = 1; /* at least one FX bus for backward compat */
+    music->fx_bus_count = ABC_DEFAULT_FX_BUS_COUNT; /* at least one FX bus for backward compat */
     
     /* Initialize default FX bus (bus 0) */
     memset(&music->fx_buses[0], 0, sizeof(AbcFxBus));
@@ -1030,8 +1032,8 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
     memset(music, 0, sizeof(*music));
     music->bpm = 120;
     music->step_ms = 125;
-    music->fx_sidechain_release_ms = 180;
-    music->fx_bus_count = 1;
+    music->fx_sidechain_release_ms = ABC_DEFAULT_SIDECHAIN_RELEASE_MS;
+    music->fx_bus_count = ABC_DEFAULT_FX_BUS_COUNT;
 
     for (int i = 0; i < path_count && i < ABC_MAX_VOICES; i++) {
         AbcMusic single;
@@ -1117,7 +1119,7 @@ int abc_build_seq_song(const AbcMusic *music, SeqSong *song)
     }
 
     song->fx_bus_count = music->fx_bus_count;
-    if (song->fx_bus_count < 1) song->fx_bus_count = 1;
+    if (song->fx_bus_count < 1) song->fx_bus_count = ABC_DEFAULT_FX_BUS_COUNT;
     if (song->fx_bus_count > SEQ_MAX_FX_BUSES) song->fx_bus_count = SEQ_MAX_FX_BUSES;
     for (int i = 0; i < song->fx_bus_count; i++) {
         const AbcFxBus *src = &music->fx_buses[i];
@@ -1129,7 +1131,7 @@ int abc_build_seq_song(const AbcMusic *music, SeqSong *song)
         dst->drive_amount = dsp_clampi(src->drive_amount, 0, 100);
         dst->lowpass_amount = dsp_clampi(src->lowpass_amount, 0, 100);
         dst->sidechain_amount = dsp_clampi(src->sidechain_amount, 0, 100);
-        dst->sidechain_release_ms = dsp_clampi(src->sidechain_release_ms > 0 ? src->sidechain_release_ms : 180, 10, 2000);
+        dst->sidechain_release_ms = dsp_clampi(src->sidechain_release_ms > 0 ? src->sidechain_release_ms : ABC_DEFAULT_SIDECHAIN_RELEASE_MS, 10, 2000);
         dst->mix_percent = dsp_clampi(src->mix_percent > 0 ? src->mix_percent : 100, 0, 100);
     }
 
