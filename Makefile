@@ -10,8 +10,9 @@ TEST_DSP     = bin/test-audio-dsp
 TEST_ABC_BIN = bin/test-abc
 TEST_SEQ_BIN = bin/test-audio-seq
 RENDER_DEMOS_BIN = bin/render-demos
+PLAY_DEMO_BIN = bin/play-demo
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo help
 
 .DEFAULT_GOAL := help
 
@@ -24,7 +25,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -89,6 +90,26 @@ $(RENDER_DEMOS_BIN): tests/render_demos.c src/abc.c src/audio_mix.c src/audio_se
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
+play-demo:
+	@if [ -z "$(DEMO)" ]; then \
+		echo "Usage: make play-demo DEMO=name [WAV=1]"; \
+		echo "Examples:"; \
+		echo "  make play-demo DEMO=dark_moroder"; \
+		echo "  make play-demo DEMO=neon_nightdrive WAV=1"; \
+		exit 1; \
+	fi
+	@$(MAKE) --no-print-directory -B $(PLAY_DEMO_BIN)
+	@if [ "$(WAV)" = "1" ]; then \
+		mkdir -p bin/wav; \
+		$(PLAY_DEMO_BIN) "$(DEMO)" --wav "bin/wav/$(DEMO).wav"; \
+	else \
+		$(PLAY_DEMO_BIN) "$(DEMO)"; \
+	fi
+
+$(PLAY_DEMO_BIN): tests/play_demo.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $@ tests/play_demo.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
+
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
 	@echo ""
@@ -105,4 +126,5 @@ help:
 	@echo "  test-audio-seq Build and run sequencer regression tests"
 	@echo "  bench-audio Build and run audio microbenchmark"
 	@echo "  render-demos Render showcase ABC demos and print deterministic metrics"
+	@echo "  play-demo DEMO=name [WAV=1] Render a single demo and optionally export WAV"
 	@echo "  help       Show this help message (default)"

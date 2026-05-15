@@ -3,33 +3,75 @@ T:Multi-FX Bus Demo - Dual Processing
 C:MemDeck
 M:4/4
 L:1/16
-Q:1/4=135
+Q:1/4=134
 K:Dm
-%%swing 50
+%%swing 52
 %
-% Define instruments with different FX bus routing
-%%instrument dry_bass wave=pulse amp=90 duty=45 attack=3 decay=60 sustain=80 release=120 gate=75 fx=0
-%%instrument wet_synth wave=pulse amp=45 duty=20 attack=0 decay=15 sustain=55 release=35 gate=40 vibrato=10 fx=1
-%%instrument ambient_pad wave=triangle amp=30 attack=150 decay=180 sustain=90 release=450 gate=98 fx=1
+% instrument presets with explicit bus routing
+%%instrument kick wave=noise amp=60 attack=0 decay=9 sustain=8 release=12 gate=24 fx=0
+%%instrument dry_bass wave=pulse amp=88 duty=42 attack=2 decay=56 sustain=78 release=112 gate=74 fx=0
+%%instrument wet_synth wave=pulse amp=46 duty=20 attack=0 decay=14 sustain=54 release=34 gate=40 vibrato=11 fx=1
+%%instrument ambient_pad wave=triangle amp=32 attack=150 decay=180 sustain=90 release=420 gate=98 fx=1
+%%instrument hook wave=triangle amp=48 attack=48 decay=90 sustain=70 release=180 gate=84 vibrato=8 glide=12 fx=0
 %
-% Bus 0: Dry/punchy sound with light FX
-%%effect 0 delay_steps=2 delay_feedback=20 delay_mix=15 drive=30 lowpass=25 sidechain=50 sidechain_release=150 mix=90
+% bus 0 = punchy core
+%%effect 0 delay_steps=2 delay_feedback=20 delay_mix=14 drive=34 lowpass=26 sidechain=54 sidechain_release=150 mix=92
+% bus 1 = wet atmospheric lane
+%%effect 1 delay_steps=8 delay_feedback=58 delay_mix=52 drive=6 lowpass=64 sidechain=28 sidechain_release=240 mix=62
 %
-% Bus 1: Wet/ambient sound with heavy FX
-%%effect 1 delay_steps=8 delay_feedback=60 delay_mix=50 drive=5 lowpass=65 mix=60
-%
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
 V:bass instrument=dry_bass
 V:synth instrument=wet_synth
 V:pad instrument=ambient_pad
+V:hook instrument=hook
 %
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
 V:bass
-|: D,,4D,,4 D,,4D,,4 | _B,,4_B,,4 A,,4A,,4 |
-A,,4A,,4 A,,4A,,4 | A,,4A,,4 _B,,4D,,4 :|
-%
+% section intro
+| D,,2A,,2 D,,2A,,2 D,,2A,,2 D,,2A,,2 | _B,,2F,,2 _B,,2F,,2 A,,2E,,2 A,,2E,,2 |
+% section verse
+| D,,2A,,2 D,,2A,,2 C,,2G,,2 C,,2G,,2 | _B,,2F,,2 A,,2E,,2 _B,,2F,,2 D,,2A,,2 |
+% section bridge
+| A,,2E,,2 A,,2E,,2 C,,2G,,2 C,,2G,,2 | _B,,2F,,2 _B,,2F,,2 A,,2E,,2 A,,2E,,2 |
+% section climax
+| D,,2A,,2 D,,2A,,2 _B,,2F,,2 C,,2G,,2 | A,,2E,,2 _B,,2F,,2 D,,2A,,2 D,,2A,,2 |
 V:synth
-|: DFA=c DFA=c DFA=c DFA=c | _BDF_b _BDF_b ACE=a ACE=a |
-ACE=a ACE=a ACE=a ACE=a | ACE=a ACE=a _BDF_b DFA=c :|
-%
+% section intro
+| DFAc DFAc DFAc DFAc | _BDFb _BDFb Aced Aced |
+% section verse
+| DFAc CFac DFAc CFac | _BDFb Aced _BDFb Aced |
+% section bridge
+| Aced Aced CFac CFac | _BDFb _BDFb Aced Aced |
+% section climax
+| DFAc dfac cfae DFAc | _BDFb Aced _BDFb DFAc |
 V:pad
-|: D8z8 | _B8A8 |
-A16 | z8 _B4D4 :|
+% section intro
+| D8z8 | _B8A8 |
+% section verse
+| D8z8 | A8G8 |
+% section bridge
+| _B8A8 | G8A8 |
+% section climax
+| D8A8 | _B8D8 |
+V:hook
+% section intro
+| z16 | z16 |
+% section verse
+| z8 A2z2 d2z2 | z8 f2z2 d2z2 |
+% section bridge
+| z8 c2z2 d2z2 | z8 A2z2 G2z2 |
+% section climax
+| z4 A2c2 d2f2 e2d2 c2A2 | z8 d2f2 A2z2 |

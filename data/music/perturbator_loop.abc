@@ -3,32 +3,69 @@ T:Perturbator Loop - Dark Synth
 C:MemDeck
 M:4/4
 L:1/16
-Q:1/4=140
+Q:1/4=142
 K:Am
-%%swing 52
-%%instrument bass wave=pulse amp=96 duty=28 attack=0 decay=55 sustain=70 release=90 gate=72 fx=0
-%%instrument hats wave=noise amp=44 attack=0 decay=8 sustain=20 release=18 gate=30 fx=0
-%%instrument pad wave=triangle amp=42 attack=120 decay=170 sustain=84 release=360 gate=96 fx=1
-%%instrument lead wave=pulse amp=58 duty=22 attack=12 decay=45 sustain=68 release=110 gate=56 vibrato=9 glide=18 fx=1
-%%effect 0 delay_steps=1 delay_feedback=14 delay_mix=8 drive=50 lowpass=34 sidechain=44 sidechain_release=170 mix=100
-%%effect 1 delay_steps=6 delay_feedback=46 delay_mix=36 drive=30 lowpass=56 sidechain=24 sidechain_release=230 mix=74
+%%swing 53
+%%instrument kick wave=noise amp=64 attack=0 decay=9 sustain=6 release=12 gate=26 fx=0
+%%instrument hats wave=noise amp=42 attack=0 decay=8 sustain=16 release=16 gate=24 fx=0
+%%instrument bass wave=pulse amp=95 duty=26 attack=0 decay=52 sustain=68 release=86 gate=70 fx=0
+%%instrument pad wave=triangle amp=40 attack=120 decay=160 sustain=82 release=340 gate=96 fx=1
+%%instrument lead wave=pulse amp=58 duty=20 attack=10 decay=42 sustain=66 release=100 gate=58 vibrato=10 glide=20 fx=1
+%%effect 0 delay_steps=1 delay_feedback=12 delay_mix=7 drive=52 lowpass=32 sidechain=48 sidechain_release=160 mix=100
+%%effect 1 delay_steps=6 delay_feedback=48 delay_mix=38 drive=28 lowpass=54 sidechain=28 sidechain_release=220 mix=74
 %%pattern A length=16
 %%pattern B length=16
-%%arrangement A B A B
-V:bass instrument=bass
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
 V:hats instrument=hats
+V:bass instrument=bass
 V:pad instrument=pad
 V:lead instrument=lead
 %
-V:bass
-|: A,,2A,2 A,,2A,2 G,,2G,2 F,,2F,2 | E,,2E,2 E,,2E,2 F,,2F,2 G,,2A,,2 |
-| A,,2A,2 A,,2A,2 G,,2G,2 F,,2F,2 | E,,2E,2 D,,2D,2 E,,2F,,2 A,,2A,,2 :|
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
 V:hats
-|: z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
-| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 :|
+% section intro
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section verse
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section bridge
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section climax
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+V:bass
+% section intro
+| A,,2A,,2 A,,2A,,2 G,,2G,,2 F,,2F,,2 | A,,2A,,2 A,,2A,,2 G,,2G,,2 E,,2E,,2 |
+% section verse
+| F,,2F,,2 F,,2F,,2 E,,2E,,2 D,,2D,,2 | F,,2F,,2 F,,2F,,2 G,,2G,,2 A,,2A,,2 |
+% section bridge
+| A,,2A,,2 G,,2G,,2 F,,2F,,2 E,,2E,,2 | D,,2D,,2 E,,2E,,2 F,,2F,,2 G,,2G,,2 |
+% section climax
+| A,,2A,,2 A,,2A,,2 G,,2G,,2 F,,2F,,2 | E,,2E,,2 D,,2D,,2 E,,2F,,2 A,,2A,,2 |
 V:pad
-|: A8z8 | G8F8 |
-| E8z8 | D8E8 :|
+% section intro
+| A8z8 | A8G8 |
+% section verse
+| F8z8 | D8E8 |
+% section bridge
+| A8G8 | F8E8 |
+% section climax
+| D8E8 | A8z8 |
 V:lead
-|: z8 c2d2 e2z2 | z8 g2a2 g2z2 |
-| z8 c'2b2 a2z2 | z8 e2d2 c2z2 :|
+% section intro
+| z16 | z16 |
+% section verse
+| z8 c2d2 e2z2 | z8 g2a2 g2z2 |
+% section bridge
+| z8 c'2b2 a2z2 | z8 e2d2 c2z2 |
+% section climax
+| z6 a2g2 e2d2 c2z2 | z8 a2g2 e2z2 |

@@ -1,0 +1,71 @@
+X:1
+T:Neon Nightdrive - Hypnotic Arp
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=122
+K:Em
+%%swing 57
+%%instrument kick wave=noise amp=58 attack=0 decay=9 sustain=8 release=12 gate=26 fx=0
+%%instrument bass wave=pulse amp=84 duty=36 attack=1 decay=44 sustain=72 release=88 gate=78 fx=0
+%%instrument arp wave=pulse amp=50 duty=18 attack=0 decay=16 sustain=56 release=36 gate=40 vibrato=6 fx=1
+%%instrument pad wave=triangle amp=34 attack=140 decay=170 sustain=86 release=420 gate=98 fx=1
+%%instrument lead wave=triangle amp=42 attack=80 decay=110 sustain=76 release=240 gate=90 vibrato=7 glide=14 fx=1
+%%effect 0 delay_steps=1 delay_feedback=14 delay_mix=10 drive=24 lowpass=32 sidechain=50 sidechain_release=170 mix=100
+%%effect 1 delay_steps=5 delay_feedback=44 delay_mix=38 drive=10 lowpass=58 sidechain=30 sidechain_release=230 mix=74
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
+V:bass instrument=bass
+V:arp instrument=arp
+V:pad instrument=pad
+V:lead instrument=lead
+%
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+V:bass
+% section intro
+| E,,2B,,,2 E,,2B,,,2 E,,2B,,,2 E,,2B,,,2 | D,,2A,,,2 D,,2A,,,2 C,,2G,,,2 C,,2G,,,2 |
+% section verse
+| E,,2B,,,2 E,,2B,,,2 D,,2A,,,2 D,,2A,,,2 | C,,2G,,,2 C,,2G,,,2 B,,,2F,,,2 B,,,2F,,,2 |
+% section bridge
+| E,,2B,,,2 D,,2A,,,2 C,,2G,,,2 B,,,2F,,,2 | A,,,2E,,,2 B,,,2F,,,2 C,,2G,,,2 D,,2A,,,2 |
+% section climax
+| E,,2B,,,2 E,,2B,,,2 D,,2A,,,2 C,,2G,,,2 | B,,,2F,,,2 C,,2G,,,2 D,,2A,,,2 E,,2B,,,2 |
+V:arp
+% section intro
+| EGBd EGBd EGBd EGBd | DFAc DFAc CEGb CEGb |
+% section verse
+| EGBd DFAc EGBd DFAc | CEGb CEGb B,DFA B,DFA |
+% section bridge
+| EGBd CEGb DFAc B,DFA | A,CEG B,DFA CEGb DFAc |
+% section climax
+| EGBd egbd dfac CEGb | B,DFA CEGb DFAc EGBd |
+V:pad
+% section intro
+| E8z8 | D8C8 |
+% section verse
+| E8z8 | C8B,8 |
+% section bridge
+| A,8B,8 | C8D8 |
+% section climax
+| E8D8 | C8E8 |
+V:lead
+% section intro
+| z16 | z16 |
+% section verse
+| z8 B2z2 d2z2 | z8 e2z2 d2z2 |
+% section bridge
+| z8 g2f2 e2z2 | z8 d2e2 B2z2 |
+% section climax
+| z4 B2d2 e2g2 f2e2 d2B2 | z8 e2d2 B2z2 |

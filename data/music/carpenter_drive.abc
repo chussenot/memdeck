@@ -3,27 +3,58 @@ T:Carpenter Drive - Horror Synth
 C:MemDeck
 M:4/4
 L:1/16
-Q:1/4=102
+Q:1/4=104
 K:Em
-%%swing 54
-%%instrument pulse wave=pulse amp=88 duty=46 attack=2 decay=70 sustain=74 release=130 gate=80 fx=0
-%%instrument pad wave=triangle amp=40 attack=170 decay=220 sustain=88 release=460 gate=98 vibrato=4 fx=1
-%%instrument motif wave=pulse amp=54 duty=26 attack=10 decay=38 sustain=68 release=120 gate=58 vibrato=5 glide=22 fx=1
-%%effect 0 delay_steps=2 delay_feedback=16 delay_mix=10 drive=30 lowpass=40 sidechain=30 sidechain_release=190 mix=100
-%%effect 1 delay_steps=7 delay_feedback=42 delay_mix=44 drive=12 lowpass=62 sidechain=20 sidechain_release=260 mix=72
+%%swing 55
+%%instrument pulse wave=pulse amp=84 duty=44 attack=2 decay=64 sustain=72 release=120 gate=82 fx=0
+%%instrument kick wave=noise amp=56 attack=0 decay=10 sustain=8 release=14 gate=28 fx=0
+%%instrument pad wave=triangle amp=38 attack=170 decay=220 sustain=88 release=420 gate=98 vibrato=4 fx=1
+%%instrument motif wave=pulse amp=56 duty=24 attack=10 decay=38 sustain=66 release=112 gate=56 vibrato=6 glide=24 fx=1
+%%effect 0 delay_steps=2 delay_feedback=14 delay_mix=8 drive=34 lowpass=38 sidechain=38 sidechain_release=190 mix=100
+%%effect 1 delay_steps=7 delay_feedback=44 delay_mix=42 drive=14 lowpass=60 sidechain=22 sidechain_release=250 mix=72
 %%pattern A length=16
 %%pattern B length=16
-%%arrangement A A B A
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
 V:bass instrument=pulse
 V:pad instrument=pad
 V:motif instrument=motif
 %
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
 V:bass
-|: E,,4E,,4 E,,4E,,4 | D,,4D,,4 C,,4C,,4 |
-| B,,,4B,,,4 B,,,4B,,,4 | C,,4C,,4 D,,4E,,4 :|
+% section intro
+| E,,4E,,4 E,,4E,,4 | E,,4E,,4 D,,4D,,4 |
+% section verse
+| C,,4C,,4 B,,,4B,,,4 | B,,,4B,,,4 C,,4D,,4 |
+% section bridge
+| E,,4D,,4 C,,4B,,,4 | C,,4D,,4 E,,4E,,4 |
+% section climax
+| C,,4B,,,4 C,,4D,,4 | E,,4E,,4 D,,4E,,4 |
 V:pad
-|: E8z8 | D8C8 |
-| B,8z8 | C8D8 :|
+% section intro
+| E8z8 | E8D8 |
+% section verse
+| C8z8 | B,8C8 |
+% section bridge
+| E8D8 | C8B,8 |
+% section climax
+| C8D8 | E8z8 |
 V:motif
-|: z8 E2z2 G2z2 | z8 D2z2 F2z2 |
-| z8 B,2z2 D2z2 | z8 C2z2 E2z2 :|
+% section intro
+| z8 E2z2 G2z2 | z8 E2z2 D2z2 |
+% section verse
+| z8 C2z2 E2z2 | z8 B,2z2 D2z2 |
+% section bridge
+| z8 E2G2 D2z2 | z8 C2D2 B,2z2 |
+% section climax
+| z4 E2G2 B2A2 G2E2 D2z2 | z8 E2D2 E2z2 |
