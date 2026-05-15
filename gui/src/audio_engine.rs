@@ -147,6 +147,9 @@ fn repository_root() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
 
     #[test]
@@ -211,5 +214,60 @@ mod tests {
                 "rendered sample buffer should be non-empty"
             );
         }
+    }
+
+    #[test]
+    fn overview_contains_expected_tracks() {
+        let engine = GuiAudioEngine::new();
+        let demo = engine
+            .demo_catalog()
+            .into_iter()
+            .find_map(|entry| entry.overview.map(|overview| (entry.key, overview)))
+            .expect("at least one demo overview should load");
+
+        assert!(
+            !demo.1.tracks.is_empty(),
+            "demo {} should expose track overviews",
+            demo.0
+        );
+    }
+
+    #[test]
+    fn fx_overview_is_safe_for_all_tracks() {
+        let engine = GuiAudioEngine::new();
+        for entry in engine.demo_catalog() {
+            let Some(overview) = entry.overview else {
+                continue;
+            };
+
+            for track in &overview.tracks {
+                assert!(
+                    overview.fx_buses.get(track.fx_bus).is_some(),
+                    "track {} in {} must resolve to a valid fx bus index {}",
+                    track.name,
+                    entry.key,
+                    track.fx_bus
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_abc_does_not_crash() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after unix epoch")
+            .as_nanos();
+        let invalid_path = std::env::temp_dir().join(format!(
+            "memdeck-invalid-{unique}-{}.abc",
+            std::process::id()
+        ));
+        fs::write(&invalid_path, "%%% definitely not valid abc %%%")
+            .expect("should write invalid abc fixture");
+
+        let result = std::panic::catch_unwind(|| crate::ffi::load_demo_overview(&invalid_path));
+        let _ = fs::remove_file(&invalid_path);
+
+        assert!(result.is_ok(), "invalid abc must not panic");
     }
 }

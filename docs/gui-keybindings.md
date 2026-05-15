@@ -17,7 +17,7 @@
 | --- | --- |
 | `D` | Demo Browser |
 | `S` | Render Stats |
-| `W` | Waveform View |
+| `W` | Waveform |
 | `P` | Pattern Overview |
 | `I` | Instrument Inspector |
 | `F` | FX Inspector |
