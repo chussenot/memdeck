@@ -38,10 +38,11 @@ The status line and stats panel always expose:
 
 - selected demo
 - selected track
+- focused panel
 - render readiness
 - playback state
 - render duration, sample count, clipping, peak, checksum
-- parser/render/playback errors
+- parser/render/playback errors, including last error retention in status
 
 ## Stability rules
 

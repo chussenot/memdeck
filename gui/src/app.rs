@@ -49,7 +49,7 @@ impl FocusArea {
         match self {
             FocusArea::DemoBrowser => "DEMO BROWSER",
             FocusArea::RenderStats => "RENDER STATS",
-            FocusArea::WaveformView => "WAVEFORM VIEW",
+            FocusArea::WaveformView => "WAVEFORM",
             FocusArea::PatternOverview => "PATTERN OVERVIEW",
             FocusArea::InstrumentInspector => "INSTRUMENT INSPECTOR",
             FocusArea::FxInspector => "FX INSPECTOR",
@@ -90,6 +90,7 @@ struct RuntimeState {
     selected_track: usize,
     rendered_audio: Option<RenderState>,
     focus: FocusArea,
+    last_error: Option<String>,
 }
 
 pub struct MemDeckGuiApp {
@@ -133,6 +134,7 @@ impl Default for MemDeckGuiApp {
                 selected_track: 0,
                 rendered_audio: None,
                 focus: boot_options.focus.unwrap_or(FocusArea::DemoBrowser),
+                last_error: None,
             },
             status,
             boot_options,
@@ -243,8 +245,12 @@ impl MemDeckGuiApp {
     }
 
     fn set_status(&mut self, tone: StatusTone, message: impl Into<String>) {
+        let message = message.into();
+        if tone == StatusTone::Warning {
+            self.runtime.last_error = Some(message.clone());
+        }
         self.status = StatusMessage {
-            text: message.into(),
+            text: message,
             tone,
         };
     }
@@ -269,6 +275,7 @@ impl MemDeckGuiApp {
         self.stop_playback(false);
         self.runtime.selected_demo = index;
         self.runtime.selected_track = 0;
+        self.runtime.rendered_audio = None;
 
         let (error, key) = {
             let demo = &self.demos[index];
@@ -1000,6 +1007,21 @@ impl MemDeckGuiApp {
     }
 
     fn draw_status_line(&self, ui: &mut egui::Ui) {
+        let render_state = if self.current_render().is_some() {
+            "READY"
+        } else {
+            "IDLE"
+        };
+        let (playback_state, playback_color) = match self.playback.state() {
+            PlaybackState::Playing => ("PLAYING", ACCENT),
+            PlaybackState::Stopped => ("STOPPED", TEXT_DIM),
+            PlaybackState::Error(_) => ("ERROR", WARNING),
+        };
+        let track_label = self
+            .selected_track()
+            .map(|track| track.name.to_uppercase())
+            .unwrap_or_else(|| "--".to_string());
+
         Self::retro_panel(
             ui,
             "STATUS LINE",
@@ -1016,6 +1038,52 @@ impl MemDeckGuiApp {
                             StatusTone::Warning => WARNING,
                         }),
                 );
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(format!(
+                            "DEMO {} • TRACK {} • FOCUS {}",
+                            self.selected_demo().key.to_uppercase(),
+                            track_label,
+                            self.focus_label()
+                        ))
+                        .monospace()
+                        .size(12.0)
+                        .color(TEXT_DIM),
+                    );
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("RENDER {render_state}"))
+                            .monospace()
+                            .size(12.0)
+                            .color(if render_state == "READY" {
+                                ACCENT
+                            } else {
+                                TEXT_DIM
+                            }),
+                    );
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("PLAYBACK {playback_state}"))
+                            .monospace()
+                            .size(12.0)
+                            .color(playback_color),
+                    );
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!(
+                            "LAST ERROR {}",
+                            self.runtime.last_error.as_deref().unwrap_or("NONE")
+                        ))
+                        .monospace()
+                        .size(12.0)
+                        .color(if self.runtime.last_error.is_some() {
+                            WARNING
+                        } else {
+                            TEXT_DIM
+                        }),
+                    );
+                });
                 ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
                     for hint in [
@@ -1582,17 +1650,14 @@ impl eframe::App for MemDeckGuiApp {
             .resizable(false)
             .show(ctx, |ui| self.draw_status_line(ui));
 
-        egui::SidePanel::left("demo_browser")
-            .resizable(false)
-            .exact_width(286.0)
-            .show(ctx, |ui| self.draw_demo_browser(ui));
-
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.columns(2, |columns| {
-                    self.draw_stats_panel(&mut columns[0]);
-                    self.draw_waveform_panel(&mut columns[1]);
+                    self.draw_demo_browser(&mut columns[0]);
+                    self.draw_stats_panel(&mut columns[1]);
                 });
+                ui.add_space(8.0);
+                self.draw_waveform_panel(ui);
                 ui.add_space(8.0);
                 self.draw_pattern_panel(ui);
                 ui.add_space(8.0);
@@ -1627,4 +1692,77 @@ fn env_flag(name: &str) -> bool {
     env::var(name)
         .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[test]
+    fn selected_track_index_stays_valid() {
+        let mut app = MemDeckGuiApp::default();
+        let demo_index = app
+            .demos
+            .iter()
+            .position(|demo| {
+                demo.overview
+                    .as_ref()
+                    .is_some_and(|overview| !overview.tracks.is_empty())
+            })
+            .expect("expected at least one demo with tracks");
+        app.select_demo(demo_index);
+
+        app.runtime.selected_track = usize::MAX;
+        app.sync_selected_track();
+
+        let track_count = app
+            .selected_overview()
+            .map(|overview| overview.tracks.len())
+            .unwrap_or(0);
+        assert!(
+            track_count > 0,
+            "selected demo should have at least one track"
+        );
+        assert!(
+            app.runtime.selected_track < track_count,
+            "selected track must stay in range"
+        );
+    }
+
+    #[test]
+    fn selecting_new_demo_resets_track_and_render_state() {
+        let mut app = MemDeckGuiApp::default();
+        let valid_demos = app
+            .demos
+            .iter()
+            .enumerate()
+            .filter_map(|(index, demo)| demo.overview.as_ref().map(|_| index))
+            .take(2)
+            .collect::<Vec<_>>();
+        assert!(
+            valid_demos.len() >= 2,
+            "expected at least two valid showcase demos"
+        );
+
+        app.select_demo(valid_demos[0]);
+        app.runtime.selected_track = 2;
+        app.runtime.rendered_audio = Some(RenderState {
+            demo_key: app.demos[valid_demos[0]].key.clone(),
+            samples: Arc::<[u8]>::from(vec![0_u8, 1, 2, 3]),
+            stats: None,
+        });
+
+        app.select_demo(valid_demos[1]);
+
+        assert_eq!(
+            app.runtime.selected_track, 0,
+            "demo switch should reset track"
+        );
+        assert!(
+            app.runtime.rendered_audio.is_none(),
+            "demo switch should clear stale render state"
+        );
+    }
 }

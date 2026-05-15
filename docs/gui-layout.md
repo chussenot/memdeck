@@ -7,12 +7,15 @@ The GUI is now a single-screen, read-only composition workstation with a fixed p
 ```text
 +----------------------------------------------------------------------------+
 | MEMDECK SOUND MACHINE                                         FOCUS • ...  |
-+--------------------------+--------------------------+-----------------------+
-| DEMO BROWSER             | RENDER STATS             | WAVEFORM VIEW         |
-| 01 DARK MORODER          | tempo / swing / steps    | PCM minimap           |
-| 02 NEON NIGHTDRIVE       | render + playback state  | clipping markers      |
-| ...                      | checksum / duration      | playback cursor       |
-+--------------------------+--------------------------+-----------------------+
++---------------------------------------+------------------------------------+
+| DEMO BROWSER                          | RENDER STATS                       |
+| 01 DARK MORODER                       | tempo / swing / steps              |
+| 02 NEON NIGHTDRIVE                    | render + playback state            |
+| ...                                   | checksum / duration                |
++---------------------------------------+------------------------------------+
+| WAVEFORM                                                                   |
+| PCM minimap | clipping markers | playback cursor                           |
++----------------------------------------------------------------------------+
 | PATTERN OVERVIEW                                                           |
 | track labels | arrangement blocks | beat grid | active steps | playhead     |
 +-----------------------------------+----------------------------------------+
@@ -42,6 +45,7 @@ The GUI is now a single-screen, read-only composition workstation with a fixed p
 - clip marker overlay
 - playback cursor
 - lightweight draw path (chunked envelope, no heavy effects)
+- full-width strip beneath demo/stats for quick transport context
 
 ### Pattern Overview
 - arrangement blocks in the header strip
@@ -62,6 +66,9 @@ The GUI is now a single-screen, read-only composition workstation with a fixed p
 
 ### Status Line
 - current runtime message with severity color
+- selected demo + selected track + focused panel snapshot
+- render + playback state snapshot
+- last error (when present)
 - shortcut reminder strip
 - no hidden transport state
 
