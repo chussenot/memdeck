@@ -35,7 +35,7 @@ static uint64_t fnv1a64(const unsigned char *data, int len)
     return hash;
 }
 
-static unsigned long long pcm_energy(const unsigned char *pcm, int len)
+static unsigned long long pcm_sum_absolute_deviation(const unsigned char *pcm, int len)
 {
     unsigned long long e = 0;
     for (int i = 0; i < len; i++) {
@@ -307,8 +307,8 @@ static void test_accent_triggers_fx_sidechain(void)
         return;
     }
     check_int("accent_len_match", accent_len, plain_len);
-    plain_energy = pcm_energy(plain_pcm, plain_len);
-    accent_energy = pcm_energy(accent_pcm, accent_len);
+    plain_energy = pcm_sum_absolute_deviation(plain_pcm, plain_len);
+    accent_energy = pcm_sum_absolute_deviation(accent_pcm, accent_len);
     check_true("accent_triggers_pump", accent_energy < plain_energy);
     free(plain_pcm);
     free(accent_pcm);
