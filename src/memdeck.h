@@ -281,13 +281,13 @@ typedef struct {
     char title[128];
     int bpm;
     int step_ms;          /* duration of one default-length note in ms */
-    int fx_delay_steps;
-    int fx_delay_feedback;
-    int fx_delay_mix;
-    int fx_drive_amount;
-    int fx_lowpass_amount;
-    int fx_sidechain_amount;
-    int fx_sidechain_release_ms;
+    int fx_delay_steps;         /* delay time in sequencer steps (%%effect delay time=) */
+    int fx_delay_feedback;      /* delay feedback percent 0..100 */
+    int fx_delay_mix;           /* delay wet mix percent 0..100 */
+    int fx_drive_amount;        /* drive/saturation amount percent 0..100 */
+    int fx_lowpass_amount;      /* low-pass amount percent 0..100 */
+    int fx_sidechain_amount;    /* fake sidechain duck amount percent 0..100 */
+    int fx_sidechain_release_ms;/* sidechain release in milliseconds */
     AbcVoice voices[ABC_MAX_VOICES];
     int voice_count;
 } AbcMusic;

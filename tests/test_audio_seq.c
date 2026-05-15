@@ -35,6 +35,16 @@ static uint64_t fnv1a64(const unsigned char *data, int len)
     return hash;
 }
 
+static unsigned long long pcm_energy(const unsigned char *pcm, int len)
+{
+    unsigned long long e = 0;
+    for (int i = 0; i < len; i++) {
+        int d = (int)pcm[i] - 128;
+        e += (unsigned long long)(d < 0 ? -d : d);
+    }
+    return e;
+}
+
 static void test_preset_initialization(void)
 {
     int count = 0;
@@ -243,6 +253,67 @@ static void test_builtin_render_fx_disabled(void)
     free(pcm);
 }
 
+static void test_accent_triggers_fx_sidechain(void)
+{
+    SeqSong song;
+    unsigned char *plain_pcm;
+    unsigned char *accent_pcm;
+    int plain_len = 0;
+    int accent_len = 0;
+    unsigned long long plain_energy;
+    unsigned long long accent_energy;
+
+    memset(&song, 0, sizeof(song));
+    snprintf(song.title, sizeof(song.title), "accent_trigger_test");
+    song.tempo_bpm = 120;
+    song.swing_pct = 50;
+    song.steps_per_beat = 4;
+    song.instrument_count = 1;
+    song.instruments[0].waveform = DSP_WAVE_SQUARE;
+    song.instruments[0].amplitude = 96;
+    song.instruments[0].pulse_width = 50;
+    song.instruments[0].envelope.attack_ms = 0;
+    song.instruments[0].envelope.decay_ms = 0;
+    song.instruments[0].envelope.sustain_level = 100;
+    song.instruments[0].envelope.release_ms = 0;
+    song.instruments[0].envelope.gate_percent = 100;
+    song.instruments[0].fx_send = 0;
+    song.pattern_count = 1;
+    song.patterns[0].length = 1;
+    song.patterns[0].track_count = 1;
+    song.patterns[0].tracks[0].instrument = 0;
+    song.patterns[0].tracks[0].steps[0].note = 60;
+    song.patterns[0].tracks[0].steps[0].velocity = 120;
+    song.patterns[0].tracks[0].steps[0].gate = 100;
+    song.patterns[0].tracks[0].steps[0].fx_trigger = 0;
+    song.arrangement_length = 1;
+    song.arrangement[0] = 0;
+    song.fx_bus_count = 1;
+    song.fx_buses[0].enabled = 1;
+    song.fx_buses[0].sidechain_amount = 45;
+    song.fx_buses[0].sidechain_release_ms = 180;
+    song.fx_buses[0].mix_percent = 0;
+
+    song.patterns[0].tracks[0].steps[0].accent = 0;
+    plain_pcm = audio_mix_render_song(&song, 22050, &plain_len);
+    song.patterns[0].tracks[0].steps[0].accent = 1;
+    accent_pcm = audio_mix_render_song(&song, 22050, &accent_len);
+
+    check_true("accent_plain_pcm", plain_pcm != NULL);
+    check_true("accent_fx_pcm", accent_pcm != NULL);
+    if (!plain_pcm || !accent_pcm) {
+        free(plain_pcm);
+        free(accent_pcm);
+        return;
+    }
+    check_int("accent_len_match", accent_len, plain_len);
+    plain_energy = pcm_energy(plain_pcm, plain_len);
+    accent_energy = pcm_energy(accent_pcm, accent_len);
+    check_true("accent_triggers_pump", accent_energy < plain_energy);
+    free(plain_pcm);
+    free(accent_pcm);
+}
+
 int main(void)
 {
     printf("=== Audio sequencer regression tests ===\n");
@@ -255,6 +326,7 @@ int main(void)
     test_fx_drive_clamp();
     test_fx_lowpass_stability();
     test_fx_sidechain_decay();
+    test_accent_triggers_fx_sidechain();
     test_builtin_render();
     test_builtin_render_fx_disabled();
 

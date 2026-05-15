@@ -19,6 +19,9 @@
 /* semitone offsets from C: C=0, D=2, E=4, F=5, G=7, A=9, B=11 */
 static const int note_semitones[7] = { 0, 2, 4, 5, 7, 9, 11 };
 #define ABC_DEFAULT_VIBRATO_RATE 5500
+#define ABC_EFFECT_DELAY "delay"
+#define ABC_EFFECT_DRIVE "drive"
+#define ABC_EFFECT_LOWPASS "lowpass"
 
 /*
  * Precomputed MIDI note frequencies (Hz).
@@ -151,17 +154,17 @@ static void parse_effect_directive(AbcMusic *music, const char *val)
 {
     if (!music || !val) return;
     while (*val == ' ') val++;
-    if (strncmp(val, "delay", 5) == 0) {
+    if (strncmp(val, ABC_EFFECT_DELAY, sizeof(ABC_EFFECT_DELAY) - 1) == 0) {
         music->fx_delay_steps = parse_int_param(val, "time=", music->fx_delay_steps);
         music->fx_delay_feedback = parse_int_param(val, "feedback=", music->fx_delay_feedback);
         music->fx_delay_mix = parse_int_param(val, "mix=", music->fx_delay_mix);
         return;
     }
-    if (strncmp(val, "drive", 5) == 0) {
+    if (strncmp(val, ABC_EFFECT_DRIVE, sizeof(ABC_EFFECT_DRIVE) - 1) == 0) {
         music->fx_drive_amount = parse_int_param(val, "amount=", music->fx_drive_amount);
         return;
     }
-    if (strncmp(val, "lowpass", 7) == 0) {
+    if (strncmp(val, ABC_EFFECT_LOWPASS, sizeof(ABC_EFFECT_LOWPASS) - 1) == 0) {
         music->fx_lowpass_amount = parse_int_param(val, "amount=", music->fx_lowpass_amount);
         return;
     }
