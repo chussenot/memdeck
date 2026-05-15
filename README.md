@@ -36,7 +36,7 @@ sudo pacman -S ncurses alsa-utils
 
 - **7 practice modes** — position-to-card, card-to-position, next/previous card, suit drill, value drill, and mixed mode
 - **Configurable sessions** — 2-6 MCQ choices, card range, suit/color/face filters, time/question/lives limits
-- **Chiptune sound engine** — dark synth D-minor background music on the home screen, success/fail sound effects during practice
+- **Chiptune sound engine** — reusable song/pattern sequencer for dark synth / retro electro loops plus success/fail sound effects
 - **Animated rainbow logo** — mirage heat-shimmer effect with fast color cycling
 - **Mouse support** — click to navigate all menus and answer questions
 - **Progress tracking** — persistent stats, day streaks, per-card error tracking, hardest positions
@@ -115,6 +115,7 @@ Custom stacks are stored in `~/.local/share/memdeck/stacks/`.
 make          # Show help (default)
 make all      # Build the binary
 make test     # Run test suite
+make test-audio-seq  # Run sequencer regression tests
 make install  # Install to /usr/local (sudo)
 make clean    # Remove binary
 ```
@@ -133,7 +134,11 @@ memdeck/
     stack.c          Stack loading and validation
     progress.c       Progress persistence
     ui.c             ncurses drawing, card art, colors
-    sound.c          Chiptune engine (PCM square waves)
+    sound.c          Native audio backend and SFX playback
+    audio_seq.c      Song / pattern / track / step sequencer
+    audio_mix.c      Portable PCM mixing pipeline
+    audio_song_builtin.c Built-in fallback retro song data
+    audio_dsp.c      Portable oscillator and timing core
     memdeck.h        Shared types and constants
   data/
     stacks/          Built-in stack files (TSV)

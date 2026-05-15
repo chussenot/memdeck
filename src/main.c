@@ -85,8 +85,8 @@ int screen_menu(App *app)
         /* music source indicator */
         {
             int src = sound_music_source();
+            const char *title = sound_music_title();
             if (src == 1) {
-                const char *title = sound_music_title();
                 char music_msg[160];
                 if (title[0])
                     snprintf(music_msg, sizeof(music_msg), "~ %s ~", title);
@@ -94,7 +94,12 @@ int screen_menu(App *app)
                     snprintf(music_msg, sizeof(music_msg), "~ ABC music ~");
                 ui_draw_centered(cy + 7, music_msg, COLOR_PAIR(CP_DIM));
             } else if (src == 2) {
-                ui_draw_centered(cy + 7, "~ Built-in music ~", COLOR_PAIR(CP_DIM));
+                char music_msg[160];
+                if (title[0])
+                    snprintf(music_msg, sizeof(music_msg), "~ %s ~", title);
+                else
+                    snprintf(music_msg, sizeof(music_msg), "~ Built-in sequencer ~");
+                ui_draw_centered(cy + 7, music_msg, COLOR_PAIR(CP_DIM));
             }
         }
 

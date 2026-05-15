@@ -3,72 +3,112 @@
 ## Goals
 - Keep portable C99/C11 code for Linux + Emscripten.
 - Keep retro/chiptune character (square/pulse-centric voices).
-- Reduce CPU cost in hot loops.
 - Keep deterministic timing and predictable buffers.
+- Separate sequencing, mixing, DSP, and output backend concerns.
 
-## Current structure
-- `src/sound.c` = native backend orchestration (`fork`, `pipe`, `aplay`) + hardcoded fallback music.
-- `src/abc.c` = ABC parsing and PCM rendering.
-- `src/audio_dsp.c/.h` = platform-neutral DSP core used by both renderers.
-- Naming stays as `audio_dsp` for now to avoid broad file churn, but it remains the portable audio core layer.
+## Layered structure
+- `src/audio_song_builtin.c` = built-in retro song definitions using reusable song/pattern/track/step data.
+- `src/audio_seq.c/.h` = portable sequencing layer with arrangement expansion, pattern chaining, tempo timing, and swing.
+- `src/audio_mix.c/.h` = portable PCM renderer that consumes sequencer timelines and instrument data.
+- `src/audio_dsp.c/.h` = low-level oscillator/timing/profile primitives.
+- `src/abc.c` = ABC parsing + ABC-specific render path.
+- `src/sound.c` = native output backend (`fork`, `pipe`, `aplay`) and SFX orchestration.
 
-## DSP core (`audio_dsp`)
-- **Oscillator abstraction**: `DspOscillator` with waveforms:
-  - square
-  - pulse
-  - triangle
-  - noise
-- **Phase accumulator model**:
-  - `phase` + `increment` in 32-bit fixed-point domain.
-  - Frequency cost paid once per note/voice setup.
-  - Sample generation in hot loop is integer stepping only.
-- **Timing model**:
-  - `DspSampleStepper` distributes fractional samples across steps.
-  - Avoids cumulative drift from integer truncation (`sample_rate * ms / 1000`).
-- **Mixing model**:
-  - mono U8 centered at 128.
-  - sum signed voice contributions then clamp 0..255.
+```mermaid
+flowchart LR
+    Song[SeqSong] --> Sequencer[audio_seq]
+    Sequencer --> Timeline[SeqTimeline]
+    Timeline --> Mixer[audio_mix]
+    Mixer --> DSP[audio_dsp oscillators]
+    Mixer --> PCM[U8 PCM loop]
+    PCM --> Backend[sound.c backend]
+```
 
-## Buffer model
-- SFX (`sound_success` / `sound_fail`) now use fixed stack buffers (no heap alloc per trigger).
-- Music/ABC loop render keeps one contiguous heap PCM block for repeated writeout.
-- Pipe writes handle partial writes in loops for robustness.
+## Song model
 
-## Profiling hooks
-- `SoundProfile` API:
-  - `sound_profile_reset()`
-  - `sound_profile_snapshot()`
-- Counters include generated samples/calls/time, estimated loop latency, underrun events.
-- Hooks are lightweight; generation timing uses `clock()` ticks.
+```mermaid
+classDiagram
+    class SeqSong {
+        +tempo_bpm
+        +swing_pct
+        +steps_per_beat
+        +patterns[]
+        +arrangement[]
+        +fx_buses[]
+    }
+    class SeqPattern {
+        +length
+        +tracks[]
+    }
+    class SeqTrack {
+        +instrument
+        +steps[]
+        +automation[]
+    }
+    class SeqStep {
+        +note
+        +velocity
+        +gate
+        +accent
+        +fx_trigger
+    }
+    class SeqInstrument {
+        +oscillator
+        +envelope_gate
+        +modulation
+        +fx_send
+        +duty_cycle
+        +accent_gain
+        +amplitude
+    }
+    SeqSong --> SeqPattern
+    SeqPattern --> SeqTrack
+    SeqTrack --> SeqStep
+    SeqSong --> SeqInstrument
+```
 
-## ABC voice extensions
-- `V:` / `%%voice` directives now accept:
-  - `wave=square|pulse|triangle|noise`
-  - `duty=N` (pulse duty cycle, 1..99)
-- Defaults remain square-like to preserve project sound identity.
+## Sequencing model
+- Arrangement order is expanded into a `SeqTimeline`.
+- Pattern chaining is driven by `song->arrangement[]`, so built-in music is no longer hardwired to a single loop implementation in `sound.c`.
+- Step timing is generated from BPM + step resolution with integer remainder carry, which keeps total samples stable across long loops.
+- Swing is applied as an alternating long/short step pair while preserving pair duration.
+- Track automation is intentionally lightweight: per-step signed gain offsets only.
 
-## Render-path optimization
-- `abc_generate_pcm()` now precompiles a lightweight per-voice step timeline before mixing.
-- Consecutive identical notes reuse oscillator state instead of reinitializing on every step.
-- `sound.c` applies the same repeated-note reuse for the hardcoded fallback loop.
+## Mixing model
+- Mono U8 PCM centered at 128.
+- Each active track owns one oscillator state that can continue across repeated notes.
+- Velocity, gate, accent, and per-track automation shape note output before sample summing.
+- FX buses stay intentionally lightweight: they are simple per-sample send accumulators instead of a heavyweight realtime effects graph.
 
-## Portability strategy
-- Keep DSP logic in `audio_dsp` free of platform I/O APIs.
-- Keep backend-specific output in `sound.c` (Linux process/audio piping today).
-- This split allows future wasm/native output backends without changing oscillator/mixer kernels.
+```mermaid
+sequenceDiagram
+    participant Song
+    participant Seq as audio_seq
+    participant Mix as audio_mix
+    participant DSP
+    participant Backend as sound.c
+    Song->>Seq: seq_compile_timeline()
+    Seq-->>Mix: SeqTimeline
+    Mix->>DSP: oscillator setup / sample stepping
+    DSP-->>Mix: signed voice samples
+    Mix-->>Backend: rendered PCM loop
+    Backend->>Backend: fork writer + pipe to aplay
+```
+
+## Output/backend split
+- `sound_success()` / `sound_fail()` remain backend-triggered SFX.
+- `sound_music_start()` now only chooses a source, renders/loads PCM, and streams it.
+- The built-in fallback path is portable until the final backend handoff.
+- WASM builds continue to exclude `sound.c`; the sequencer and mixer stay portable C and can be reused by a future WASM audio backend.
 
 ## Verification
 - Native verification chain remains:
   - `make clean`
   - `make all`
   - `make test`
+  - `make test-audio-seq`
   - `make bench-audio`
 - WASM verification now includes:
   - `make -C wasm verify`
   - `node wasm/verify-audio.js`
   - `make -C wasm`
-
-## Future SIMD/WASM-ready direction
-- `dsp_osc_next()` and per-step mix loops are isolated kernels.
-- Next optimization step can batch voice generation to arrays for vectorized mixing.
-- No assembly required; portable intrinsics can be added later behind compile-time flags.

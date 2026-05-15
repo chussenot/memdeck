@@ -242,7 +242,7 @@ void sound_fail(void);
 void sound_set_data_dir(const char *dir);
 void sound_music_start(void);
 void sound_music_stop(void);
-int  sound_music_source(void); /* 0=none, 1=abc, 2=hardcoded */
+int  sound_music_source(void); /* 0=none, 1=abc, 2=builtin sequencer */
 const char *sound_music_title(void);
 typedef struct {
     unsigned long long generated_samples;
