@@ -409,6 +409,8 @@ fn build_track_overview(
             ABC_DEFAULT_VIBRATO_RATE
         },
         glide_ms: voice.glide_ms,
+        // The ABC GUI metadata path does not expose detune; keep the inspector explicit
+        // about the current read-only value instead of inventing a synthetic parameter.
         detune_cents: 0,
         fx_bus: voice.fx_bus.max(0) as usize,
         activity,
