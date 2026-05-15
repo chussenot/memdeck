@@ -172,11 +172,16 @@ static void test_showcase_demo_regression(void)
         int max_clipping;
     } DemoExpectation;
     static const DemoExpectation demos[] = {
-        { "data/music/dark_moroder.abc", 168000, 0x5d483689cfbba730ull, 5000 },
-        { "data/music/perturbator_loop.abc", 151200, 0x778fd5f57cf83b36ull, 12000 },
-        { "data/music/carpenter_drive.abc", 207529, 0xa739faef6dac5b67ull, 12000 },
-        { "data/music/advanced_dsl_demo.abc", 381634, 0xe74909ce1c1beae3ull, 6000 },
-        { "data/music/multi_fx_demo.abc", 313600, 0x25da3aed91b9d649ull, 18000 }
+        { "data/music/dark_moroder.abc", 341419, 0x51c34a9304aa4556ull, 5000 },
+        { "data/music/perturbator_loop.abc", 298140, 0xe610f99b4c4b6b37ull, 7000 },
+        { "data/music/carpenter_drive.abc", 407076, 0xaab706f01eaac6eaull, 6000 },
+        { "data/music/advanced_dsl_demo.abc", 330750, 0x064097bd78e56a0dull, 2000 },
+        { "data/music/multi_fx_demo.abc", 315940, 0xc461e95426b0fd72ull, 2000 },
+        { "data/music/neon_nightdrive.abc", 347016, 0x3cae36a6a440ea7dull, 2000 },
+        { "data/music/metro_chase.abc", 289972, 0x129a5338dc6a44c9ull, 16000 },
+        { "data/music/black_sunrise.abc", 378000, 0x5c427d0791f0c53cull, 2000 },
+        { "data/music/machine_romance.abc", 352800, 0x39615b7ff5900283ull, 5000 },
+        { "data/music/hypersleep_dream.abc", 441000, 0xb6a2b00a57398405ull, 1000 }
     };
 
     for (size_t i = 0; i < sizeof(demos) / sizeof(demos[0]); i++) {
@@ -257,8 +262,8 @@ static void test_dsl_directives(void)
     }
 
     /* Verify swing directive was parsed */
-    if (music.swing_pct != 56) {
-        printf("FAIL DSL: expected swing_pct=56, got %d\n", music.swing_pct);
+    if (music.swing_pct != 58) {
+        printf("FAIL DSL: expected swing_pct=58, got %d\n", music.swing_pct);
         g_failures++;
     } else {
         printf("  ✓ Swing: %d%%\n", music.swing_pct);
@@ -309,7 +314,7 @@ static void test_seq_song_mapping(void)
         return;
     }
 
-    if (song.tempo_bpm != 126 || song.swing_pct != 56) {
+    if (song.tempo_bpm != 124 || song.swing_pct != 58) {
         printf("FAIL seq mapping: got tempo=%d swing=%d\n", song.tempo_bpm, song.swing_pct);
         g_failures++;
     }
@@ -317,8 +322,8 @@ static void test_seq_song_mapping(void)
         printf("FAIL seq mapping: got fx_bus_count=%d expected 2\n", song.fx_bus_count);
         g_failures++;
     }
-    if (song.arrangement_length != 4 || song.pattern_count != 4) {
-        printf("FAIL seq mapping: got arrangement=%d patterns=%d expected 4/4\n",
+    if (song.arrangement_length != 8 || song.pattern_count != 4) {
+        printf("FAIL seq mapping: got arrangement=%d patterns=%d expected 8/4\n",
                song.arrangement_length, song.pattern_count);
         g_failures++;
     }
@@ -396,8 +401,8 @@ static void test_advanced_dsl_features(void)
     }
 
     /* Verify instruments were parsed */
-    if (music.instrument_count != 4) {
-        printf("FAIL Advanced DSL: expected 4 instruments, got %d\n", music.instrument_count);
+    if (music.instrument_count != 5) {
+        printf("FAIL Advanced DSL: expected 5 instruments, got %d\n", music.instrument_count);
         g_failures++;
     } else {
         printf("  ✓ Instruments: %d\n", music.instrument_count);
@@ -459,7 +464,7 @@ static void test_multi_fx_buses(void)
         printf("  ✓ FX Buses: %d\n", music.fx_bus_count);
         
         /* Bus 0: dry/punchy */
-        if (music.fx_buses[0].delay_steps != 2 || music.fx_buses[0].mix_percent != 90) {
+        if (music.fx_buses[0].delay_steps != 2 || music.fx_buses[0].mix_percent != 92) {
             printf("FAIL Multi-FX: bus 0 configuration incorrect\n");
             g_failures++;
         } else {
@@ -468,7 +473,7 @@ static void test_multi_fx_buses(void)
         }
         
         /* Bus 1: wet/ambient */
-        if (music.fx_buses[1].delay_steps != 8 || music.fx_buses[1].mix_percent != 60) {
+        if (music.fx_buses[1].delay_steps != 8 || music.fx_buses[1].mix_percent != 62) {
             printf("FAIL Multi-FX: bus 1 configuration incorrect\n");
             g_failures++;
         } else {

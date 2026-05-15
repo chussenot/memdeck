@@ -1,0 +1,71 @@
+X:1
+T:Hypersleep Dream - Atmospheric Drift
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=96
+K:Dm
+%%swing 60
+%%instrument kick wave=noise amp=50 attack=0 decay=10 sustain=8 release=14 gate=24 fx=0
+%%instrument bass wave=pulse amp=78 duty=38 attack=2 decay=62 sustain=78 release=150 gate=84 fx=0
+%%instrument pulsearp wave=pulse amp=44 duty=30 attack=0 decay=24 sustain=62 release=52 gate=48 vibrato=9 fx=1
+%%instrument pad wave=triangle amp=36 attack=220 decay=260 sustain=90 release=520 gate=99 vibrato=5 fx=1
+%%instrument shimmer wave=triangle amp=34 attack=160 decay=220 sustain=86 release=480 gate=98 vibrato=11 glide=28 fx=1
+%%effect 0 delay_steps=2 delay_feedback=18 delay_mix=14 drive=20 lowpass=40 sidechain=34 sidechain_release=220 mix=96
+%%effect 1 delay_steps=9 delay_feedback=56 delay_mix=52 drive=4 lowpass=68 sidechain=22 sidechain_release=320 mix=64
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
+V:bass instrument=bass
+V:arp instrument=pulsearp
+V:pad instrument=pad
+V:shimmer instrument=shimmer
+%
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+V:bass
+% section intro
+| D,,2A,,2 D,,2A,,2 D,,2A,,2 D,,2A,,2 | C,,2G,,2 C,,2G,,2 _B,,2F,,2 _B,,2F,,2 |
+% section verse
+| D,,2A,,2 D,,2A,,2 C,,2G,,2 C,,2G,,2 | _B,,2F,,2 _B,,2F,,2 A,,2E,,2 A,,2E,,2 |
+% section bridge
+| D,,2A,,2 C,,2G,,2 _B,,2F,,2 A,,2E,,2 | G,,2D,,2 A,,2E,,2 _B,,2F,,2 C,,2G,,2 |
+% section climax
+| D,,2A,,2 D,,2A,,2 C,,2G,,2 _B,,2F,,2 | A,,2E,,2 _B,,2F,,2 C,,2G,,2 D,,2A,,2 |
+V:arp
+% section intro
+| DFAc DFAc DFAc DFAc | CEGc CEGc _BDFb _BDFb |
+% section verse
+| DFAc DFAc CEGc CEGc | _BDFb _BDFb Aced Aced |
+% section bridge
+| DFAc CEGc _BDFb Aced | GBDg Aced _BDFb CEGc |
+% section climax
+| DFAc dfac cegc _BDFb | Aced _BDFb CEGc DFAc |
+V:pad
+% section intro
+| D8z8 | C8_B,8 |
+% section verse
+| D8z8 | _B,8A,8 |
+% section bridge
+| G,8A,8 | _B,8C8 |
+% section climax
+| D8C8 | _B,8D8 |
+V:shimmer
+% section intro
+| z16 | z16 |
+% section verse
+| z8 A2z2 d2z2 | z8 f2z2 d2z2 |
+% section bridge
+| z8 g2f2 e2z2 | z8 d2e2 A2z2 |
+% section climax
+| z4 A2d2 f2g2 f2e2 d2A2 | z8 d2f2 A2z2 |

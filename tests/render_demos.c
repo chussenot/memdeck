@@ -37,7 +37,12 @@ int main(void)
         "data/music/perturbator_loop.abc",
         "data/music/carpenter_drive.abc",
         "data/music/advanced_dsl_demo.abc",
-        "data/music/multi_fx_demo.abc"
+        "data/music/multi_fx_demo.abc",
+        "data/music/neon_nightdrive.abc",
+        "data/music/metro_chase.abc",
+        "data/music/black_sunrise.abc",
+        "data/music/machine_romance.abc",
+        "data/music/hypersleep_dream.abc"
     };
     int failures = 0;
 

@@ -115,6 +115,8 @@ Custom stacks are stored in `~/.local/share/memdeck/stacks/`.
 make          # Show help (default)
 make all      # Build the binary
 make test     # Run test suite
+make render-demos  # Render all showcase tracks with deterministic metrics
+make play-demo DEMO=dark_moroder  # Render one demo quickly
 make test-audio-seq  # Run sequencer regression tests
 make install  # Install to /usr/local (sudo)
 make clean    # Remove binary

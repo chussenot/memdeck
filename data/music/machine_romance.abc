@@ -1,0 +1,82 @@
+X:1
+T:Machine Romance - Disco Pulse
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=120
+K:A
+%%swing 59
+%%instrument kick wave=noise amp=60 attack=0 decay=9 sustain=8 release=12 gate=24 fx=0
+%%instrument hats wave=noise amp=36 attack=0 decay=7 sustain=12 release=14 gate=22 fx=0
+%%instrument bass wave=pulse amp=86 duty=34 attack=1 decay=40 sustain=72 release=90 gate=80 fx=0
+%%instrument arp wave=pulse amp=50 duty=18 attack=0 decay=18 sustain=58 release=38 gate=42 vibrato=7 fx=1
+%%instrument pad wave=triangle amp=32 attack=150 decay=180 sustain=84 release=380 gate=98 fx=1
+%%instrument lead wave=triangle amp=44 attack=60 decay=90 sustain=70 release=190 gate=86 vibrato=8 glide=12 fx=1
+%%effect 0 delay_steps=1 delay_feedback=12 delay_mix=9 drive=26 lowpass=30 sidechain=56 sidechain_release=150 mix=100
+%%effect 1 delay_steps=5 delay_feedback=42 delay_mix=36 drive=10 lowpass=54 sidechain=34 sidechain_release=210 mix=74
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A A B C B C D D
+V:kick instrument=kick
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:pad instrument=pad
+V:lead instrument=lead
+%
+% section intro
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section verse
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section bridge
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+% section climax
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+V:hats
+% section intro
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section verse
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section bridge
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% section climax
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+V:bass
+% section intro
+| A,,2E,,2 A,,2E,,2 A,,2E,,2 A,,2E,,2 | G,,2D,,2 G,,2D,,2 F,,2C,,2 F,,2C,,2 |
+% section verse
+| A,,2E,,2 A,,2E,,2 G,,2D,,2 G,,2D,,2 | F,,2C,,2 F,,2C,,2 E,,2B,,,2 E,,2B,,,2 |
+% section bridge
+| D,,2A,,,2 E,,2B,,,2 F,,2C,,2 G,,2D,,2 | A,,2E,,2 G,,2D,,2 F,,2C,,2 E,,2B,,,2 |
+% section climax
+| A,,2E,,2 A,,2E,,2 G,,2D,,2 F,,2C,,2 | E,,2B,,,2 F,,2C,,2 G,,2D,,2 A,,2E,,2 |
+V:arp
+% section intro
+| ACEa ACEa ACEa ACEa | GBDg GBDg FACf FACf |
+% section verse
+| ACEa GBDg ACEa GBDg | FACf FACf EGBd EGBd |
+% section bridge
+| DFAc EGBd FACf GBDg | ACEa GBDg FACf EGBd |
+% section climax
+| ACEa ace'a gbdg FACf | EGBd FACf GBDg ACEa |
+V:pad
+% section intro
+| A8z8 | G8F8 |
+% section verse
+| A8z8 | F8E8 |
+% section bridge
+| D8E8 | F8G8 |
+% section climax
+| A8G8 | F8A8 |
+V:lead
+% section intro
+| z16 | z16 |
+% section verse
+| z8 c2z2 e2z2 | z8 g2z2 e2z2 |
+% section bridge
+| z8 a2g2 e2z2 | z8 d2e2 c2z2 |
+% section climax
+| z4 c2e2 g2a2 g2e2 d2c2 | z8 e2d2 c2z2 |
