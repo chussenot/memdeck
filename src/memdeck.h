@@ -15,6 +15,7 @@
 #include <locale.h>
 
 #include "audio_seq.h"
+#include "audio_engine.h"
 
 #define MAX_STACKS      32
 #define STACK_SIZE      52
@@ -362,21 +363,5 @@ int abc_load(const char *path, AbcMusic *music);
 int abc_load_voices(const char *paths[], int path_count, AbcMusic *music);
 int abc_build_seq_song(const AbcMusic *music, SeqSong *out_song);
 unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len);
-
-typedef struct {
-    unsigned long long sample_count;
-    double duration_ms;
-    int min_sample;
-    int max_sample;
-    int peak;
-    unsigned long long clipping_count;
-    uint64_t checksum;
-    double render_time_ms;
-} AudioRenderStats;
-
-unsigned char *audio_engine_render_builtin_menu(int sample_rate, int *out_len, AudioRenderStats *out_stats);
-unsigned char *audio_engine_render_abc_file(const char *path, int sample_rate, int *out_len, AudioRenderStats *out_stats);
-unsigned char *audio_engine_render_song(const SeqSong *song, int sample_rate, int *out_len, AudioRenderStats *out_stats);
-void audio_engine_free_buffer(unsigned char *buffer);
 
 #endif

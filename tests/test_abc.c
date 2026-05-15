@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include "../src/audio_engine.h"
 #include "../src/memdeck.h"
 
 static int g_failures = 0;
