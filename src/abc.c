@@ -201,12 +201,22 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
 
 static int parse_int_param(const char *text, const char *key, int fallback)
 {
-    const char *p;
+    const char *p, *best_match;
     if (!text || !key) return fallback;
-    p = strstr(text, key);
-    if (!p) return fallback;
-    p += strlen(key);
-    return atoi(p);
+    
+    /* Find the LAST occurrence of the key to avoid partial matches like "delay_mix=" when looking for "mix=" */
+    best_match = NULL;
+    p = text;
+    while ((p = strstr(p, key)) != NULL) {
+        /* Check if this is a valid match (not part of a longer identifier) */
+        if (p == text || (!isalnum(*(p-1)) && *(p-1) != '_')) {
+            best_match = p;
+        }
+        p++;
+    }
+    
+    if (!best_match) return fallback;
+    return atoi(best_match + strlen(key));
 }
 
 static void parse_effect_directive(AbcMusic *music, const char *val)
@@ -394,14 +404,17 @@ static void parse_numbered_effect_directive(AbcMusic *music, const char *val)
     bus->lowpass_amount = parse_int_param(val, "lowpass=", bus->lowpass_amount);
     bus->sidechain_amount = parse_int_param(val, "sidechain=", bus->sidechain_amount);
     bus->sidechain_release_ms = parse_int_param(val, "sidechain_release=", bus->sidechain_release_ms);
-    bus->mix_percent = parse_int_param(val, "mix=", 100);
+    bus->mix_percent = parse_int_param(val, "mix=", bus->mix_percent);
+    
+    /* Set default mix if not specified */
+    if (bus->mix_percent == 0) bus->mix_percent = 100;
     
     /* Validate ranges */
     if (bus->delay_feedback < 0) bus->delay_feedback = 0;
     if (bus->delay_feedback > 100) bus->delay_feedback = 100;
     if (bus->delay_mix < 0) bus->delay_mix = 0;
     if (bus->delay_mix > 100) bus->delay_mix = 100;
-    if (bus->mix_percent < 0) bus->mix_percent = 0;
+    if (bus->mix_percent < 1) bus->mix_percent = 1;
     if (bus->mix_percent > 100) bus->mix_percent = 100;
 }
 

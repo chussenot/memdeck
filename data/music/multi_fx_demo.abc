@@ -1,0 +1,35 @@
+X:1
+T:Multi-FX Bus Demo - Dual Processing
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=135
+K:Dm
+%%swing 50
+%
+%% Define instruments with different FX bus routing
+%%instrument dry_bass wave=pulse amp=90 duty=45 attack=3 decay=60 sustain=80 release=120 gate=75 fx=0
+%%instrument wet_synth wave=pulse amp=45 duty=20 attack=0 decay=15 sustain=55 release=35 gate=40 vibrato=10 fx=1
+%%instrument ambient_pad wave=triangle amp=30 attack=150 decay=180 sustain=90 release=450 gate=98 fx=1
+%
+%% Bus 0: Dry/punchy sound with light FX
+%%effect 0 delay_steps=2 delay_feedback=20 delay_mix=15 drive=30 lowpass=25 sidechain=50 sidechain_release=150 mix=90
+%
+%% Bus 1: Wet/ambient sound with heavy FX
+%%effect 1 delay_steps=8 delay_feedback=60 delay_mix=50 drive=5 lowpass=65 mix=60
+%
+V:bass instrument=dry_bass
+V:synth instrument=wet_synth
+V:pad instrument=ambient_pad
+%
+V:bass
+|: D,,4D,,4 D,,4D,,4 | _B,,4_B,,4 A,,4A,,4 |
+A,,4A,,4 A,,4A,,4 | A,,4A,,4 _B,,4D,,4 :|
+%
+V:synth
+|: DFA=c DFA=c DFA=c DFA=c | _BDF_b _BDF_b ACE=a ACE=a |
+ACE=a ACE=a ACE=a ACE=a | ACE=a ACE=a _BDF_b DFA=c :|
+%
+V:pad
+|: D8z8 | _B8A8 |
+A16 | z8 _B4D4 :|
