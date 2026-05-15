@@ -5,6 +5,8 @@ use eframe::egui;
 use crate::audio_engine::{GuiAudioEngine, RenderState};
 use crate::ffi::AudioRenderStats;
 
+const DEFAULT_STATUS_LINE: &str = "Ready. Select a demo and render.";
+
 #[derive(Clone, Copy)]
 struct DemoEntry {
     name: &'static str,
@@ -82,7 +84,7 @@ impl Default for MemDeckGuiApp {
             selected_demo: 0,
             selected_action: 0,
             focus: FocusArea::DemoList,
-            status_line: "Ready. Select a demo and render.".to_string(),
+            status_line: DEFAULT_STATUS_LINE.to_string(),
             last_render: None,
         }
     }
@@ -203,8 +205,8 @@ impl MemDeckGuiApp {
             }
 
             if input.key_pressed(egui::Key::Escape) {
-                if self.status_line != "Ready. Select a demo and render." {
-                    self.status_line = "Ready. Select a demo and render.".to_string();
+                if self.status_line != DEFAULT_STATUS_LINE {
+                    self.status_line = DEFAULT_STATUS_LINE.to_string();
                 } else {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
