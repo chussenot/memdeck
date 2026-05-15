@@ -7,9 +7,11 @@ use std::ptr;
 use std::slice;
 use std::sync::{LazyLock, Mutex};
 
-use crate::audio_engine::{DemoOverview, PatternBlock, TrackOverview};
+use crate::audio_engine::{DemoOverview, FxBusOverview, PatternBlock, StepState, TrackOverview};
 
 pub const SAMPLE_RATE_ABC: c_int = 22_050;
+const ABC_DEFAULT_VIBRATO_RATE: c_int = 5_200;
+const ABC_DEFAULT_SIDECHAIN_RELEASE_MS: c_int = 180;
 const ABC_MAX_VOICES: usize = 8;
 const ABC_MAX_NOTES: usize = 1024;
 const ABC_MAX_INSTRUMENTS: usize = 8;
@@ -258,8 +260,12 @@ pub fn render_abc_file(path: &Path) -> Result<Vec<u8>, String> {
         (buffer, pcm_len, stats)
     });
 
-    let (buffer, pcm_len, stats) = render_result
-        .map_err(|_| format!("render failure: engine call panicked for {}", path.display()))?;
+    let (buffer, pcm_len, stats) = render_result.map_err(|_| {
+        format!(
+            "render failure: engine call panicked for {}",
+            path.display()
+        )
+    })?;
     let samples = RenderedBuffer::from_raw(buffer, pcm_len)?.into_vec();
 
     if let Ok(mut last_stats) = LAST_RENDER_STATS.lock() {
@@ -275,10 +281,15 @@ pub fn load_demo_overview(path: &Path) -> Result<DemoOverview, String> {
         .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
     let mut music = AbcMusic::default();
 
-    let result = catch_unwind(AssertUnwindSafe(|| unsafe { abc_load(c_path.as_ptr(), &mut music) }))
-        .map_err(|_| format!("invalid ABC: parser panicked for {}", path.display()))?;
+    let result = catch_unwind(AssertUnwindSafe(|| unsafe {
+        abc_load(c_path.as_ptr(), &mut music)
+    }))
+    .map_err(|_| format!("invalid ABC: parser panicked for {}", path.display()))?;
     if result != 0 {
-        return Err(format!("invalid ABC or unreadable demo: {}", path.display()));
+        return Err(format!(
+            "invalid ABC or unreadable demo: {}",
+            path.display()
+        ));
     }
 
     build_demo_overview(&music)
@@ -297,7 +308,7 @@ pub fn get_render_stats() -> Option<AudioRenderStats> {
 }
 
 fn build_demo_overview(music: &AbcMusic) -> Result<DemoOverview, String> {
-    let instrument_presets = build_instrument_preset_map(music);
+    let preset_map = build_instrument_preset_map(music);
     let total_tracks = music.voice_count.max(0) as usize;
     let visible_tracks = usize::min(total_tracks, SEQ_MAX_TRACKS);
     let hidden_track_count = total_tracks - visible_tracks;
@@ -306,6 +317,7 @@ fn build_demo_overview(music: &AbcMusic) -> Result<DemoOverview, String> {
         .map(|voice| voice.note_count.max(0) as usize)
         .max()
         .unwrap_or(0);
+    let steps_per_beat = inferred_steps_per_beat(music);
 
     let arrangement = build_arrangement(music, max_steps)?;
     let total_steps = arrangement
@@ -317,50 +329,131 @@ fn build_demo_overview(music: &AbcMusic) -> Result<DemoOverview, String> {
         .iter()
         .enumerate()
         .map(|(index, voice)| {
-            let name = c_buf_to_string(&voice.name);
-            let instrument_ref = c_buf_to_string(&voice.instrument_ref);
-            let display_name = if name.is_empty() {
-                format!("track_{:02}", index + 1)
-            } else {
-                name
-            };
-            let instrument = if instrument_ref.is_empty() {
-                "direct".to_string()
-            } else if let Some(preset) = instrument_presets.get(&instrument_ref) {
-                format!("{instrument_ref} · {preset}")
-            } else {
-                instrument_ref
-            };
-
-            let mut activity = vec![false; total_steps.max(max_steps)];
-            for (step_index, &frequency) in voice
-                .freqs
-                .iter()
-                .take(voice.note_count.max(0) as usize)
-                .enumerate()
-            {
-                if step_index < activity.len() && frequency > 0.0 {
-                    activity[step_index] = true;
-                }
-            }
-
-            TrackOverview {
-                name: display_name,
-                instrument,
-                activity,
-            }
+            build_track_overview(index, voice, &preset_map, total_steps, steps_per_beat)
         })
         .collect();
 
     Ok(DemoOverview {
         title: c_buf_to_string(&music.title),
         bpm: music.bpm,
-        swing_pct: if music.swing_pct <= 0 { 50 } else { music.swing_pct },
+        swing_pct: if music.swing_pct <= 0 {
+            50
+        } else {
+            music.swing_pct
+        },
+        steps_per_beat,
         total_steps: total_steps.max(max_steps),
         arrangement,
         tracks,
+        fx_buses: build_fx_buses(music),
         hidden_track_count,
     })
+}
+
+fn build_track_overview(
+    index: usize,
+    voice: &AbcVoice,
+    preset_map: &HashMap<String, String>,
+    total_steps: usize,
+    steps_per_beat: usize,
+) -> TrackOverview {
+    let name = c_buf_to_string(&voice.name);
+    let instrument_ref = c_buf_to_string(&voice.instrument_ref);
+    let display_name = if name.is_empty() {
+        format!("track_{:02}", index + 1)
+    } else {
+        name
+    };
+    let preset = preset_map.get(&instrument_ref).cloned().unwrap_or_default();
+    let instrument = if instrument_ref.is_empty() {
+        "direct".to_string()
+    } else {
+        instrument_ref
+    };
+
+    let mut activity = vec![StepState::default(); total_steps];
+    for (step_index, &frequency) in voice
+        .freqs
+        .iter()
+        .take(voice.note_count.max(0) as usize)
+        .enumerate()
+    {
+        if step_index >= activity.len() || frequency <= 0.0 {
+            continue;
+        }
+
+        let accent = step_index % steps_per_beat == 0;
+        activity[step_index] = StepState {
+            active: true,
+            accent,
+            fx_trigger: accent,
+        };
+    }
+
+    TrackOverview {
+        name: display_name,
+        instrument,
+        preset,
+        waveform: waveform_name(voice.waveform).to_string(),
+        amplitude: voice.amplitude,
+        duty_cycle: voice.duty_cycle,
+        attack_ms: voice.attack_ms,
+        decay_ms: voice.decay_ms,
+        sustain_level: voice.sustain_level,
+        release_ms: voice.release_ms,
+        gate_percent: voice.gate_percent,
+        vibrato_cents: voice.vibrato_cents,
+        vibrato_rate: if voice.vibrato_rate > 0 {
+            voice.vibrato_rate
+        } else {
+            ABC_DEFAULT_VIBRATO_RATE
+        },
+        glide_ms: voice.glide_ms,
+        detune_cents: 0,
+        fx_bus: voice.fx_bus.max(0) as usize,
+        activity,
+    }
+}
+
+fn build_fx_buses(music: &AbcMusic) -> Vec<FxBusOverview> {
+    let requested_count = music.fx_bus_count.max(0) as usize;
+    let highest_track_bus = music.voices[..music.voice_count.max(0) as usize]
+        .iter()
+        .map(|voice| voice.fx_bus.max(0) as usize)
+        .max()
+        .unwrap_or(0);
+    let bus_count = usize::max(requested_count, highest_track_bus + 1).clamp(1, ABC_MAX_FX_BUSES);
+
+    music
+        .fx_buses
+        .iter()
+        .take(bus_count)
+        .enumerate()
+        .map(|(bus_index, bus)| FxBusOverview {
+            bus_index,
+            enabled: bus.enabled != 0
+                || bus.delay_steps > 0
+                || bus.drive_amount > 0
+                || bus.lowpass_amount > 0
+                || bus.sidechain_amount > 0,
+            delay_steps: bus.delay_steps,
+            delay_feedback: bus.delay_feedback,
+            delay_mix: bus.delay_mix,
+            drive_amount: bus.drive_amount,
+            lowpass_amount: bus.lowpass_amount,
+            sidechain_amount: bus.sidechain_amount,
+            sidechain_release_ms: if bus.sidechain_release_ms > 0 {
+                bus.sidechain_release_ms
+            } else {
+                ABC_DEFAULT_SIDECHAIN_RELEASE_MS
+            },
+            mix_percent: if bus.mix_percent > 0 {
+                bus.mix_percent
+            } else {
+                100
+            },
+        })
+        .collect()
 }
 
 fn build_instrument_preset_map(music: &AbcMusic) -> HashMap<String, String> {
@@ -373,8 +466,7 @@ fn build_instrument_preset_map(music: &AbcMusic) -> HashMap<String, String> {
     {
         let name = c_buf_to_string(&instrument.name);
         if !name.is_empty() {
-            let preset = c_buf_to_string(&instrument.preset);
-            presets.insert(name, preset);
+            presets.insert(name, c_buf_to_string(&instrument.preset));
         }
     }
 
@@ -392,7 +484,9 @@ fn build_arrangement(music: &AbcMusic, max_steps: usize) -> Result<Vec<PatternBl
         for block_name in music.arrangement.iter().take(arrangement_length) {
             let label = c_buf_to_string(block_name);
             let Some(&length) = lengths.get(&label) else {
-                return Err(format!("arrangement references undefined pattern '{label}'"));
+                return Err(format!(
+                    "arrangement references undefined pattern '{label}'"
+                ));
             };
             blocks.push(PatternBlock {
                 label,
@@ -441,8 +535,18 @@ fn build_arrangement(music: &AbcMusic, max_steps: usize) -> Result<Vec<PatternBl
 fn pattern_lengths(music: &AbcMusic) -> HashMap<String, usize> {
     let mut lengths = HashMap::new();
 
-    for pattern in music.patterns.iter().take(music.pattern_count.max(0) as usize) {
-        lengths.insert(c_buf_to_string(&pattern.name), normalized_pattern_length(pattern.length));
+    for pattern in music
+        .patterns
+        .iter()
+        .take(music.pattern_count.max(0) as usize)
+    {
+        if pattern.defined == 0 {
+            continue;
+        }
+        lengths.insert(
+            c_buf_to_string(&pattern.name),
+            normalized_pattern_length(pattern.length),
+        );
     }
 
     lengths
@@ -452,8 +556,30 @@ fn normalized_pattern_length(length: c_int) -> usize {
     length.clamp(1, 64) as usize
 }
 
+fn inferred_steps_per_beat(music: &AbcMusic) -> usize {
+    if music.bpm <= 0 || music.step_ms <= 0 {
+        return 4;
+    }
+
+    ((60_000.0 / music.bpm as f32) / music.step_ms as f32)
+        .round()
+        .clamp(1.0, 16.0) as usize
+}
+
+fn waveform_name(waveform: c_int) -> &'static str {
+    match waveform {
+        1 => "pulse",
+        2 => "triangle",
+        3 => "noise",
+        _ => "square",
+    }
+}
+
 fn c_buf_to_string(buffer: &[c_char]) -> String {
-    let len = buffer.iter().position(|&value| value == 0).unwrap_or(buffer.len());
+    let len = buffer
+        .iter()
+        .position(|&value| value == 0)
+        .unwrap_or(buffer.len());
     let bytes = buffer[..len]
         .iter()
         .map(|&value| value as u8)
