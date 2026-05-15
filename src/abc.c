@@ -163,6 +163,7 @@ static void parse_effect_directive(AbcMusic *music, const char *val)
     }
     if (strncmp(val, "lowpass", 7) == 0) {
         music->fx_lowpass_amount = parse_int_param(val, "amount=", music->fx_lowpass_amount);
+        return;
     }
 }
 
