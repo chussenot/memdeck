@@ -62,8 +62,13 @@ static int uses_supported_directives_only(const char *path)
 static int pcm_clipping_count(const unsigned char *pcm, int len)
 {
     int c = 0;
-    for (int i = 0; i < len; i++)
-        if (pcm[i] <= 0 || pcm[i] >= 255) c++;
+    int run = 1;
+    for (int i = 1; i < len; i++) {
+        if (pcm[i] == pcm[i - 1]) run++;
+        else run = 1;
+        if (run >= 4 && (pcm[i] == 0 || pcm[i] == 255))
+            c++;
+    }
     return c;
 }
 
