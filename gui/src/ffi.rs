@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_double, c_int};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::ptr;
 use std::slice;
@@ -240,8 +241,6 @@ fn normalized_demo_path(path: &Path) -> Result<String, String> {
     let path_str = path
         .to_str()
         .ok_or_else(|| format!("demo path is not valid UTF-8: {}", path.display()))?;
-    CString::new(path_str)
-        .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
     Ok(path_str.to_string())
 }
 
@@ -250,7 +249,7 @@ pub fn render_abc_file(path: &Path) -> Result<Vec<u8>, String> {
     let c_path = CString::new(path_str.clone())
         .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
 
-    let render_result = std::panic::catch_unwind(|| {
+    let render_result = catch_unwind(|| {
         let mut pcm_len = 0;
         let mut stats = AudioRenderStats::default();
         let buffer = unsafe {
@@ -276,7 +275,7 @@ pub fn load_demo_overview(path: &Path) -> Result<DemoOverview, String> {
         .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
     let mut music = AbcMusic::default();
 
-    let result = std::panic::catch_unwind(|| unsafe { abc_load(c_path.as_ptr(), &mut music) })
+    let result = catch_unwind(AssertUnwindSafe(|| unsafe { abc_load(c_path.as_ptr(), &mut music) }))
         .map_err(|_| format!("invalid ABC: parser panicked for {}", path.display()))?;
     if result != 0 {
         return Err(format!("invalid ABC or unreadable demo: {}", path.display()));

@@ -213,7 +213,13 @@ mod tests {
     #[test]
     fn stop_transitions_to_stopped_state() {
         let mut playback = PlaybackController::default();
-        let _ = playback.start_pcm(&[]);
+        let start_error = playback
+            .start_pcm(&[])
+            .expect_err("empty sample buffer should fail");
+        assert!(
+            start_error.contains("empty PCM buffer"),
+            "expected empty PCM buffer error, got: {start_error}"
+        );
         let _ = playback.stop();
 
         assert_eq!(playback.state(), &PlaybackState::Stopped);
