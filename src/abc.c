@@ -132,6 +132,7 @@ static int validate_fx_bus(int fx_bus)
 
 static void parse_voice_directives(AbcVoice *v, const char *val)
 {
+    const char *instrument = strstr(val, "instrument=");
     const char *amp = strstr(val, "amp=");
     const char *wave = strstr(val, "wave=");
     const char *duty = strstr(val, "duty=");
@@ -142,6 +143,12 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
     const char *gate = strstr(val, "gate=");
     const char *vibrato = strstr(val, "vibrato=");
     const char *glide = strstr(val, "glide=");
+    const char *fx = strstr(val, "fx=");
+
+    /* Check for instrument reference first */
+    if (instrument) {
+        sscanf(instrument + 11, "%31s", v->instrument_ref);
+    }
 
     if (amp) {
         int a = atoi(amp + 4);
@@ -179,6 +186,12 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
         if (v->vibrato_rate <= 0) v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
     }
     if (glide) v->glide_ms = atoi(glide + 6);
+    if (fx) {
+        int fb = atoi(fx + 3);
+        if (validate_fx_bus(fb)) {
+            v->fx_bus = fb;
+        }
+    }
 
     if (v->sustain_level < 0) v->sustain_level = 0;
     if (v->sustain_level > 100) v->sustain_level = 100;
@@ -231,6 +244,165 @@ static void parse_swing_directive(AbcMusic *music, const char *val)
     if (swing < 0) swing = 0;
     if (swing > 100) swing = 100;
     music->swing_pct = swing;
+}
+
+static void parse_instrument_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val || music->instrument_count >= ABC_MAX_INSTRUMENTS) return;
+    while (*val == ' ') val++;
+    
+    AbcInstrument *inst = &music->instruments[music->instrument_count];
+    memset(inst, 0, sizeof(*inst));
+    
+    /* Parse instrument name (first token) */
+    sscanf(val, "%31s", inst->name);
+    
+    /* Set defaults */
+    inst->amplitude = 40;
+    inst->waveform = DSP_WAVE_SQUARE;
+    inst->duty_cycle = 25;
+    inst->sustain_level = 100;
+    inst->gate_percent = 90;
+    inst->vibrato_cents = 0;
+    inst->glide_ms = 0;
+    inst->fx_bus = 0;
+    
+    /* Parse parameters */
+    const char *preset = strstr(val, "preset=");
+    const char *amp = strstr(val, "amp=");
+    const char *wave = strstr(val, "wave=");
+    const char *duty = strstr(val, "duty=");
+    const char *attack = strstr(val, "attack=");
+    const char *decay = strstr(val, "decay=");
+    const char *sustain = strstr(val, "sustain=");
+    const char *release = strstr(val, "release=");
+    const char *gate = strstr(val, "gate=");
+    const char *vibrato = strstr(val, "vibrato=");
+    const char *glide = strstr(val, "glide=");
+    const char *fx = strstr(val, "fx=");
+    
+    if (preset) sscanf(preset + 7, "%31s", inst->preset);
+    if (amp) {
+        int a = atoi(amp + 4);
+        if (validate_amplitude(a)) inst->amplitude = a;
+    }
+    if (wave) {
+        char wname[16] = {0};
+        sscanf(wave + 5, "%15s", wname);
+        if (validate_waveform_name(wname))
+            inst->waveform = parse_waveform_name(wname);
+    }
+    if (duty) {
+        int pct = atoi(duty + 5);
+        if (validate_duty_cycle(pct)) inst->duty_cycle = pct;
+    }
+    if (attack) inst->attack_ms = atoi(attack + 7);
+    if (decay) inst->decay_ms = atoi(decay + 6);
+    if (sustain) {
+        int s = atoi(sustain + 8);
+        if (s < 0) s = 0;
+        if (s > 100) s = 100;
+        inst->sustain_level = s;
+    }
+    if (release) inst->release_ms = atoi(release + 8);
+    if (gate) {
+        int g = atoi(gate + 5);
+        if (g < 1) g = 1;
+        if (g > 100) g = 100;
+        inst->gate_percent = g;
+    }
+    if (vibrato) inst->vibrato_cents = atoi(vibrato + 8);
+    if (glide) inst->glide_ms = atoi(glide + 6);
+    if (fx) {
+        int fb = atoi(fx + 3);
+        if (validate_fx_bus(fb)) inst->fx_bus = fb;
+    }
+    
+    music->instrument_count++;
+}
+
+static void parse_pattern_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val || music->pattern_count >= ABC_MAX_PATTERNS) return;
+    while (*val == ' ') val++;
+    
+    AbcPattern *pat = &music->patterns[music->pattern_count];
+    memset(pat, 0, sizeof(*pat));
+    
+    /* Parse pattern name */
+    sscanf(val, "%31s", pat->name);
+    
+    /* Parse length parameter */
+    const char *length = strstr(val, "length=");
+    if (length) {
+        pat->length = atoi(length + 7);
+        if (pat->length < 1) pat->length = 16;
+        if (pat->length > ABC_MAX_NOTES) pat->length = ABC_MAX_NOTES;
+    } else {
+        pat->length = 16; /* default */
+    }
+    
+    pat->defined = 1;
+    music->pattern_count++;
+}
+
+static void parse_arrangement_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val) return;
+    while (*val == ' ') val++;
+    
+    music->arrangement_length = 0;
+    
+    /* Parse space-separated pattern names */
+    char buf[512];
+    snprintf(buf, sizeof(buf), "%s", val);
+    
+    char *token = strtok(buf, " \t");
+    while (token && music->arrangement_length < ABC_MAX_ARRANGEMENT) {
+        snprintf(music->arrangement[music->arrangement_length],
+                 sizeof(music->arrangement[0]), "%s", token);
+        music->arrangement_length++;
+        token = strtok(NULL, " \t");
+    }
+}
+
+static void parse_numbered_effect_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val) return;
+    while (*val == ' ') val++;
+    
+    /* Parse bus number */
+    int bus_num = atoi(val);
+    if (!validate_fx_bus(bus_num)) return;
+    
+    /* Skip past the bus number */
+    while (*val && (*val == ' ' || isdigit(*val))) val++;
+    
+    /* Ensure we have this bus */
+    if (bus_num >= music->fx_bus_count) {
+        music->fx_bus_count = bus_num + 1;
+    }
+    
+    AbcFxBus *bus = &music->fx_buses[bus_num];
+    bus->enabled = 1;
+    
+    /* Parse parameters */
+    bus->delay_steps = parse_int_param(val, "delay_steps=", bus->delay_steps);
+    bus->delay_feedback = parse_int_param(val, "delay_feedback=", bus->delay_feedback);
+    bus->delay_mix = parse_int_param(val, "delay_mix=", bus->delay_mix);
+    bus->drive_amount = parse_int_param(val, "drive=", bus->drive_amount);
+    bus->lowpass_amount = parse_int_param(val, "lowpass=", bus->lowpass_amount);
+    bus->sidechain_amount = parse_int_param(val, "sidechain=", bus->sidechain_amount);
+    bus->sidechain_release_ms = parse_int_param(val, "sidechain_release=", bus->sidechain_release_ms);
+    bus->mix_percent = parse_int_param(val, "mix=", 100);
+    
+    /* Validate ranges */
+    if (bus->delay_feedback < 0) bus->delay_feedback = 0;
+    if (bus->delay_feedback > 100) bus->delay_feedback = 100;
+    if (bus->delay_mix < 0) bus->delay_mix = 0;
+    if (bus->delay_mix > 100) bus->delay_mix = 100;
+    if (bus->mix_percent < 0) bus->mix_percent = 0;
+    if (bus->mix_percent > 100) bus->mix_percent = 100;
 }
 
 /* ─── Parser state ───────────────────────────────────────────── */
@@ -451,6 +623,15 @@ int abc_load(const char *path, AbcMusic *music)
     music->bpm = 120;
     music->swing_pct = 0;
     music->fx_sidechain_release_ms = 180;
+    music->instrument_count = 0;
+    music->pattern_count = 0;
+    music->arrangement_length = 0;
+    music->fx_bus_count = 1; /* at least one FX bus for backward compat */
+    
+    /* Initialize default FX bus (bus 0) */
+    memset(&music->fx_buses[0], 0, sizeof(AbcFxBus));
+    music->fx_buses[0].enabled = 1;
+    music->fx_buses[0].mix_percent = 100;
 
     AbcHeader header;
     memset(&header, 0, sizeof(header));
@@ -577,15 +758,47 @@ int abc_load(const char *path, AbcMusic *music)
                 v->vibrato_cents = 0;
                 v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
                 v->glide_ms = 0;
+                v->fx_bus = 0;
+                v->instrument_ref[0] = '\0';
 
                 parse_voice_directives(v, val);
             }
             continue;
         }
-        if (strncmp(line, "%%effect", 8) == 0) {
-            parse_effect_directive(music, line + 8);
+        
+        /* %%instrument directive */
+        if (strncmp(line, "%%instrument", 12) == 0) {
+            parse_instrument_directive(music, line + 12);
             continue;
         }
+        
+        /* %%pattern directive */
+        if (strncmp(line, "%%pattern", 9) == 0) {
+            parse_pattern_directive(music, line + 9);
+            continue;
+        }
+        
+        /* %%arrangement directive */
+        if (strncmp(line, "%%arrangement", 13) == 0) {
+            parse_arrangement_directive(music, line + 13);
+            continue;
+        }
+        
+        /* %%effect directive - check if numbered (e.g., "%%effect 0") */
+        if (strncmp(line, "%%effect", 8) == 0) {
+            const char *val = line + 8;
+            while (*val == ' ') val++;
+            
+            /* Check if first char after spaces is a digit */
+            if (isdigit(*val)) {
+                parse_numbered_effect_directive(music, val);
+            } else {
+                /* Legacy single FX bus - map to bus 0 */
+                parse_effect_directive(music, val);
+            }
+            continue;
+        }
+        
         if (strncmp(line, "%%sidechain", 11) == 0) {
             parse_sidechain_directive(music, line + 11);
             continue;
@@ -616,6 +829,8 @@ int abc_load(const char *path, AbcMusic *music)
                 v->vibrato_cents = 0;
                 v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
                 v->glide_ms = 0;
+                v->fx_bus = 0;
+                v->instrument_ref[0] = '\0';
             } else {
                 current_voice = 0;
             }
@@ -699,6 +914,44 @@ int abc_load(const char *path, AbcMusic *music)
     /* note_fraction of a whole note; a quarter note = 1/4 */
     music->step_ms = (int)(quarter_ms * note_fraction * 4.0);
     if (music->step_ms < 10) music->step_ms = 125; /* fallback */
+
+    /* Apply instrument presets to voices that reference them */
+    for (int v = 0; v < music->voice_count; v++) {
+        AbcVoice *voice = &music->voices[v];
+        if (voice->instrument_ref[0] != '\0') {
+            /* Find matching instrument */
+            for (int i = 0; i < music->instrument_count; i++) {
+                AbcInstrument *inst = &music->instruments[i];
+                if (strcmp(voice->instrument_ref, inst->name) == 0) {
+                    /* Apply instrument settings to voice (voice settings override) */
+                    if (voice->amplitude == 40) voice->amplitude = inst->amplitude;
+                    if (voice->waveform == DSP_WAVE_SQUARE) voice->waveform = inst->waveform;
+                    if (voice->duty_cycle == 25) voice->duty_cycle = inst->duty_cycle;
+                    if (voice->attack_ms == 0) voice->attack_ms = inst->attack_ms;
+                    if (voice->decay_ms == 0) voice->decay_ms = inst->decay_ms;
+                    if (voice->sustain_level == 100) voice->sustain_level = inst->sustain_level;
+                    if (voice->release_ms == 0) voice->release_ms = inst->release_ms;
+                    if (voice->gate_percent == 90) voice->gate_percent = inst->gate_percent;
+                    if (voice->vibrato_cents == 0) voice->vibrato_cents = inst->vibrato_cents;
+                    if (voice->glide_ms == 0) voice->glide_ms = inst->glide_ms;
+                    if (voice->fx_bus == 0) voice->fx_bus = inst->fx_bus;
+                    break;
+                }
+            }
+        }
+    }
+
+    /* Map legacy FX fields to bus 0 for backward compatibility */
+    if (music->fx_delay_steps > 0 || music->fx_drive_amount > 0 || music->fx_lowpass_amount > 0 ||
+        music->fx_sidechain_amount > 0) {
+        music->fx_buses[0].delay_steps = music->fx_delay_steps;
+        music->fx_buses[0].delay_feedback = music->fx_delay_feedback;
+        music->fx_buses[0].delay_mix = music->fx_delay_mix;
+        music->fx_buses[0].drive_amount = music->fx_drive_amount;
+        music->fx_buses[0].lowpass_amount = music->fx_lowpass_amount;
+        music->fx_buses[0].sidechain_amount = music->fx_sidechain_amount;
+        music->fx_buses[0].sidechain_release_ms = music->fx_sidechain_release_ms;
+    }
 
     return 0;
 }

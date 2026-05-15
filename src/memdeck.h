@@ -255,12 +255,54 @@ void sound_profile_reset(void);
 int  sound_profile_snapshot(SoundProfile *out);
 
 /* abc.c — ABC notation parser and PCM generator */
-#define ABC_MAX_VOICES  8
-#define ABC_MAX_NOTES   1024
-#define SAMPLE_RATE_ABC 22050
+#define ABC_MAX_VOICES     8
+#define ABC_MAX_NOTES      1024
+#define ABC_MAX_INSTRUMENTS 8
+#define ABC_MAX_PATTERNS   8
+#define ABC_MAX_ARRANGEMENT 32
+#define ABC_MAX_FX_BUSES   4
+#define SAMPLE_RATE_ABC    22050
+
+/* Named instrument preset */
+typedef struct {
+    char name[32];        /* instrument name */
+    char preset[32];      /* preset identifier */
+    int amplitude;
+    int waveform;
+    int duty_cycle;
+    int attack_ms;
+    int decay_ms;
+    int sustain_level;
+    int release_ms;
+    int gate_percent;
+    int vibrato_cents;
+    int glide_ms;
+    int fx_bus;          /* which FX bus (0-3) */
+} AbcInstrument;
+
+/* Pattern definition */
+typedef struct {
+    char name[32];       /* pattern name (A, B, C, etc.) */
+    int length;          /* pattern length in steps */
+    int defined;         /* 1 if pattern has been defined */
+} AbcPattern;
+
+/* FX bus configuration */
+typedef struct {
+    int enabled;
+    int delay_steps;
+    int delay_feedback;
+    int delay_mix;
+    int drive_amount;
+    int lowpass_amount;
+    int sidechain_amount;
+    int sidechain_release_ms;
+    int mix_percent;     /* bus output mix (0-100) */
+} AbcFxBus;
 
 typedef struct {
     char name[32];
+    char instrument_ref[32]; /* reference to instrument name, if any */
     int amplitude;        /* per-voice amplitude (0-127) */
     int staccato;         /* 1 = staccato (3/4 length), 0 = legato (9/10 length) */
     int waveform;         /* 0=square, 1=pulse, 2=triangle, 3=noise */
@@ -273,6 +315,7 @@ typedef struct {
     int vibrato_cents;
     int vibrato_rate;
     int glide_ms;
+    int fx_bus;           /* which FX bus to use (0-3) */
     double freqs[ABC_MAX_NOTES]; /* frequency per step (0 = rest) */
     int note_count;
 } AbcVoice;
@@ -282,13 +325,32 @@ typedef struct {
     int bpm;
     int step_ms;          /* duration of one default-length note in ms */
     int swing_pct;        /* swing percentage 0..100 (%%swing) */
-    int fx_delay_steps;         /* delay time in sequencer steps (%%effect delay time=) */
-    int fx_delay_feedback;      /* delay feedback percent 0..100 */
-    int fx_delay_mix;           /* delay wet mix percent 0..100 */
-    int fx_drive_amount;        /* drive/saturation amount percent 0..100 */
-    int fx_lowpass_amount;      /* low-pass amount percent 0..100 */
-    int fx_sidechain_amount;    /* fake sidechain duck amount percent 0..100 */
-    int fx_sidechain_release_ms;/* sidechain release in milliseconds */
+    
+    /* Instruments */
+    AbcInstrument instruments[ABC_MAX_INSTRUMENTS];
+    int instrument_count;
+    
+    /* Patterns */
+    AbcPattern patterns[ABC_MAX_PATTERNS];
+    int pattern_count;
+    
+    /* Arrangement */
+    char arrangement[ABC_MAX_ARRANGEMENT][32]; /* pattern sequence */
+    int arrangement_length;
+    
+    /* FX Buses (backward compatible: bus 0 is default) */
+    AbcFxBus fx_buses[ABC_MAX_FX_BUSES];
+    int fx_bus_count;
+    
+    /* Legacy FX fields (mapped to fx_buses[0] for compatibility) */
+    int fx_delay_steps;
+    int fx_delay_feedback;
+    int fx_delay_mix;
+    int fx_drive_amount;
+    int fx_lowpass_amount;
+    int fx_sidechain_amount;
+    int fx_sidechain_release_ms;
+    
     AbcVoice voices[ABC_MAX_VOICES];
     int voice_count;
 } AbcMusic;
