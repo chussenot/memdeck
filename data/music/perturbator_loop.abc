@@ -5,22 +5,30 @@ M:4/4
 L:1/16
 Q:1/4=140
 K:Am
-%%swing 50
-%%effect delay time=4 feedback=45 mix=30
-%%effect drive amount=35
-%%effect lowpass amount=25
-%%sidechain amount=50 release=200
-%%staves [bass synth pad]
-V:bass amp=85 wave=pulse duty=40 attack=1 decay=50 sustain=75 release=100 gate=70
-V:synth amp=50 wave=pulse duty=25 attack=0 decay=15 sustain=55 release=35 gate=40 vibrato=8
-V:pad amp=35 wave=triangle attack=120 decay=160 sustain=85 release=400 gate=98
+%%swing 52
+%%instrument bass wave=pulse amp=96 duty=28 attack=0 decay=55 sustain=70 release=90 gate=72 fx=0
+%%instrument hats wave=noise amp=44 attack=0 decay=8 sustain=20 release=18 gate=30 fx=0
+%%instrument pad wave=triangle amp=42 attack=120 decay=170 sustain=84 release=360 gate=96 fx=1
+%%instrument lead wave=pulse amp=58 duty=22 attack=12 decay=45 sustain=68 release=110 gate=56 vibrato=9 glide=18 fx=1
+%%effect 0 delay_steps=1 delay_feedback=14 delay_mix=8 drive=50 lowpass=34 sidechain=44 sidechain_release=170 mix=100
+%%effect 1 delay_steps=6 delay_feedback=46 delay_mix=36 drive=30 lowpass=56 sidechain=24 sidechain_release=230 mix=74
+%%pattern A length=16
+%%pattern B length=16
+%%arrangement A B A B
+V:bass instrument=bass
+V:hats instrument=hats
+V:pad instrument=pad
+V:lead instrument=lead
 %
 V:bass
-|: A,,4A,,4 A,,4A,,4 | G,,4G,,4 F,,4F,,4 |
-E,,4E,,4 E,,4E,,4 | E,,4E,,4 F,,4A,,4 :|
-V:synth
-|: A2E2A2=c2 A2E2A2=c2 | G2D2G2B2 F2C2F2A2 |
-E2B,2E2G2 E2B,2E2G2 | E2B,2E2G2 F2C2A2=c2 :|
+|: A,,2A,2 A,,2A,2 G,,2G,2 F,,2F,2 | E,,2E,2 E,,2E,2 F,,2F,2 G,,2A,,2 |
+| A,,2A,2 A,,2A,2 G,,2G,2 F,,2F,2 | E,,2E,2 D,,2D,2 E,,2F,,2 A,,2A,,2 :|
+V:hats
+|: z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 :|
 V:pad
 |: A8z8 | G8F8 |
-E16 | z8 F4A4 :|
+| E8z8 | D8E8 :|
+V:lead
+|: z8 c2d2 e2z2 | z8 g2a2 g2z2 |
+| z8 c'2b2 a2z2 | z8 e2d2 c2z2 :|

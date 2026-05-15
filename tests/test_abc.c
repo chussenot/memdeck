@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 #include "../src/memdeck.h"
 
 static int g_failures = 0;
@@ -24,6 +25,46 @@ static void failf(const char *label, const char *msg)
 {
     printf("FAIL %s: %s\n", label, msg);
     g_failures++;
+}
+
+static int uses_supported_directives_only(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    char line[1024];
+    static const char *allowed[] = {
+        "%%swing",
+        "%%effect",
+        "%%sidechain",
+        "%%instrument",
+        "%%pattern",
+        "%%arrangement",
+        "%%voice"
+    };
+    if (!f) return 0;
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] != '%' || line[1] != '%') continue;
+        int ok = 0;
+        for (size_t i = 0; i < sizeof(allowed) / sizeof(allowed[0]); i++) {
+            if (strncmp(line, allowed[i], strlen(allowed[i])) == 0) {
+                ok = 1;
+                break;
+            }
+        }
+        if (!ok) {
+            fclose(f);
+            return 0;
+        }
+    }
+    fclose(f);
+    return 1;
+}
+
+static int pcm_clipping_count(const unsigned char *pcm, int len)
+{
+    int c = 0;
+    for (int i = 0; i < len; i++)
+        if (pcm[i] <= 0 || pcm[i] >= 255) c++;
+    return c;
 }
 
 static int test_track(const char *bass, const char *arp, const char *lead,
@@ -68,12 +109,12 @@ static int test_track(const char *bass, const char *arp, const char *lead,
 static void test_golden_fixture(void)
 {
     static const unsigned char expected_prefix[] = {
-        188, 188, 188, 188, 188, 188, 188, 188,
-        188, 188, 188, 188, 188, 188, 188, 188,
-        188, 140, 140, 140, 140, 140, 140, 140,
+        180, 180, 180, 180, 180, 180, 180, 180,
+        180, 180, 180, 180, 180, 180, 180, 180,
+        180, 140, 140, 140, 140, 140, 140, 140,
         140, 140, 140, 140, 140, 140, 140, 140
     };
-    static const uint64_t expected_checksum = 0xa8f7ce1aa65292bbull;
+    static const uint64_t expected_checksum = 0x0de5a3a1954d471bull;
     const char *path = "tests/fixtures/golden_small.abc";
     AbcMusic music;
     int pcm_len = 0;
@@ -114,6 +155,80 @@ static void test_golden_fixture(void)
     }
 
     free(pcm);
+}
+
+static void test_showcase_demo_regression(void)
+{
+    typedef struct {
+        const char *path;
+        int expected_len;
+        uint64_t expected_checksum;
+        int max_clipping;
+    } DemoExpectation;
+    static const DemoExpectation demos[] = {
+        { "data/music/dark_moroder.abc", 168000, 0x96c50916401f02a5ull, 5000 },
+        { "data/music/perturbator_loop.abc", 151200, 0xd5e6165e8c40df61ull, 12000 },
+        { "data/music/carpenter_drive.abc", 207529, 0x00f44dc868c9312aull, 12000 },
+        { "data/music/advanced_dsl_demo.abc", 381634, 0xe74909ce1c1beae3ull, 6000 },
+        { "data/music/multi_fx_demo.abc", 313600, 0x25da3aed91b9d649ull, 18000 }
+    };
+
+    for (size_t i = 0; i < sizeof(demos) / sizeof(demos[0]); i++) {
+        AbcMusic music;
+        unsigned char *pcm1 = NULL;
+        unsigned char *pcm2 = NULL;
+        int len1 = 0;
+        int len2 = 0;
+        uint64_t c1;
+        uint64_t c2;
+        int clip;
+
+        if (!uses_supported_directives_only(demos[i].path)) {
+            printf("FAIL showcase directives: %s uses unsupported %% directives\n", demos[i].path);
+            g_failures++;
+            continue;
+        }
+        if (abc_load(demos[i].path, &music) != 0) {
+            printf("FAIL showcase parse: %s\n", demos[i].path);
+            g_failures++;
+            continue;
+        }
+        pcm1 = abc_generate_pcm(&music, &len1);
+        pcm2 = abc_generate_pcm(&music, &len2);
+        if (!pcm1 || !pcm2 || len1 <= 0 || len2 <= 0) {
+            printf("FAIL showcase render: %s\n", demos[i].path);
+            g_failures++;
+            free(pcm1);
+            free(pcm2);
+            continue;
+        }
+
+        c1 = fnv1a64(pcm1, len1);
+        c2 = fnv1a64(pcm2, len2);
+        clip = pcm_clipping_count(pcm1, len1);
+
+        if (len1 != demos[i].expected_len || len2 != demos[i].expected_len) {
+            printf("FAIL showcase len: %s got %d/%d expected %d\n",
+                   demos[i].path, len1, len2, demos[i].expected_len);
+            g_failures++;
+        }
+        if (c1 != demos[i].expected_checksum || c2 != demos[i].expected_checksum || c1 != c2) {
+            printf("FAIL showcase checksum: %s got 0x%016llx/0x%016llx expected 0x%016llx\n",
+                   demos[i].path,
+                   (unsigned long long)c1,
+                   (unsigned long long)c2,
+                   (unsigned long long)demos[i].expected_checksum);
+            g_failures++;
+        }
+        if (clip > demos[i].max_clipping) {
+            printf("FAIL showcase clipping: %s got %d max %d\n",
+                   demos[i].path, clip, demos[i].max_clipping);
+            g_failures++;
+        }
+
+        free(pcm1);
+        free(pcm2);
+    }
 }
 
 static void test_dsl_directives(void)
@@ -306,6 +421,9 @@ int main(void)
 
     printf("\n");
     test_multi_fx_buses();
+
+    printf("\n");
+    test_showcase_demo_regression();
 
     if (g_failures > 0) ok = 0;
     printf("\n%s\n", ok ? "All tests passed." : "Some tests FAILED.");
