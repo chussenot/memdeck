@@ -98,14 +98,14 @@ static int parse_waveform_name(const char *s)
     return DSP_WAVE_SQUARE;
 }
 
-static int tri_lfo_q15(uint32_t *phase, int rate_mhz)
+static int tri_lfo_q15(uint32_t *phase, int rate_millihz)
 {
     uint64_t increment;
     uint32_t p;
     int tri;
 
-    if (rate_mhz <= 0) return 0;
-    increment = ((uint64_t)rate_mhz << 32) / ((uint64_t)SAMPLE_RATE_ABC * 1000ull);
+    if (rate_millihz <= 0) return 0;
+    increment = ((uint64_t)rate_millihz << 32) / ((uint64_t)SAMPLE_RATE_ABC * 1000ull);
     *phase += (uint32_t)increment;
     p = *phase >> 16;
     tri = (*phase & 0x80000000u)

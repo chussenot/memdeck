@@ -124,9 +124,9 @@ static void test_builtin_render(void)
 {
     static const unsigned char expected_prefix[16] = {
         168, 168, 91, 170, 93, 172, 95, 173,
-        98, 98, 176, 101, 101, 161, 159, 85
+        98, 98, 176, 101, 101, 161, 160, 85
     };
-    static const uint64_t expected_checksum = 0xccd99a1e11ef0c3cull;
+    static const uint64_t expected_checksum = 0xd138a815d4455aefull;
     const SeqSong *song = audio_builtin_menu_song();
     unsigned char *pcm = NULL;
     int pcm_len = 0;

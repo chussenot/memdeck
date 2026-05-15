@@ -78,14 +78,14 @@ static double midi_note_to_freq(int note)
     return midi_freq_table[note];
 }
 
-static int tri_lfo_q15(uint32_t *phase, int rate_mhz, int sample_rate)
+static int tri_lfo_q15(uint32_t *phase, int rate_millihz, int sample_rate)
 {
     uint64_t increment;
     uint32_t p;
     int tri;
 
-    if (rate_mhz <= 0 || sample_rate <= 0) return 0;
-    increment = ((uint64_t)rate_mhz << 32) / ((uint64_t)sample_rate * 1000ull);
+    if (rate_millihz <= 0 || sample_rate <= 0) return 0;
+    increment = ((uint64_t)rate_millihz << 32) / ((uint64_t)sample_rate * 1000ull);
     *phase += (uint32_t)increment;
     p = *phase >> 16;
     tri = (*phase & 0x80000000u)
@@ -215,7 +215,7 @@ static int voice_next(MixVoiceState *voice)
 
     for (int i = 0; i < voice->osc_count; i++)
         mixed += dsp_osc_next(&voice->oscs[i]);
-    mixed = mixed / voice->osc_count;
+    mixed = (mixed + (voice->osc_count / 2)) / voice->osc_count;
     return (mixed * env_q15) / 32767;
 }
 
