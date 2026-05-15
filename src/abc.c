@@ -1,5 +1,6 @@
 #include "memdeck.h"
 #include "audio_dsp.h"
+#include "audio_mix.h"
 
 /*
  * Minimal ABC notation parser for the MemDeck chiptune engine.
@@ -365,7 +366,10 @@ static void parse_arrangement_directive(AbcMusic *music, const char *val)
     
     /* Parse space-separated pattern names */
     char buf[512];
-    snprintf(buf, sizeof(buf), "%s", val);
+    size_t n = strlen(val);
+    if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+    memcpy(buf, val, n);
+    buf[n] = '\0';
     
     char *token = strtok(buf, " \t");
     while (token && music->arrangement_length < ABC_MAX_ARRANGEMENT) {
@@ -575,53 +579,6 @@ static int parse_note(const char *p, const AbcHeader *h,
     }
 
     return (int)(p - start);
-}
-
-typedef struct {
-    double freq;
-    int note_end;
-    unsigned char active;
-    unsigned char reuse_prev;
-} AbcRenderStep;
-
-typedef struct {
-    AbcRenderStep steps[ABC_MAX_NOTES];
-} AbcRenderVoice;
-
-static void compile_render_timeline(const AbcMusic *music, int max_steps,
-                                    int step_samples[ABC_MAX_NOTES],
-                                    AbcRenderVoice timeline[ABC_MAX_VOICES])
-{
-    DspSampleStepper stepper;
-    dsp_stepper_init(&stepper, SAMPLE_RATE_ABC, music->step_ms);
-
-    for (int step = 0; step < max_steps; step++)
-        step_samples[step] = dsp_stepper_next(&stepper);
-
-    memset(timeline, 0, sizeof(AbcRenderVoice) * ABC_MAX_VOICES);
-    for (int v = 0; v < music->voice_count; v++) {
-        const AbcVoice *voice = &music->voices[v];
-        for (int step = 0; step < max_steps; step++) {
-            AbcRenderStep *entry = &timeline[v].steps[step];
-            if (step >= voice->note_count || voice->freqs[step] <= 0.0)
-                continue;
-
-            entry->freq = voice->freqs[step];
-            if (voice->gate_percent > 0) {
-                entry->note_end = (step_samples[step] * voice->gate_percent) / 100;
-            } else {
-                entry->note_end = voice->staccato
-                    ? (step_samples[step] * 3) / 4
-                    : (step_samples[step] * 9) / 10;
-            }
-            entry->active = 1;
-            if (step > 0 &&
-                step - 1 < voice->note_count &&
-                voice->freqs[step - 1] > 0.0 &&
-                voice->freqs[step - 1] == entry->freq)
-                entry->reuse_prev = 1;
-        }
-    }
 }
 
 /* ─── Public API ─────────────────────────────────────────────── */
@@ -998,111 +955,197 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
 
 unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
 {
-    DspOscillator oscs[ABC_MAX_VOICES];
-    DspEnvelopeRuntime envs[ABC_MAX_VOICES];
-    uint32_t vibrato_phase[ABC_MAX_VOICES] = {0};
-    double current_freq[ABC_MAX_VOICES] = {0.0};
-    double target_freq[ABC_MAX_VOICES] = {0.0};
-    double glide_step[ABC_MAX_VOICES] = {0.0};
-    int glide_remaining[ABC_MAX_VOICES] = {0};
-    int osc_ready[ABC_MAX_VOICES] = {0};
-
-    if (music->voice_count == 0) return NULL;
-
-    /* find the longest voice (in steps) */
+    SeqSong song;
+    int track_count;
     int max_steps = 0;
-    for (int v = 0; v < music->voice_count; v++) {
-        if (music->voices[v].note_count > max_steps)
-            max_steps = music->voices[v].note_count;
+    int cursor = 0;
+    int arrangement_written = 0;
+
+    if (!music || !out_len || music->voice_count <= 0)
+        return NULL;
+
+    memset(&song, 0, sizeof(song));
+    track_count = music->voice_count;
+    if (track_count > SEQ_MAX_TRACKS) track_count = SEQ_MAX_TRACKS;
+    if (track_count <= 0) return NULL;
+
+    snprintf(song.title, sizeof(song.title), "%.127s", music->title);
+    song.tempo_bpm = music->bpm > 0 ? music->bpm : 120;
+    if (music->step_ms > 0) {
+        int spb = (60000 + (song.tempo_bpm * music->step_ms) / 2) / (song.tempo_bpm * music->step_ms);
+        if (spb < 1) spb = 1;
+        if (spb > 16) spb = 16;
+        song.steps_per_beat = spb;
+    } else {
+        song.steps_per_beat = 4;
     }
-    if (max_steps == 0) return NULL;
+    if (music->swing_pct <= 0) song.swing_pct = 50;
+    else if (music->swing_pct < 50) song.swing_pct = 50;
+    else if (music->swing_pct > 75) song.swing_pct = 75;
+    else song.swing_pct = music->swing_pct;
 
-    int total_samples = dsp_total_samples_for_steps(SAMPLE_RATE_ABC, music->step_ms, max_steps);
-    unsigned char *buf = malloc(total_samples);
-    if (!buf) return NULL;
-
-    memset(buf, 128, total_samples);
-    int step_samples[ABC_MAX_NOTES];
-    AbcRenderVoice timeline[ABC_MAX_VOICES];
-    compile_render_timeline(music, max_steps, step_samples, timeline);
-    int base = 0;
-
-    for (int step = 0; step < max_steps; step++) {
-        int samples_this_step = step_samples[step];
-
-        for (int v = 0; v < music->voice_count; v++) {
-            const AbcVoice *voice = &music->voices[v];
-            const AbcRenderStep *entry = &timeline[v].steps[step];
-            if (!entry->active) {
-                osc_ready[v] = 0;
-                continue;
-            }
-
-            DspWaveform wf = sanitize_waveform(voice->waveform);
-            if (!osc_ready[v] || !entry->reuse_prev || voice->glide_ms <= 0) {
-                DspEnvelope env = {
-                    .attack_ms = voice->attack_ms,
-                    .decay_ms = voice->decay_ms,
-                    .sustain_level = voice->sustain_level,
-                    .release_ms = voice->release_ms,
-                    .gate_percent = voice->gate_percent > 0 ? voice->gate_percent : 90
-                };
-                int gate_samples = entry->note_end > 0 ? entry->note_end : samples_this_step;
-
-                dsp_osc_init(&oscs[v], wf, voice->amplitude);
-                if (wf == DSP_WAVE_PULSE)
-                    dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
-                target_freq[v] = entry->freq;
-                if (voice->glide_ms > 0 && current_freq[v] > 0.0) {
-                    int glide_samples = dsp_samples_from_ms(SAMPLE_RATE_ABC, voice->glide_ms);
-                    glide_remaining[v] = glide_samples;
-                    glide_step[v] = glide_samples > 0
-                        ? (target_freq[v] - current_freq[v]) / (double)glide_samples
-                        : 0.0;
-                } else {
-                    current_freq[v] = target_freq[v];
-                    glide_remaining[v] = 0;
-                    glide_step[v] = 0.0;
-                }
-                dsp_osc_set_frequency(&oscs[v], current_freq[v], SAMPLE_RATE_ABC);
-                dsp_envelope_init(&envs[v], &env, SAMPLE_RATE_ABC, gate_samples);
-                osc_ready[v] = 1;
-            }
-        }
-
-        for (int i = 0; i < samples_this_step; i++) {
-            int val = 128;
-
-            for (int v = 0; v < music->voice_count; v++) {
-                const AbcRenderStep *entry = &timeline[v].steps[step];
-                const AbcVoice *voice = &music->voices[v];
-                int env_q15;
-                int vibrato_cents;
-                double f;
-                if (!entry->active || i >= entry->note_end) continue;
-
-                if (glide_remaining[v] > 0) {
-                    current_freq[v] += glide_step[v];
-                    glide_remaining[v]--;
-                    if (glide_remaining[v] <= 0)
-                        current_freq[v] = target_freq[v];
-                }
-
-                vibrato_cents = (voice->vibrato_cents *
-                                 dsp_tri_lfo_q15(&vibrato_phase[v], voice->vibrato_rate, SAMPLE_RATE_ABC)) / 32767;
-                f = dsp_freq_with_cents(current_freq[v], vibrato_cents);
-                dsp_osc_set_frequency(&oscs[v], f, SAMPLE_RATE_ABC);
-
-                env_q15 = dsp_envelope_next_q15(&envs[v]);
-                if (envs[v].phase == DSP_ENV_IDLE) continue;
-                val += (dsp_osc_next(&oscs[v]) * env_q15) / 32767;
-            }
-
-            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
-        }
-        base += samples_this_step;
+    song.instrument_count = track_count;
+    for (int t = 0; t < track_count; t++) {
+        const AbcVoice *v = &music->voices[t];
+        SeqInstrument *inst = &song.instruments[t];
+        memset(inst, 0, sizeof(*inst));
+        inst->waveform = sanitize_waveform(v->waveform);
+        inst->amplitude = dsp_clampi((v->amplitude * 3) / 5, 0, 127);
+        inst->pulse_width = dsp_clampi(v->duty_cycle > 0 ? v->duty_cycle : 25, 1, 99);
+        inst->envelope.attack_ms = v->attack_ms;
+        inst->envelope.decay_ms = v->decay_ms;
+        inst->envelope.sustain_level = dsp_clampi(v->sustain_level, 0, 100);
+        inst->envelope.release_ms = v->release_ms;
+        inst->envelope.gate_percent = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
+        inst->vibrato_depth_cents = dsp_clampi(v->vibrato_cents, 0, 100);
+        inst->vibrato_rate = v->vibrato_rate > 0 ? v->vibrato_rate : ABC_DEFAULT_VIBRATO_RATE;
+        inst->glide_ms = dsp_clampi(v->glide_ms, 0, 500);
+        inst->fx_send = dsp_clampi(v->fx_bus, 0, SEQ_MAX_FX_BUSES - 1);
+        inst->accent_gain = 20;
+        if (inst->waveform == DSP_WAVE_NOISE)
+            inst->noise_mode = 1;
     }
 
-    *out_len = total_samples;
-    return buf;
+    song.fx_bus_count = music->fx_bus_count;
+    if (song.fx_bus_count < 1) song.fx_bus_count = 1;
+    if (song.fx_bus_count > SEQ_MAX_FX_BUSES) song.fx_bus_count = SEQ_MAX_FX_BUSES;
+    for (int i = 0; i < song.fx_bus_count; i++) {
+        const AbcFxBus *src = &music->fx_buses[i];
+        SeqFxBus *dst = &song.fx_buses[i];
+        dst->enabled = src->enabled ? 1 : 0;
+        dst->delay_steps = dsp_clampi(src->delay_steps, 0, 64);
+        dst->delay_feedback = dsp_clampi(src->delay_feedback, 0, 95);
+        dst->delay_mix = dsp_clampi(src->delay_mix, 0, 100);
+        dst->drive_amount = dsp_clampi(src->drive_amount, 0, 100);
+        dst->lowpass_amount = dsp_clampi(src->lowpass_amount, 0, 100);
+        dst->sidechain_amount = dsp_clampi(src->sidechain_amount, 0, 100);
+        dst->sidechain_release_ms = dsp_clampi(src->sidechain_release_ms > 0 ? src->sidechain_release_ms : 180, 10, 2000);
+        dst->mix_percent = dsp_clampi(src->mix_percent > 0 ? src->mix_percent : 100, 0, 100);
+    }
+
+    for (int t = 0; t < track_count; t++) {
+        if (music->voices[t].note_count > max_steps)
+            max_steps = music->voices[t].note_count;
+    }
+    if (max_steps <= 0) return NULL;
+
+    if (music->pattern_count > 0) {
+        song.pattern_count = music->pattern_count;
+        if (song.pattern_count > SEQ_MAX_PATTERNS) song.pattern_count = SEQ_MAX_PATTERNS;
+        for (int p = 0; p < song.pattern_count; p++) {
+            int length = music->patterns[p].length > 0 ? music->patterns[p].length : 16;
+            SeqPattern *pat = &song.patterns[p];
+            if (length > SEQ_MAX_STEPS) length = SEQ_MAX_STEPS;
+            pat->length = length;
+            pat->track_count = track_count;
+            for (int t = 0; t < track_count; t++) {
+                const AbcVoice *v = &music->voices[t];
+                SeqTrack *track = &pat->tracks[t];
+                track->instrument = t;
+                for (int s = 0; s < SEQ_MAX_STEPS; s++) {
+                    track->steps[s].note = SEQ_NOTE_REST;
+                    track->steps[s].velocity = 0;
+                    track->steps[s].gate = 0;
+                    track->steps[s].accent = 0;
+                    track->steps[s].fx_trigger = 0;
+                }
+                for (int s = 0; s < length; s++) {
+                    int source_step = cursor + s;
+                    SeqStep *st = &track->steps[s];
+                    if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
+                        continue;
+                    {
+                        int best_note = 60;
+                        double best_err = 1e12;
+                        for (int midi = 0; midi < 128; midi++) {
+                            double d = midi_freq_table[midi] - v->freqs[source_step];
+                            if (d < 0.0) d = -d;
+                            if (d < best_err) {
+                                best_err = d;
+                                best_note = midi;
+                            }
+                        }
+                        st->note = best_note;
+                    }
+                    st->velocity = 88;
+                    st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
+                    st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
+                    st->fx_trigger = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
+                }
+            }
+            cursor += length;
+        }
+
+        if (music->arrangement_length > 0) {
+            for (int i = 0; i < music->arrangement_length && arrangement_written < SEQ_MAX_ARRANGEMENT; i++) {
+                int idx = -1;
+                for (int p = 0; p < song.pattern_count; p++) {
+                    if (strcmp(music->arrangement[i], music->patterns[p].name) == 0) {
+                        idx = p;
+                        break;
+                    }
+                }
+                if (idx >= 0)
+                    song.arrangement[arrangement_written++] = (uint8_t)idx;
+            }
+        }
+    } else {
+        song.pattern_count = (max_steps + SEQ_MAX_STEPS - 1) / SEQ_MAX_STEPS;
+        if (song.pattern_count < 1) song.pattern_count = 1;
+        if (song.pattern_count > SEQ_MAX_PATTERNS) song.pattern_count = SEQ_MAX_PATTERNS;
+        for (int p = 0; p < song.pattern_count; p++) {
+            int base_step = p * SEQ_MAX_STEPS;
+            int length = max_steps - base_step;
+            SeqPattern *pat = &song.patterns[p];
+            if (length > SEQ_MAX_STEPS) length = SEQ_MAX_STEPS;
+            if (length < 1) length = 1;
+            pat->length = length;
+            pat->track_count = track_count;
+            for (int t = 0; t < track_count; t++) {
+                const AbcVoice *v = &music->voices[t];
+                SeqTrack *track = &pat->tracks[t];
+                track->instrument = t;
+                for (int s = 0; s < SEQ_MAX_STEPS; s++) {
+                    track->steps[s].note = SEQ_NOTE_REST;
+                    track->steps[s].velocity = 0;
+                    track->steps[s].gate = 0;
+                    track->steps[s].accent = 0;
+                    track->steps[s].fx_trigger = 0;
+                }
+                for (int s = 0; s < length; s++) {
+                    int source_step = base_step + s;
+                    SeqStep *st = &track->steps[s];
+                    if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
+                        continue;
+                    {
+                        int best_note = 60;
+                        double best_err = 1e12;
+                        for (int midi = 0; midi < 128; midi++) {
+                            double d = midi_freq_table[midi] - v->freqs[source_step];
+                            if (d < 0.0) d = -d;
+                            if (d < best_err) {
+                                best_err = d;
+                                best_note = midi;
+                            }
+                        }
+                        st->note = best_note;
+                    }
+                    st->velocity = 88;
+                    st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
+                    st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
+                    st->fx_trigger = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
+                }
+            }
+            if (arrangement_written < SEQ_MAX_ARRANGEMENT)
+                song.arrangement[arrangement_written++] = (uint8_t)p;
+        }
+    }
+
+    if (arrangement_written == 0) {
+        if (song.pattern_count <= 0) return NULL;
+        song.arrangement[0] = 0;
+        arrangement_written = 1;
+    }
+    song.arrangement_length = arrangement_written;
+    return audio_mix_render_song(&song, SAMPLE_RATE_ABC, out_len);
 }

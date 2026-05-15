@@ -6,21 +6,24 @@ L:1/16
 Q:1/4=126
 K:Dm
 %%swing 56
-%%effect delay time=3 feedback=35 mix=25
-%%effect drive amount=20
-%%effect lowpass amount=30
-%%sidechain amount=40 release=180
-%%staves [bass arp lead]
-V:bass amp=80 wave=pulse duty=35 attack=2 decay=40 sustain=70 release=80 gate=75
-V:arp amp=45 wave=pulse duty=20 attack=0 decay=20 sustain=60 release=40 gate=45 vibrato=5
-V:lead amp=50 wave=triangle attack=80 decay=120 sustain=80 release=300 gate=95
+%%instrument bassline wave=pulse amp=88 duty=32 attack=1 decay=45 sustain=72 release=90 gate=78 fx=0
+%%instrument arp16 wave=pulse amp=52 duty=18 attack=0 decay=18 sustain=58 release=35 gate=42 vibrato=4 fx=1
+%%instrument leadpad wave=triangle amp=46 attack=65 decay=120 sustain=76 release=260 gate=92 vibrato=6 glide=14 fx=1
+%%effect 0 delay_steps=1 delay_feedback=18 delay_mix=10 drive=24 lowpass=26 sidechain=46 sidechain_release=180 mix=100
+%%effect 1 delay_steps=4 delay_feedback=38 delay_mix=34 drive=8 lowpass=38 sidechain=32 sidechain_release=210 mix=78
+%%pattern A length=16
+%%pattern B length=16
+%%arrangement A A B A
+V:bass instrument=bassline
+V:arp instrument=arp16
+V:lead instrument=leadpad
 %
 V:bass
-|: D,,2D,,2 D,,2D,,2 D,,2D,,2 D,,2D,,2 | _B,,2_B,,2 _B,,2_B,,2 A,,2A,,2 A,,2A,,2 |
-A,,2A,,2 A,,2A,,2 A,,2A,,2 A,,2A,,2 | A,,2A,,2 A,,2A,,2 _B,,2_B,,2 D,,2D,,2 :|
+|: D,,2D,2 D,,2D,2 A,,2A,2 A,,2A,2 | _B,,2_B,2 _B,,2_B,2 A,,2A,2 A,,2A,2 |
+| D,,2D,2 D,,2D,2 A,,2A,2 A,,2A,2 | _B,,2_B,2 A,,2A,2 _B,,2_B,2 D,,2D,2 :|
 V:arp
-|: DFA=c DFA=c DFA=c DFA=c | _BDF_b _BDF_b ACE=a ACE=a |
-ACE=a ACE=a ACE=a ACE=a | ACE=a ACE=a _BDF_b DFA=c :|
+|: DFAc DFAc DFAc DFAc | _BDFb _BDFb Aced Aced |
+| DFAc DFAc DFAc DFAc | _BDFb Aced _BDFb DFAc :|
 V:lead
-|: z16 | z8 =c=c2z2 z8 |
-z8 A2z2 z12 | z16 :|
+|: z16 | z8 A2z2 z6 c2 |
+| z8 d2z2 z6 A2 | z16 :|

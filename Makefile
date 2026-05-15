@@ -9,8 +9,9 @@ BENCH        = bin/bench-audio
 TEST_DSP     = bin/test-audio-dsp
 TEST_ABC_BIN = bin/test-abc
 TEST_SEQ_BIN = bin/test-audio-seq
+RENDER_DEMOS_BIN = bin/render-demos
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos help
 
 .DEFAULT_GOAL := help
 
@@ -22,7 +23,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -58,9 +59,9 @@ test-abc: $(TEST_ABC_BIN)
 	@echo "Running ABC parser tests..."
 	@$(TEST_ABC_BIN)
 
-$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/memdeck.h
+$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/memdeck.h
 	@mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c $(LDFLAGS)
 
 test-audio-seq: $(TEST_SEQ_BIN)
 	@echo "Running sequencer regression tests..."
@@ -75,6 +76,13 @@ bench-audio: src/audio_dsp.c tests/bench_audio.c
 	$(CC) $(CFLAGS) -o $(BENCH) tests/bench_audio.c src/audio_dsp.c $(LDFLAGS)
 	@echo "Build complete: $(BENCH)"
 	@$(BENCH)
+
+render-demos: $(RENDER_DEMOS_BIN)
+	@$(RENDER_DEMOS_BIN)
+
+$(RENDER_DEMOS_BIN): tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $@ tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c $(LDFLAGS)
 
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
@@ -91,4 +99,5 @@ help:
 	@echo "  test-abc   Build and run ABC parser tests"
 	@echo "  test-audio-seq Build and run sequencer regression tests"
 	@echo "  bench-audio Build and run audio microbenchmark"
+	@echo "  render-demos Render showcase ABC demos and print deterministic metrics"
 	@echo "  help       Show this help message (default)"
