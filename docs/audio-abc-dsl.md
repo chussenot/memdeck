@@ -5,10 +5,10 @@ This document describes the extended ABC notation dialect used by MemDeck for da
 ## Overview
 
 MemDeck extends standard ABC notation with custom directives to control:
-- **Instruments**: ADSR envelopes, waveforms, modulation
-- **Effects**: Delay, drive, lowpass filtering, sidechain ducking
+- **Instruments**: Named presets with ADSR envelopes, waveforms, modulation, and FX routing
+- **Effects**: Multiple independent FX buses with delay, drive, lowpass filtering, sidechain ducking
 - **Timing**: Swing, tempo, note gates
-- **Structure**: Patterns and arrangements (future feature)
+- **Structure**: Patterns and arrangements (basic parsing implemented, full timeline rendering planned)
 
 ## Architecture
 
@@ -16,14 +16,19 @@ MemDeck extends standard ABC notation with custom directives to control:
 flowchart LR
     ABC[ABC DSL File]
     Parser[ABC Parser]
+    Instr[Instrument Presets]
     Song[AbcMusic Structure]
     PCM[PCM Renderer]
+    FXBus[FX Bus Routing]
     Output[Audio Output]
     
     ABC --> Parser
+    Parser --> Instr
     Parser --> Song
+    Instr --> Song
     Song --> PCM
-    PCM --> Output
+    PCM --> FXBus
+    FXBus --> Output
     
     style ABC fill:#f9f,stroke:#333,stroke-width:2px
     style Output fill:#9f9,stroke:#333,stroke-width:2px
@@ -261,20 +266,100 @@ V:lead
 |: z16 | =c=c4z4 z8 :|
 ```
 
-## Future Features
-
-The following directives are planned but not yet implemented:
+## Advanced Features
 
 ### %%instrument - Named Instrument Presets
 
+Define reusable instrument presets with complete parameter sets:
+
 ```abc
-%%instrument bass preset=memdeck_bass_pulse wave=pulse amp=80 duty=35 attack=2 decay=40 sustain=70 release=80 gate=75 fx=0
-%%instrument pad preset=memdeck_soft_pad wave=triangle amp=30 attack=80 decay=120 sustain=80 release=300 gate=95 fx=1
+%%instrument bass preset=heavy_bass wave=pulse amp=85 duty=40 attack=1 decay=50 sustain=75 release=100 gate=70 fx=0
+%%instrument arp preset=plucky_arp wave=pulse amp=50 duty=25 attack=0 decay=20 sustain=60 release=40 gate=45 vibrato=6 fx=1
+%%instrument pad preset=soft_pad wave=triangle amp=35 attack=120 decay=160 sustain=85 release=400 gate=98 fx=1
 ```
 
-This will allow defining reusable instrument presets with FX bus routing.
+Then reference instruments in voice definitions:
 
-### %%pattern - Pattern-Based Composition
+```abc
+V:bass instrument=bass
+V:arp instrument=arp
+V:pad instrument=pad
+```
+
+**Parameters:**
+
+| Parameter | Range | Default | Description |
+|-----------|-------|---------|-------------|
+| `preset` | string | - | Preset identifier for documentation |
+| `wave` | square/pulse/triangle/noise | square | Oscillator waveform |
+| `amp` | 0-127 | 40 | Amplitude (MIDI range) |
+| `duty` | 1-99 | 25 | Pulse width percentage |
+| `attack` | 0-1000 (ms) | 0 | ADSR attack time |
+| `decay` | 0-1000 (ms) | 0 | ADSR decay time |
+| `sustain` | 0-100 (%) | 100 | ADSR sustain level |
+| `release` | 0-2000 (ms) | 0 | ADSR release time |
+| `gate` | 1-100 (%) | 90 | Note gate percentage |
+| `vibrato` | 0-100 (cents) | 0 | Vibrato depth |
+| `glide` | 0-500 (ms) | 0 | Portamento time |
+| `fx` | 0-3 | 0 | FX bus routing |
+
+Voice parameters override instrument defaults. This allows creating variations on a preset.
+
+### %%effect - Numbered FX Buses
+
+Configure multiple independent FX buses for routing different voices to different effects chains:
+
+```abc
+%%effect 0 delay_steps=3 delay_feedback=35 delay_mix=25 drive=25 lowpass=30 sidechain=45 sidechain_release=180 mix=85
+%%effect 1 delay_steps=6 delay_feedback=45 delay_mix=35 drive=10 lowpass=55 mix=70
+```
+
+**Parameters:**
+
+| Parameter | Range | Default | Description |
+|-----------|-------|---------|-------------|
+| `delay_steps` | 0-16 | 0 | Delay time in sequencer steps |
+| `delay_feedback` | 0-100 (%) | 0 | Delay feedback |
+| `delay_mix` | 0-100 (%) | 0 | Delay wet/dry mix |
+| `drive` | 0-100 (%) | 0 | Saturation amount |
+| `lowpass` | 0-100 (%) | 0 | Lowpass filter attenuation |
+| `sidechain` | 0-100 (%) | 0 | Sidechain ducking amount |
+| `sidechain_release` | 0-1000 (ms) | 180 | Sidechain release time |
+| `mix` | 1-100 (%) | 100 | Bus output mix level |
+
+**Routing:**
+
+Route voices/instruments to buses using `fx=N` parameter:
+
+```abc
+%%instrument dry_bass wave=pulse amp=90 fx=0
+%%instrument wet_synth wave=pulse amp=45 fx=1
+```
+
+Or in voice directives:
+
+```abc
+V:bass amp=80 fx=0
+V:lead amp=50 fx=1
+```
+
+**Backward Compatibility:**
+
+Legacy single-bus directives still work:
+
+```abc
+%%effect delay time=3 feedback=35 mix=25
+%%effect drive amount=20
+%%effect lowpass amount=30
+```
+
+These map to bus 0 automatically.
+
+### %%pattern and %%arrangement - Pattern-Based Composition
+
+**Status:** Structure parsing implemented; timeline rendering planned for future release.
+
+Define reusable patterns:
 
 ```abc
 %%pattern A length=16
@@ -282,16 +367,32 @@ This will allow defining reusable instrument presets with FX bus routing.
 %%arrangement A A B A
 ```
 
-This will enable pattern-based composition for longer tracks.
+This will enable efficient composition of longer tracks with repeating sections.
 
-### %%effect - Numbered FX Buses
+## Future Features
+
+The following features are planned but not yet fully implemented:
+
+### Pattern-Based Note Input
+
+Currently patterns store metadata but don't yet capture note sequences. Future implementation will allow:
 
 ```abc
-%%effect 0 delay_steps=3 delay_feedback=35 delay_mix=25 drive=20 lowpass=30 mix=80
-%%effect 1 delay_steps=6 delay_feedback=45 delay_mix=35 lowpass=55 mix=60
+%%pattern intro length=16
+%%pattern verse length=32  
+%%pattern chorus length=16
+%%arrangement intro verse chorus verse chorus
+
+V:bass pattern=intro
+|: D,,4D,,4 D,,4D,,4 | ... :|
+
+V:bass pattern=verse
+|: A,,4A,,4 A,,4A,,4 | ... :|
 ```
 
-Multiple independent FX buses with per-voice routing (`fx=0`, `fx=1`).
+### Multi-Bus FX Rendering
+
+Currently all voices render through a single FX chain (bus 0), even though multiple buses can be configured. Future implementation will route each voice through its assigned FX bus independently.
 
 ## Backward Compatibility
 
