@@ -1,0 +1,26 @@
+X:1
+T:Carpenter Drive - Horror Synth
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=110
+K:Em
+%%swing 52
+%%effect delay time=5 feedback=40 mix=20
+%%effect drive amount=25
+%%effect lowpass amount=35
+%%sidechain amount=35 release=150
+%%staves [bass melody harmony]
+V:bass amp=90 wave=pulse duty=45 attack=3 decay=60 sustain=80 release=120 gate=80
+V:melody amp=55 wave=pulse duty=30 attack=0 decay=25 sustain=65 release=50 gate=50 vibrato=6
+V:harmony amp=40 wave=triangle attack=100 decay=140 sustain=75 release=350 gate=92
+%
+V:bass
+|: E,,4E,,4 E,,4E,,4 | D,,4D,,4 C,,4C,,4 |
+B,,,4B,,,4 B,,,4B,,,4 | B,,,4B,,,4 C,,4E,,4 :|
+V:melody
+|: E4B,4E4G4 | D4A,4D4F#4 |
+B,4F#4B,4D4 | B,4F#4C4E4 :|
+V:harmony
+|: z8 E4G4 | z8 D4F#4 |
+z8 B,4D4 | z16 :|

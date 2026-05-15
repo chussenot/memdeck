@@ -101,6 +101,32 @@ static int parse_waveform_name(const char *s)
     return DSP_WAVE_SQUARE;
 }
 
+static int validate_waveform_name(const char *name)
+{
+    if (!name) return 0;
+    if (strncmp(name, "square", 6) == 0) return 1;
+    if (strncmp(name, "pulse", 5) == 0) return 1;
+    if (strncmp(name, "triangle", 8) == 0) return 1;
+    if (strncmp(name, "noise", 5) == 0) return 1;
+    if (strncmp(name, "sine", 4) == 0) return 1;
+    return 0;
+}
+
+static int validate_amplitude(int amp)
+{
+    return (amp >= 0 && amp <= 127);
+}
+
+static int validate_duty_cycle(int duty)
+{
+    return (duty >= 1 && duty <= 99);
+}
+
+static int validate_fx_bus(int fx_bus)
+{
+    return (fx_bus >= 0 && fx_bus < 4);  /* SEQ_MAX_FX_BUSES */
+}
+
 static void parse_voice_directives(AbcVoice *v, const char *val)
 {
     const char *amp = strstr(val, "amp=");
@@ -114,14 +140,31 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
     const char *vibrato = strstr(val, "vibrato=");
     const char *glide = strstr(val, "glide=");
 
-    if (amp) v->amplitude = atoi(amp + 4);
+    if (amp) {
+        int a = atoi(amp + 4);
+        if (validate_amplitude(a)) {
+            v->amplitude = a;
+        } else {
+            fprintf(stderr, "Warning: amplitude %d out of range (0-127), using default\n", a);
+        }
+    }
     if (strstr(val, "staccato")) v->staccato = 1;
-    if (wave) v->waveform = parse_waveform_name(wave + 5);
+    if (wave) {
+        char wname[16] = {0};
+        sscanf(wave + 5, "%15s", wname);
+        if (validate_waveform_name(wname)) {
+            v->waveform = parse_waveform_name(wname);
+        } else {
+            fprintf(stderr, "Warning: unknown waveform '%s', using square\n", wname);
+        }
+    }
     if (duty) {
         int pct = atoi(duty + 5);
-        if (pct < 1) pct = 1;
-        if (pct > 99) pct = 99;
-        v->duty_cycle = pct;
+        if (validate_duty_cycle(pct)) {
+            v->duty_cycle = pct;
+        } else {
+            fprintf(stderr, "Warning: duty cycle %d out of range (1-99), using default\n", pct);
+        }
     }
     if (attack) v->attack_ms = atoi(attack + 7);
     if (decay) v->decay_ms = atoi(decay + 6);
@@ -175,6 +218,16 @@ static void parse_sidechain_directive(AbcMusic *music, const char *val)
     if (!music || !val) return;
     music->fx_sidechain_amount = parse_int_param(val, "amount=", music->fx_sidechain_amount);
     music->fx_sidechain_release_ms = parse_int_param(val, "release=", music->fx_sidechain_release_ms);
+}
+
+static void parse_swing_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val) return;
+    while (*val == ' ') val++;
+    int swing = atoi(val);
+    if (swing < 0) swing = 0;
+    if (swing > 100) swing = 100;
+    music->swing_pct = swing;
 }
 
 /* ─── Parser state ───────────────────────────────────────────── */
@@ -393,6 +446,7 @@ int abc_load(const char *path, AbcMusic *music)
     memset(music, 0, sizeof(*music));
     music->voice_count = 0;
     music->bpm = 120;
+    music->swing_pct = 0;
     music->fx_sidechain_release_ms = 180;
 
     AbcHeader header;
@@ -531,6 +585,10 @@ int abc_load(const char *path, AbcMusic *music)
         }
         if (strncmp(line, "%%sidechain", 11) == 0) {
             parse_sidechain_directive(music, line + 11);
+            continue;
+        }
+        if (strncmp(line, "%%swing", 7) == 0) {
+            parse_swing_directive(music, line + 7);
             continue;
         }
 
