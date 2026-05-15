@@ -23,6 +23,7 @@ static const int note_semitones[7] = { 0, 2, 4, 5, 7, 9, 11 };
 #define ABC_EFFECT_DELAY "delay"
 #define ABC_EFFECT_DRIVE "drive"
 #define ABC_EFFECT_LOWPASS "lowpass"
+#define ABC_TO_SEQ_AMP_PCT 60
 
 /*
  * Precomputed MIDI note frequencies (Hz).
@@ -69,6 +70,29 @@ static double semitone_to_freq(int midi_note)
 {
     if (midi_note < 0 || midi_note > 127) return 0.0;
     return midi_freq_table[midi_note];
+}
+
+static int closest_midi_from_freq(double freq)
+{
+    int lo = 0;
+    int hi = 127;
+    int mid;
+    double dlo;
+    double dhi;
+    if (freq <= midi_freq_table[0]) return 0;
+    if (freq >= midi_freq_table[127]) return 127;
+    while (hi - lo > 1) {
+        mid = lo + (hi - lo) / 2;
+        if (midi_freq_table[mid] <= freq)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    dlo = freq - midi_freq_table[lo];
+    if (dlo < 0.0) dlo = -dlo;
+    dhi = freq - midi_freq_table[hi];
+    if (dhi < 0.0) dhi = -dhi;
+    return (dlo <= dhi) ? lo : hi;
 }
 
 static int note_char_to_index(char c)
@@ -366,10 +390,7 @@ static void parse_arrangement_directive(AbcMusic *music, const char *val)
     
     /* Parse space-separated pattern names */
     char buf[512];
-    size_t n = strlen(val);
-    if (n >= sizeof(buf)) n = sizeof(buf) - 1;
-    memcpy(buf, val, n);
-    buf[n] = '\0';
+    snprintf(buf, sizeof(buf), "%.*s", (int)(sizeof(buf) - 1), val);
     
     char *token = strtok(buf, " \t");
     while (token && music->arrangement_length < ABC_MAX_ARRANGEMENT) {
@@ -972,6 +993,7 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
     snprintf(song.title, sizeof(song.title), "%.127s", music->title);
     song.tempo_bpm = music->bpm > 0 ? music->bpm : 120;
     if (music->step_ms > 0) {
+        /* steps_per_beat ~= quarter_note_ms / step_ms where quarter_note_ms = 60000 / BPM */
         int spb = (60000 + (song.tempo_bpm * music->step_ms) / 2) / (song.tempo_bpm * music->step_ms);
         if (spb < 1) spb = 1;
         if (spb > 16) spb = 16;
@@ -990,7 +1012,8 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
         SeqInstrument *inst = &song.instruments[t];
         memset(inst, 0, sizeof(*inst));
         inst->waveform = sanitize_waveform(v->waveform);
-        inst->amplitude = dsp_clampi((v->amplitude * 3) / 5, 0, 127);
+        /* Keep ABC-to-sequencer conversion gain conservative to avoid hard saturation. */
+        inst->amplitude = dsp_clampi((v->amplitude * ABC_TO_SEQ_AMP_PCT) / 100, 0, 127);
         inst->pulse_width = dsp_clampi(v->duty_cycle > 0 ? v->duty_cycle : 25, 1, 99);
         inst->envelope.attack_ms = v->attack_ms;
         inst->envelope.decay_ms = v->decay_ms;
@@ -1054,19 +1077,7 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
                     SeqStep *st = &track->steps[s];
                     if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
                         continue;
-                    {
-                        int best_note = 60;
-                        double best_err = 1e12;
-                        for (int midi = 0; midi < 128; midi++) {
-                            double d = midi_freq_table[midi] - v->freqs[source_step];
-                            if (d < 0.0) d = -d;
-                            if (d < best_err) {
-                                best_err = d;
-                                best_note = midi;
-                            }
-                        }
-                        st->note = best_note;
-                    }
+                    st->note = closest_midi_from_freq(v->freqs[source_step]);
                     st->velocity = 88;
                     st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
                     st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
@@ -1117,19 +1128,7 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
                     SeqStep *st = &track->steps[s];
                     if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
                         continue;
-                    {
-                        int best_note = 60;
-                        double best_err = 1e12;
-                        for (int midi = 0; midi < 128; midi++) {
-                            double d = midi_freq_table[midi] - v->freqs[source_step];
-                            if (d < 0.0) d = -d;
-                            if (d < best_err) {
-                                best_err = d;
-                                best_note = midi;
-                            }
-                        }
-                        st->note = best_note;
-                    }
+                    st->note = closest_midi_from_freq(v->freqs[source_step]);
                     st->velocity = 88;
                     st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
                     st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;

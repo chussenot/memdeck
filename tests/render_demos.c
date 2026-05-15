@@ -23,6 +23,7 @@ static int render_file(const char *path)
     int maxv = 0;
     int peak = 0;
     int clipping = 0;
+    int run = 1;
     uint64_t checksum;
 
     if (abc_load(path, &music) != 0) {
@@ -44,7 +45,10 @@ static int render_file(const char *path)
         if (s < minv) minv = s;
         if (s > maxv) maxv = s;
         if (a > peak) peak = a;
-        if (s <= 0 || s >= 255) clipping++;
+        if (i > 0 && pcm[i] == pcm[i - 1]) run++;
+        else run = 1;
+        if (run >= 4 && (s == 0 || s == 255))
+            clipping++;
     }
 
     printf("%s | duration=%.3fs | pcm_len=%d | checksum=0x%016llx | peak=%d | min=%d | max=%d | clipping=%d\n",
