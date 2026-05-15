@@ -1543,7 +1543,7 @@ impl eframe::App for MemDeckGuiApp {
         self.sync_selected_track();
 
         if self.playback.is_playing() {
-            ctx.request_repaint_after(Duration::from_millis(40));
+            ctx.request_repaint_after(Duration::from_millis(60));
         }
 
         egui::TopBottomPanel::top("runtime_header")
