@@ -5,6 +5,8 @@
 
 #define FX_Q15_ONE 32767
 #define FX_BUFFER_CLAMP 32767
+#define FX_DRIVE_SOFT_CLIP 192
+#define FX_DRIVE_HARD_CLIP 2047
 
 static int clampi(int value, int lo, int hi)
 {
@@ -94,12 +96,10 @@ int audio_fx_apply_drive(int input, int drive_amount)
     int sign = 1;
     int a;
     int clipped;
-    int soft = 192;
-    int hard = 2047;
 
     drive_amount = clampi(drive_amount, 0, 100);
     if (drive_amount <= 0)
-        return clamp_sample(input, hard);
+        return clamp_sample(input, FX_DRIVE_HARD_CLIP);
 
     gain = 100 + drive_amount * 3;
     x = (input * gain) / 100;
@@ -108,10 +108,10 @@ int audio_fx_apply_drive(int input, int drive_amount)
         x = -x;
     }
     a = x;
-    if (a <= soft) return sign * a;
+    if (a <= FX_DRIVE_SOFT_CLIP) return sign * a;
 
-    clipped = soft + ((a - soft) * 256) / ((a - soft) + 256);
-    return clamp_sample(sign * clipped, hard);
+    clipped = FX_DRIVE_SOFT_CLIP + ((a - FX_DRIVE_SOFT_CLIP) * 256) / ((a - FX_DRIVE_SOFT_CLIP) + 256);
+    return clamp_sample(sign * clipped, FX_DRIVE_HARD_CLIP);
 }
 
 void audio_fx_lowpass_init(AudioLowpass *lp, int amount)

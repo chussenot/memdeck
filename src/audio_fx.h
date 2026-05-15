@@ -5,7 +5,7 @@
 
 typedef struct {
     int enabled;
-    int delay_steps;
+    int delay_steps; /* runtime delay length in samples (kept for backward struct compatibility) */
     int feedback_percent;
     int mix_percent;
     int sample_rate;
