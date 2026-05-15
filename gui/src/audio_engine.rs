@@ -147,9 +147,6 @@ fn repository_root() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use super::*;
 
     #[test]
@@ -254,6 +251,9 @@ mod tests {
 
     #[test]
     fn invalid_abc_does_not_crash() {
+        use std::fs;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be after unix epoch")
@@ -262,12 +262,33 @@ mod tests {
             "memdeck-invalid-{unique}-{}.abc",
             std::process::id()
         ));
-        fs::write(&invalid_path, "%%% definitely not valid abc %%%")
-            .expect("should write invalid abc fixture");
+        fs::write(
+            &invalid_path,
+            [
+                "X:1",
+                "T:Invalid Overview",
+                "M:4/4",
+                "L:1/16",
+                "Q:1/4=120",
+                "K:C",
+                "%%pattern A length=16",
+                "%%arrangement Z",
+                "V:lead",
+                "| z16 |",
+            ]
+            .join("\n"),
+        )
+        .expect("should write invalid abc fixture");
 
         let result = std::panic::catch_unwind(|| crate::ffi::load_demo_overview(&invalid_path));
         let _ = fs::remove_file(&invalid_path);
 
         assert!(result.is_ok(), "invalid abc must not panic");
+        assert!(
+            result
+                .expect("catch_unwind should return the parser result")
+                .is_err(),
+            "invalid abc should surface a recoverable error"
+        );
     }
 }
