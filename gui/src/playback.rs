@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::ffi::SAMPLE_RATE_ABC;
 
@@ -25,6 +25,8 @@ pub struct PlaybackController {
     child: Option<Child>,
     temp_path: Option<PathBuf>,
     state: PlaybackState,
+    started_at: Option<Instant>,
+    expected_duration: Option<Duration>,
 }
 
 impl PlaybackController {
@@ -36,6 +38,16 @@ impl PlaybackController {
         &self.state
     }
 
+    pub fn progress(&self) -> Option<f32> {
+        let elapsed = self.started_at?.elapsed();
+        let duration = self.expected_duration?;
+        if duration.is_zero() {
+            return Some(0.0);
+        }
+
+        Some((elapsed.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0))
+    }
+
     pub fn start_pcm(&mut self, samples: &[u8]) -> Result<(), String> {
         if samples.is_empty() {
             let message = "empty PCM buffer".to_string();
@@ -43,19 +55,23 @@ impl PlaybackController {
             return Err(message);
         }
 
-        self.stop().map_err(|err| format!("could not reset playback: {err}"))?;
+        self.stop()
+            .map_err(|err| format!("could not reset playback: {err}"))?;
 
         let path = playback_temp_path();
         write_wav_u8_mono(&path, samples, SAMPLE_RATE_ABC as u32)
             .map_err(|err| format!("could not write playback buffer: {err}"))?;
 
+        self.expected_duration = Some(Duration::from_secs_f32(
+            samples.len() as f32 / SAMPLE_RATE_ABC as f32,
+        ));
         self.start_wav(&path)?;
         self.temp_path = Some(path);
         Ok(())
     }
 
     pub fn start_wav(&mut self, path: &Path) -> Result<(), String> {
-        let mut command = playback_command(&path)?;
+        let mut command = playback_command(path)?;
         let child = command.spawn().map_err(|err| {
             let message = format!("could not start playback command: {err}");
             self.state = PlaybackState::Error(message.clone());
@@ -63,6 +79,7 @@ impl PlaybackController {
         })?;
 
         self.child = Some(child);
+        self.started_at = Some(Instant::now());
         self.state = PlaybackState::Playing;
         Ok(())
     }
@@ -74,7 +91,7 @@ impl PlaybackController {
             stopped = true;
             if let Err(err) = child.kill() {
                 if err.kind() != io::ErrorKind::InvalidInput {
-                    self.cleanup_temp_file();
+                    self.cleanup_runtime_state();
                     self.state = PlaybackState::Error(err.to_string());
                     return Err(err.to_string());
                 }
@@ -82,7 +99,7 @@ impl PlaybackController {
             let _ = child.wait();
         }
 
-        self.cleanup_temp_file();
+        self.cleanup_runtime_state();
         self.state = PlaybackState::Stopped;
         Ok(stopped)
     }
@@ -94,7 +111,7 @@ impl PlaybackController {
                 Ok(None) => return None,
                 Err(err) => {
                     self.child = None;
-                    self.cleanup_temp_file();
+                    self.cleanup_runtime_state();
                     let message = format!("could not poll playback process: {err}");
                     self.state = PlaybackState::Error(message.clone());
                     return Some(Err(message));
@@ -104,7 +121,7 @@ impl PlaybackController {
         };
 
         self.child = None;
-        self.cleanup_temp_file();
+        self.cleanup_runtime_state();
 
         if status.success() {
             self.state = PlaybackState::Stopped;
@@ -114,6 +131,12 @@ impl PlaybackController {
             self.state = PlaybackState::Error(message.clone());
             Some(Err(message))
         }
+    }
+
+    fn cleanup_runtime_state(&mut self) {
+        self.started_at = None;
+        self.expected_duration = None;
+        self.cleanup_temp_file();
     }
 
     fn cleanup_temp_file(&mut self) {
@@ -230,5 +253,11 @@ mod tests {
         let mut playback = PlaybackController::default();
         assert!(playback.poll().is_none());
         assert_eq!(playback.state(), &PlaybackState::Stopped);
+    }
+
+    #[test]
+    fn progress_requires_active_timing() {
+        let playback = PlaybackController::default();
+        assert_eq!(playback.progress(), None);
     }
 }

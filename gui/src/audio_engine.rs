@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::ffi;
 
@@ -22,11 +23,46 @@ pub struct PatternBlock {
     pub start_step: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StepState {
+    pub active: bool,
+    pub accent: bool,
+    pub fx_trigger: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct TrackOverview {
     pub name: String,
     pub instrument: String,
-    pub activity: Vec<bool>,
+    pub preset: String,
+    pub waveform: String,
+    pub amplitude: i32,
+    pub duty_cycle: i32,
+    pub attack_ms: i32,
+    pub decay_ms: i32,
+    pub sustain_level: i32,
+    pub release_ms: i32,
+    pub gate_percent: i32,
+    pub vibrato_cents: i32,
+    pub vibrato_rate: i32,
+    pub glide_ms: i32,
+    pub detune_cents: i32,
+    pub fx_bus: usize,
+    pub activity: Vec<StepState>,
+}
+
+#[derive(Clone, Debug)]
+pub struct FxBusOverview {
+    pub bus_index: usize,
+    pub enabled: bool,
+    pub delay_steps: i32,
+    pub delay_feedback: i32,
+    pub delay_mix: i32,
+    pub drive_amount: i32,
+    pub lowpass_amount: i32,
+    pub sidechain_amount: i32,
+    pub sidechain_release_ms: i32,
+    pub mix_percent: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -34,9 +70,11 @@ pub struct DemoOverview {
     pub title: String,
     pub bpm: i32,
     pub swing_pct: i32,
+    pub steps_per_beat: usize,
     pub total_steps: usize,
     pub arrangement: Vec<PatternBlock>,
     pub tracks: Vec<TrackOverview>,
+    pub fx_buses: Vec<FxBusOverview>,
     pub hidden_track_count: usize,
 }
 
@@ -51,7 +89,7 @@ pub struct DemoEntry {
 #[derive(Clone, Debug)]
 pub struct RenderState {
     pub demo_key: String,
-    pub samples: Vec<u8>,
+    pub samples: Arc<[u8]>,
     pub stats: Option<AudioRenderStats>,
 }
 
@@ -91,7 +129,7 @@ impl GuiAudioEngine {
     }
 
     pub fn render_demo(&self, demo_key: &str, path: &Path) -> Result<RenderState, String> {
-        let samples = ffi::render_abc_file(path)?;
+        let samples = Arc::<[u8]>::from(ffi::render_abc_file(path)?);
         Ok(RenderState {
             demo_key: demo_key.to_string(),
             samples,
@@ -149,7 +187,10 @@ mod tests {
         let render = engine
             .render_demo(&demo.key, &demo.path)
             .expect("valid demo should render");
-        assert!(!render.samples.is_empty(), "rendered sample buffer should be non-empty");
+        assert!(
+            !render.samples.is_empty(),
+            "rendered sample buffer should be non-empty"
+        );
     }
 
     #[test]
@@ -165,7 +206,10 @@ mod tests {
             let render = engine
                 .render_demo(&demo.key, &demo.path)
                 .expect("repeated render should succeed");
-            assert!(!render.samples.is_empty(), "rendered sample buffer should be non-empty");
+            assert!(
+                !render.samples.is_empty(),
+                "rendered sample buffer should be non-empty"
+            );
         }
     }
 }
