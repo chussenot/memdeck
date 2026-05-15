@@ -139,12 +139,28 @@ memdeck/
     sound.c          Native audio backend and SFX playback
     audio_seq.c      Song / pattern / track / step sequencer
     audio_mix.c      Portable PCM mixing pipeline
+    audio_fx.c       Sequencer FX (drive/lowpass/delay/sidechain) processing
+    audio_engine.c   Audio render API (built-in and ABC file rendering)
     audio_song_builtin.c Built-in fallback retro song data
     audio_dsp.c      Portable oscillator and timing core
     memdeck.h        Shared types and constants
   data/
     stacks/          Built-in stack files (TSV)
     lessons/         Learning content
+    music/           ABC tracks and showcase demos
+      dark_moroder.abc
+      perturbator_loop.abc
+      carpenter_drive.abc
+      advanced_dsl_demo.abc
+      multi_fx_demo.abc
+      neon_nightdrive.abc
+      metro_chase.abc
+      black_sunrise.abc
+      machine_romance.abc
+      hypersleep_dream.abc
+  docs/
+    composer-guide.md  Composition workflow and preset guidance
+    showcase-tracks.md Showcase track notes and catalog
   tests/             Shell-based test scripts
   Makefile
 ```

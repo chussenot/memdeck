@@ -1,6 +1,6 @@
 # Composer Guide
 
-This guide focuses on authored retro-synth composition using the MemDeck ABC DSL.
+This guide focuses on authored retro-synth composition with the MemDeck ABC DSL.
 
 ## Composition workflow
 
@@ -10,7 +10,7 @@ This guide focuses on authored retro-synth composition using the MemDeck ABC DSL
 4. Reserve lead/motif entries for section transitions.
 5. Structure the file with section markers and patterns.
 
-Recommended section markers:
+### Recommended section markers
 
 - `% section intro`
 - `% section verse`
@@ -22,40 +22,13 @@ Recommended section markers:
 
 Use named `%%instrument` presets and copy these families between tracks.
 
-### Bass presets
-
-- **heavy_bass**: pulse, medium duty, fast attack, short release, fx bus 0
-- intent: mechanical disco drive and sidechain-friendly low end
-- BPM range: 110-150
-- FX: moderate drive + light delay + sidechain 40-60
-
-### Arp presets
-
-- **plucky_arp**: pulse, short decay/release, lower gate, optional vibrato
-- intent: hypnotic movement without smearing
-- BPM range: 110-150
-- FX: medium delay bus, lower drive
-
-### Pad presets
-
-- **soft_pad**: triangle, long attack/release, high sustain
-- intent: cinematic bed and tension support
-- BPM range: 90-135
-- FX: wet delay bus, stronger lowpass
-
-### Lead presets
-
-- **synth_lead**: pulse/triangle, moderate attack, glide + vibrato
-- intent: emotional hooks and section punctuation
-- BPM range: 100-145
-- FX: controlled delay mix, keep bus mostly dry if mix is dense
-
-### Percussion presets
-
-- **solid_kick / hats_noise**: noise, short envelope, short gate
-- intent: analog-machine pulse and groove articulation
-- BPM range: 95-155
-- FX: mostly dry, high sidechain relevance on kick bus
+| Family | Preset(s) | Character | BPM range | FX guidance |
+| --- | --- | --- | --- | --- |
+| Bass | `heavy_bass` | Pulse, medium duty, fast attack, short release; mechanical disco drive and sidechain-friendly low end | 110-150 | Moderate drive + light delay + sidechain 40-60 |
+| Arp | `plucky_arp` | Pulse, short decay/release, lower gate, optional vibrato; hypnotic movement without smearing | 110-150 | Medium delay bus, lower drive |
+| Pad | `soft_pad` | Triangle, long attack/release, high sustain; cinematic bed and tension support | 90-135 | Wet delay bus, stronger lowpass |
+| Lead | `synth_lead` | Pulse/triangle, moderate attack, glide + vibrato; emotional hooks and section punctuation | 100-145 | Controlled delay mix; keep bus mostly dry in dense mixes |
+| Percussion | `solid_kick`, `hats_noise` | Noise, short envelope/gate; analog-machine pulse and groove articulation | 95-155 | Mostly dry; keep kick bus highly sidechain-relevant |
 
 ## Writing better basslines
 
@@ -75,7 +48,7 @@ Use named `%%instrument` presets and copy these families between tracks.
 - Use pulse duty variation across lanes.
 - Add subtle vibrato to moving parts only.
 - Use glide mainly on lead hooks, not everywhere.
-- Keep slight swing (52-60) for mechanical-but-human motion.
+- Keep slight swing (`52-60`) for mechanical-but-human motion.
 
 ## Delay usage
 
