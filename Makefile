@@ -3,13 +3,14 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw -lm
 
-SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c
+SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_song_builtin.c
 BIN          = bin/memdeck-tui
 BENCH        = bin/bench-audio
 TEST_DSP     = bin/test-audio-dsp
 TEST_ABC_BIN = bin/test-abc
+TEST_SEQ_BIN = bin/test-audio-seq
 
-.PHONY: all clean install uninstall test test-audio test-abc bench-audio help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio help
 
 .DEFAULT_GOAL := help
 
@@ -21,7 +22,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -38,7 +39,7 @@ uninstall:
 	rm -f $(PREFIX)/bin/memdeck $(PREFIX)/bin/memdeck-tui
 	rm -rf $(PREFIX)/share/memdeck
 
-test: all test-audio test-abc
+test: all test-audio test-abc test-audio-seq
 	@echo "Running tests..."
 	@sh tests/test_cards.sh
 	@sh tests/test_stacks.sh
@@ -61,6 +62,14 @@ $(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/memde
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c $(LDFLAGS)
 
+test-audio-seq: $(TEST_SEQ_BIN)
+	@echo "Running sequencer regression tests..."
+	@$(TEST_SEQ_BIN)
+
+$(TEST_SEQ_BIN): tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_seq.h src/audio_mix.h src/audio_song_builtin.h
+	@mkdir -p bin
+	$(CC) $(CFLAGS) -o $@ tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c $(LDFLAGS)
+
 bench-audio: src/audio_dsp.c tests/bench_audio.c
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $(BENCH) tests/bench_audio.c src/audio_dsp.c $(LDFLAGS)
@@ -80,5 +89,6 @@ help:
 	@echo "  test       Run the test suite (cards, stacks, scoring, audio DSP, ABC)"
 	@echo "  test-audio Build and run audio DSP regression tests"
 	@echo "  test-abc   Build and run ABC parser tests"
+	@echo "  test-audio-seq Build and run sequencer regression tests"
 	@echo "  bench-audio Build and run audio microbenchmark"
 	@echo "  help       Show this help message (default)"

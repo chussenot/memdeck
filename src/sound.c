@@ -1,5 +1,7 @@
 #include "memdeck.h"
 #include "audio_dsp.h"
+#include "audio_mix.h"
+#include "audio_song_builtin.h"
 #include <signal.h>
 #include <sys/wait.h>
 
@@ -183,140 +185,22 @@ static void writer_collect_status(int block)
  *   Arp   — mid-range pulsing 16th-note arpeggios, staccato (amplitude 28)
  *   Lead  — sparse haunting melody, high register (amplitude 40)
  *
- * 4-bar loop, 64 sixteenth notes total.
- * At 120 BPM: 16th note = 125ms = 2756 samples.
+ * Built-in sequencer fallback is now defined in src/audio_song_builtin.c and
+ * rendered by the portable sequencing + mixing pipeline.
  */
-
-/* Note frequencies (0 = rest) */
-#define REST 0.0
-
-#define A1   55.00
-#define Bb1  58.27
-#define D2   73.42
-#define E2   82.41
-#define F2   87.31
-#define G2   98.00
-#define A2  110.00
-
-#define A3  220.00
-#define Bb3 233.08
-#define C4  261.63
-
-#define D4  293.66
-#define E4  329.63
-#define F4  349.23
-#define G4  392.00
-#define A4  440.00
-#define Bb4 466.16
-
-#define C5  523.25
-#define D5  587.33
-#define E5  659.25
-#define F5  698.46
-#define A5  880.00
-#define Bb5 932.33
-
-#define STEPS 64
-#define BPM   120
-#define STEP_MS (60000 / BPM / 4)
-#define STEP_SAMPLES (SAMPLE_RATE * STEP_MS / 1000)
-
-#define NOTE_MS  (STEP_MS * 3 / 4)
-#define GAP_MS   (STEP_MS - NOTE_MS)
-
-#define BASS_AMP  45
-#define ARP_AMP   28
-#define LEAD_AMP  40
-
-static const double bass_notes[STEPS] = {
-    D2, D2, D2, D2,  D2, D2, D2, D2,  D2, D2, D2, D2,  D2, D2, D2, D2,
-    Bb1,Bb1,Bb1,Bb1, Bb1,Bb1,Bb1,Bb1, A1, A1, A1, A1,  A1, A1, A1, A1,
-    A1, A1, A1, A1,  A1, A1, A1, A1,  A1, A1, A1, A1,  A1, A1, A1, A1,
-    A1, A1, A1, A1,  A1, A1, A1, A1,  Bb1,Bb1,Bb1,Bb1, D2, D2, D2, D2,
-};
-
-static const double arp_notes[STEPS] = {
-    D4, F4, A4, D5,  D4, F4, A4, D5,  D4, F4, A4, D5,  D4, F4, A4, D5,
-    Bb3,D4, F4, Bb4, Bb3,D4, F4, Bb4, A3, C4, E4, A4,  A3, C4, E4, A4,
-    A3, C4, E4, A4,  A3, C4, E4, A4,  A3, C4, E4, A4,  A3, C4, E4, A4,
-    A3, C4, E4, A4,  A3, C4, E4, A4,  Bb3,D4, F4, Bb4, D4, F4, A4, D5,
-};
-
-static const double lead_notes[STEPS] = {
-    REST,REST,REST,REST, REST,REST,REST,REST, D5, D5, REST,REST, F5, E5, D5, D5,
-    REST,REST,REST,REST, Bb4,Bb4,REST,REST,  C5, C5, REST,REST, REST,REST,REST,REST,
-    REST,REST,REST,REST, A4, REST,C5, REST,  E5, E5, D5, D5,   REST,REST,REST,REST,
-    REST,REST,REST,REST, REST,REST,REST,REST, A4, A4, Bb4,A4,   REST,REST,REST,REST,
-};
+static char music_track_title[128] = {0};
 
 static unsigned char *music_generate_loop(int *out_len)
 {
-    int loop_samples = dsp_total_samples_for_steps(SAMPLE_RATE, STEP_MS, STEPS);
-    unsigned char *buf = malloc(loop_samples);
-    if (!buf) return NULL;
-
-    memset(buf, 128, loop_samples);
-    int note_samples = dsp_samples_from_ms(SAMPLE_RATE, NOTE_MS);
-    DspSampleStepper stepper;
-    dsp_stepper_init(&stepper, SAMPLE_RATE, STEP_MS);
-    DspOscillator bass_osc, arp_osc, lead_osc;
-    int bass_ready = 0;
-    int arp_ready = 0;
-    int lead_ready = 0;
-    double prev_bass = 0.0;
-    double prev_arp = 0.0;
-    double prev_lead = 0.0;
-    int base = 0;
+    const SeqSong *song = audio_builtin_menu_song();
     uint64_t t0 = dsp_profile_now_ticks();
+    unsigned char *buf;
 
-    for (int step = 0; step < STEPS; step++) {
-        int step_samples = dsp_stepper_next(&stepper);
-        double bf = bass_notes[step];
-        double af = arp_notes[step];
-        double lf = lead_notes[step];
-        int lead_samples = (step_samples * 9) / 10;
-        int bass_on = (bf > 0.0);
-        int arp_on = (af > 0.0);
-        int lead_on = (lf > 0.0);
-
-        if (bass_on) {
-            if (!bass_ready || prev_bass != bf) {
-                dsp_osc_init(&bass_osc, DSP_WAVE_SQUARE, BASS_AMP);
-                dsp_osc_set_frequency(&bass_osc, bf, SAMPLE_RATE);
-                bass_ready = 1;
-                prev_bass = bf;
-            }
-        } else bass_ready = 0;
-        if (arp_on) {
-            if (!arp_ready || prev_arp != af) {
-                dsp_osc_init(&arp_osc, DSP_WAVE_PULSE, ARP_AMP);
-                dsp_osc_set_frequency(&arp_osc, af, SAMPLE_RATE);
-                dsp_osc_set_pulse_width_percent(&arp_osc, 25);
-                arp_ready = 1;
-                prev_arp = af;
-            }
-        } else arp_ready = 0;
-        if (lead_on) {
-            if (!lead_ready || prev_lead != lf) {
-                dsp_osc_init(&lead_osc, DSP_WAVE_SQUARE, LEAD_AMP);
-                dsp_osc_set_frequency(&lead_osc, lf, SAMPLE_RATE);
-                lead_ready = 1;
-                prev_lead = lf;
-            }
-        } else lead_ready = 0;
-
-        for (int i = 0; i < step_samples; i++) {
-            int val = 128;
-            if (bass_on) val += dsp_osc_next(&bass_osc);
-            if (arp_on && i < note_samples) val += dsp_osc_next(&arp_osc);
-            if (lead_on && i < lead_samples) val += dsp_osc_next(&lead_osc);
-            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
-        }
-        base += step_samples;
-    }
-
-    profile_generation(loop_samples, dsp_profile_now_ticks() - t0);
-    *out_len = loop_samples;
+    if (!song) return NULL;
+    snprintf(music_track_title, sizeof(music_track_title), "%.127s", song->title);
+    buf = audio_mix_render_song(song, SAMPLE_RATE, out_len);
+    if (buf && out_len)
+        profile_generation(*out_len, dsp_profile_now_ticks() - t0);
     return buf;
 }
 
@@ -325,8 +209,6 @@ static unsigned char *music_generate_loop(int *out_len)
  * (menu_bass/arp/lead.abc, menu2_bass/arp/lead.abc, ...) and picks one
  * at random. Falls back to a combined menu.abc if no voice files found.
  */
-static char music_track_title[128] = {0};
-
 static unsigned char *music_try_track(int *out_len, const char *music_dir,
                                       const char *prefix)
 {
@@ -392,7 +274,7 @@ const char *sound_music_title(void) { return music_track_title; }
 
 /* Global: data_dir is set by sound_set_data_dir() before music starts */
 static char sound_data_dir[MAX_PATH + 64] = {0};
-static int  music_source = 0; /* 0=none, 1=abc, 2=hardcoded */
+static int  music_source = 0; /* 0=none, 1=abc, 2=builtin sequencer */
 
 int sound_music_source(void) { return music_source; }
 
@@ -421,9 +303,9 @@ void sound_music_start(void)
     if (loop_buf) {
         music_source = 1; /* ABC */
     } else {
-        /* Fallback to hardcoded music */
+        /* Fallback to the built-in sequencer */
         loop_buf = music_generate_loop(&loop_len);
-        if (loop_buf) music_source = 2; /* hardcoded */
+        if (loop_buf) music_source = 2; /* built-in sequencer */
     }
 
     if (!loop_buf) return;
