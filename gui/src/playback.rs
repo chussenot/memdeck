@@ -105,15 +105,19 @@ fn playback_command(path: &Path) -> Result<Command, String> {
 
     #[cfg(target_os = "windows")]
     {
-        let wav_path = path.display().to_string().replace('\\', "\\\\");
         let mut command = Command::new("powershell");
         command.args([
             "-NoProfile",
             "-Command",
-            &format!(
-                "(New-Object Media.SoundPlayer '{wav_path}').PlaySync()"
-            ),
+            "& { \
+                $p = [System.IO.Path]::GetFullPath($args[0]); \
+                $player = New-Object Media.SoundPlayer; \
+                $player.SoundLocation = $p; \
+                $player.Load(); \
+                $player.PlaySync(); \
+            }",
         ]);
+        command.arg(path);
         return Ok(command);
     }
 

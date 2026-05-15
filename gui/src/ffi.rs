@@ -248,8 +248,9 @@ pub fn get_render_stats() -> Option<AudioRenderStats> {
 
 fn build_demo_overview(music: &AbcMusic) -> Result<DemoOverview, String> {
     let instrument_presets = build_instrument_preset_map(music);
-    let visible_tracks = usize::min(music.voice_count.max(0) as usize, SEQ_MAX_TRACKS);
-    let hidden_track_count = music.voice_count.max(0) as usize - visible_tracks;
+    let total_tracks = music.voice_count.max(0) as usize;
+    let visible_tracks = usize::min(total_tracks, SEQ_MAX_TRACKS);
+    let hidden_track_count = total_tracks - visible_tracks;
     let max_steps = music.voices[..visible_tracks]
         .iter()
         .map(|voice| voice.note_count.max(0) as usize)
