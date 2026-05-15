@@ -8,13 +8,6 @@
 #define FX_DRIVE_SOFT_CLIP 192
 #define FX_DRIVE_HARD_CLIP 2047
 
-static int clampi(int value, int lo, int hi)
-{
-    if (value < lo) return lo;
-    if (value > hi) return hi;
-    return value;
-}
-
 static int clamp_sample(int value, int limit)
 {
     if (value < -limit) return -limit;
@@ -42,13 +35,13 @@ int audio_fx_delay_init(AudioDelay *delay, int sample_rate, int delay_samples,
     memset(delay, 0, sizeof(*delay));
     if (delay_samples <= 0 || mix_percent <= 0)
         return 0;
-    len = clampi(delay_samples, 1, sample_rate * 8);
+    len = dsp_clampi(delay_samples, 1, sample_rate * 8);
     delay->buffer = calloc((size_t)len, sizeof(int));
     if (!delay->buffer) return -1;
     delay->enabled = 1;
     delay->delay_steps = delay_samples;
-    delay->feedback_percent = clampi(feedback_percent, 0, 95);
-    delay->mix_percent = clampi(mix_percent, 0, 100);
+    delay->feedback_percent = dsp_clampi(feedback_percent, 0, 95);
+    delay->mix_percent = dsp_clampi(mix_percent, 0, 100);
     delay->sample_rate = sample_rate;
     delay->buffer_len = len;
     delay->write_index = 0;
@@ -97,7 +90,7 @@ int audio_fx_apply_drive(int input, int drive_amount)
     int a;
     int clipped;
 
-    drive_amount = clampi(drive_amount, 0, 100);
+    drive_amount = dsp_clampi(drive_amount, 0, 100);
     if (drive_amount <= 0)
         return clamp_sample(input, FX_DRIVE_HARD_CLIP);
 
@@ -118,12 +111,12 @@ void audio_fx_lowpass_init(AudioLowpass *lp, int amount)
 {
     if (!lp) return;
     memset(lp, 0, sizeof(*lp));
-    amount = clampi(amount, 0, 100);
+    amount = dsp_clampi(amount, 0, 100);
     if (amount <= 0) return;
     lp->enabled = 1;
     lp->amount = amount;
     lp->alpha_q15 = 24576 - (amount * 220);
-    lp->alpha_q15 = clampi(lp->alpha_q15, 2048, 24576);
+    lp->alpha_q15 = dsp_clampi(lp->alpha_q15, 2048, 24576);
 }
 
 int audio_fx_lowpass_process(AudioLowpass *lp, int input)
@@ -138,14 +131,14 @@ void audio_fx_sidechain_init(AudioSidechain *sc, int sample_rate, int amount, in
     int release_samples;
     if (!sc) return;
     memset(sc, 0, sizeof(*sc));
-    amount = clampi(amount, 0, 100);
+    amount = dsp_clampi(amount, 0, 100);
     if (amount <= 0) {
         sc->env_q15 = FX_Q15_ONE;
         return;
     }
     sc->enabled = 1;
     sc->amount = amount;
-    sc->release_ms = clampi(release_ms, 10, 2000);
+    sc->release_ms = dsp_clampi(release_ms, 10, 2000);
     sc->sample_rate = sample_rate;
     sc->env_q15 = FX_Q15_ONE;
     release_samples = (sample_rate * sc->release_ms) / 1000;
@@ -185,8 +178,8 @@ int audio_fx_bus_init(AudioFxBusState *state, const SeqFxBus *bus,
     if (!state || !bus) return -1;
     memset(state, 0, sizeof(*state));
     state->enabled = bus->enabled ? 1 : 0;
-    state->mix_percent = clampi(bus->mix_percent, 0, 100);
-    state->drive_amount = clampi(bus->drive_amount, 0, 100);
+    state->mix_percent = dsp_clampi(bus->mix_percent, 0, 100);
+    state->drive_amount = dsp_clampi(bus->drive_amount, 0, 100);
     audio_fx_lowpass_init(&state->lowpass, bus->lowpass_amount);
     audio_fx_sidechain_init(&state->sidechain, sample_rate, bus->sidechain_amount, bus->sidechain_release_ms);
 

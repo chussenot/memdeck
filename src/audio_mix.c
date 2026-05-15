@@ -275,8 +275,8 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
         }
 
         for (int i = 0; i < samples_this_step; i++) {
-            int dry = 0;
-            int wet = 0;
+            int pre_fx_sum = 0;
+            int fx_return_sum = 0;
             int master_sidechain_env_q15 = 32767;
             memset(fx_bus_levels, 0, sizeof(fx_bus_levels));
             memset(fx_bus_trigger, 0, sizeof(fx_bus_trigger));
@@ -287,7 +287,7 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
                     int sample;
                     if (!voice->active) continue;
                     sample = voice_next(voice);
-                    dry += sample;
+                    pre_fx_sum += sample;
                     if (voice->fx_bus >= 0 && voice->fx_bus < song->fx_bus_count) {
                         int trig = voice->fx_trigger > 0 ? voice->fx_trigger : 0;
                         if (voice->accent > 0 && trig < 1) trig = 1;
@@ -300,13 +300,13 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
 
             for (int bus_index = 0; bus_index < song->fx_bus_count; bus_index++) {
                 int sc_env = 32767;
-                wet += audio_fx_bus_process(&fx_states[bus_index], fx_bus_levels[bus_index],
-                                            fx_bus_trigger[bus_index], &sc_env);
+                fx_return_sum += audio_fx_bus_process(&fx_states[bus_index], fx_bus_levels[bus_index],
+                                                      fx_bus_trigger[bus_index], &sc_env);
                 if (sc_env < master_sidechain_env_q15)
                     master_sidechain_env_q15 = sc_env;
             }
 
-            buf[base + i] = (unsigned char)dsp_clamp_u8(128 + ((dry + wet) * master_sidechain_env_q15) / 32767);
+            buf[base + i] = (unsigned char)dsp_clamp_u8(128 + ((pre_fx_sum + fx_return_sum) * master_sidechain_env_q15) / 32767);
         }
         base += samples_this_step;
     }
