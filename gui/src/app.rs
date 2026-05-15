@@ -55,17 +55,6 @@ impl FocusArea {
             FocusArea::FxInspector => "FX INSPECTOR",
         }
     }
-
-    fn boot_key(self) -> &'static str {
-        match self {
-            FocusArea::DemoBrowser => "demos",
-            FocusArea::RenderStats => "stats",
-            FocusArea::WaveformView => "waveform",
-            FocusArea::PatternOverview => "pattern",
-            FocusArea::InstrumentInspector => "instrument",
-            FocusArea::FxInspector => "fx",
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -619,7 +608,7 @@ impl MemDeckGuiApp {
         let render_label = if stats.is_some() {
             ("READY", ACCENT)
         } else {
-            ("PENDING", TEXT_DIM)
+            ("IDLE", TEXT_DIM)
         };
 
         Self::retro_panel(
@@ -791,7 +780,7 @@ impl MemDeckGuiApp {
                                 format!("CLIP MARKERS {}", value.clipping_count)
                             }
                             Some(_) => "CLIP MARKERS CLEAR".to_string(),
-                            None => "RENDER PCM TO ENABLE METERS".to_string(),
+                            None => "RENDER PCM TO VIEW WAVEFORM".to_string(),
                         })
                         .monospace()
                         .size(12.0)
@@ -1015,7 +1004,7 @@ impl MemDeckGuiApp {
             ui,
             "STATUS LINE",
             false,
-            Some("TAB CYCLES PANELS • I / P / F / W DIRECT"),
+            Some("TAB / SHIFT+TAB CYCLES PANELS • D/S/W/P/I/F DIRECT FOCUS"),
             |ui| {
                 ui.label(
                     RichText::new(&self.status.text)
@@ -1581,13 +1570,10 @@ impl eframe::App for MemDeckGuiApp {
                     }
                     ui.separator();
                     ui.label(
-                        RichText::new(format!(
-                            "BOOT • {}",
-                            self.runtime.focus.boot_key().to_uppercase()
-                        ))
-                        .monospace()
-                        .size(12.0)
-                        .color(TEXT_DIM),
+                        RichText::new("READ-ONLY")
+                            .monospace()
+                            .size(12.0)
+                            .color(BORDER),
                     );
                 });
             });

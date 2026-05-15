@@ -46,26 +46,41 @@ Every render action updates a clear status line and a stable stats panel to redu
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DemoListFocus
-    DemoListFocus --> OverviewFocus: Tab
-    OverviewFocus --> DemoListFocus: Tab
+    [*] --> DemoBrowser
+    DemoBrowser --> RenderStats: Tab
+    RenderStats --> WaveformView: Tab
+    WaveformView --> PatternOverview: Tab
+    PatternOverview --> InstrumentInspector: Tab
+    InstrumentInspector --> FxInspector: Tab
+    FxInspector --> DemoBrowser: Tab
 
-    DemoListFocus --> DemoListFocus: Up/Down
-    OverviewFocus --> OverviewFocus: Up/Down
+    DemoBrowser --> FxInspector: Shift+Tab
+    RenderStats --> DemoBrowser: Shift+Tab
+    WaveformView --> RenderStats: Shift+Tab
+    PatternOverview --> WaveformView: Shift+Tab
+    InstrumentInspector --> PatternOverview: Shift+Tab
+    FxInspector --> InstrumentInspector: Shift+Tab
 
-    DemoListFocus --> Rendered: Enter
-    OverviewFocus --> Rendered: Enter
+    DemoBrowser --> DemoBrowser: Up / Down (demo browse)
+    RenderStats --> RenderStats: Up / Down (track select)
+    WaveformView --> WaveformView: Up / Down (track select)
+    PatternOverview --> PatternOverview: Up / Down (track select)
+    InstrumentInspector --> InstrumentInspector: Up / Down (track select)
+    FxInspector --> FxInspector: Up / Down (track select)
 
-    DemoListFocus --> Playing: Space
-    OverviewFocus --> Playing: Space
+    DemoBrowser --> AnyPanel: D/S/W/P/I/F
+    RenderStats --> AnyPanel: D/S/W/P/I/F
+    WaveformView --> AnyPanel: D/S/W/P/I/F
+    PatternOverview --> AnyPanel: D/S/W/P/I/F
+    InstrumentInspector --> AnyPanel: D/S/W/P/I/F
+    FxInspector --> AnyPanel: D/S/W/P/I/F
+
+    DemoBrowser --> Rendered: Enter
+    RenderStats --> Rendered: Enter
+
     Rendered --> Playing: Space
-
-    Playing --> Stopped: Space
-    Playing --> Stopped: Esc
-    DemoListFocus --> Stopped: Esc
-
-    Stopped --> DemoListFocus: Continue navigation
-    Rendered --> DemoListFocus: Continue navigation
+    Playing --> Rendered: Space
+    Playing --> Rendered: Esc
 ```
 
 ## Visual System Foundations
@@ -73,11 +88,15 @@ stateDiagram-v2
 ```mermaid
 flowchart TD
     A[Monochrome Base] --> B[High Contrast Text]
-    A --> C[Subtle Focus States]
+    A --> C[Accent Focus States]
     A --> D[Grid/Panel Rhythm]
-    D --> E[Demo List]
+    D --> E[Demo Browser]
     D --> F[Render Stats]
-    D --> G[Waveform + Pattern Overview]
+    D --> G[Waveform View]
+    D --> H[Pattern Overview]
+    D --> I[Instrument Inspector]
+    D --> J[FX Inspector]
+    D --> K[Status Line]
 ```
 
 ## Non-Goals (Explicit)
