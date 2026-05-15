@@ -190,17 +190,81 @@ static void writer_collect_status(int block)
  */
 static char music_track_title[128] = {0};
 
+static unsigned char *music_generate_legacy_loop(int *out_len)
+{
+    static const double bass_steps[16] = {
+        73.42, 73.42, 73.42, 73.42, 73.42, 73.42, 73.42, 73.42,
+        69.30, 69.30, 69.30, 69.30, 69.30, 69.30, 69.30, 69.30
+    };
+    static const double arp_steps[16] = {
+        293.66, 349.23, 440.00, 587.33, 293.66, 349.23, 440.00, 587.33,
+        293.66, 349.23, 440.00, 587.33, 293.66, 349.23, 440.00, 587.33
+    };
+    static const double lead_steps[16] = {
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        587.33, 587.33, 0.0, 0.0, 698.46, 659.25, 587.33, 587.33
+    };
+    enum { LOOP_STEPS = 64, STEP_MS = 125 };
+    int step_samples = dsp_samples_from_ms(SAMPLE_RATE, STEP_MS);
+    int total_samples = step_samples * LOOP_STEPS;
+    unsigned char *buf = malloc((size_t)total_samples);
+
+    if (!out_len || !buf) {
+        free(buf);
+        return NULL;
+    }
+    memset(buf, 128, (size_t)total_samples);
+
+    for (int step = 0; step < LOOP_STEPS; step++) {
+        int idx = step % 16;
+        DspOscillator bass, arp, lead;
+        int base = step * step_samples;
+        int has_bass = bass_steps[idx] > 0.0;
+        int has_arp = arp_steps[idx] > 0.0;
+        int has_lead = lead_steps[idx] > 0.0;
+        if (has_bass) {
+            dsp_osc_init(&bass, DSP_WAVE_SQUARE, 44);
+            dsp_osc_set_frequency(&bass, bass_steps[idx], SAMPLE_RATE);
+        }
+        if (has_arp) {
+            dsp_osc_init(&arp, DSP_WAVE_PULSE, 26);
+            dsp_osc_set_pulse_width_percent(&arp, 25);
+            dsp_osc_set_frequency(&arp, arp_steps[idx], SAMPLE_RATE);
+        }
+        if (has_lead) {
+            dsp_osc_init(&lead, DSP_WAVE_SQUARE, 36);
+            dsp_osc_set_frequency(&lead, lead_steps[idx], SAMPLE_RATE);
+        }
+        for (int i = 0; i < step_samples; i++) {
+            int val = 128;
+            if (has_bass) val += dsp_osc_next(&bass);
+            if (has_arp && i < (step_samples * 3) / 4) val += dsp_osc_next(&arp);
+            if (has_lead && i < (step_samples * 9) / 10) val += dsp_osc_next(&lead);
+            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
+        }
+    }
+
+    *out_len = total_samples;
+    return buf;
+}
+
 static unsigned char *music_generate_loop(int *out_len)
 {
     const SeqSong *song = audio_builtin_menu_song();
     uint64_t t0 = dsp_profile_now_ticks();
     unsigned char *buf;
 
-    if (!song) return NULL;
+    if (!song) {
+        snprintf(music_track_title, sizeof(music_track_title), "MemDeck legacy fallback");
+        return music_generate_legacy_loop(out_len);
+    }
     snprintf(music_track_title, sizeof(music_track_title), "%.127s", song->title);
     buf = audio_mix_render_song(song, SAMPLE_RATE, out_len);
-    if (buf && out_len)
-        profile_generation(*out_len, dsp_profile_now_ticks() - t0);
+    if (!buf) {
+        snprintf(music_track_title, sizeof(music_track_title), "MemDeck legacy fallback");
+        buf = music_generate_legacy_loop(out_len);
+    }
+    if (buf && out_len) profile_generation(*out_len, dsp_profile_now_ticks() - t0);
     return buf;
 }
 

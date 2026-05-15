@@ -281,6 +281,13 @@ typedef struct {
     char title[128];
     int bpm;
     int step_ms;          /* duration of one default-length note in ms */
+    int fx_delay_steps;
+    int fx_delay_feedback;
+    int fx_delay_mix;
+    int fx_drive_amount;
+    int fx_lowpass_amount;
+    int fx_sidechain_amount;
+    int fx_sidechain_release_ms;
     AbcVoice voices[ABC_MAX_VOICES];
     int voice_count;
 } AbcMusic;

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../src/audio_mix.h"
+#include "../src/audio_fx.h"
 #include "../src/audio_song_builtin.h"
 
 static int g_failures = 0;
@@ -129,10 +130,10 @@ static void test_swing_timing(void)
 static void test_builtin_render(void)
 {
     static const unsigned char expected_prefix[16] = {
-        168, 168, 91, 170, 93, 172, 95, 173,
-        98, 98, 176, 101, 101, 161, 160, 85
+        155, 156, 106, 156, 106, 156, 107, 157,
+        109, 107, 158, 111, 109, 148, 149, 100
     };
-    static const uint64_t expected_checksum = 0xd138a815d4455aefull;
+    static const uint64_t expected_checksum = 0x1cc9f7453a231fafull;
     const SeqSong *song = audio_builtin_menu_song();
     unsigned char *pcm = NULL;
     int pcm_len = 0;
@@ -157,6 +158,93 @@ static void test_builtin_render(void)
     free(pcm);
 }
 
+static void test_fx_delay_circular(void)
+{
+    AudioDelay delay;
+    int in[8] = { 1000, 0, 0, 0, 0, 0, 0, 0 };
+    int out[8];
+
+    check_int("delay_init", audio_fx_delay_init(&delay, 1000, 3, 50, 100), 0);
+    for (int i = 0; i < 8; i++)
+        out[i] = audio_fx_delay_process(&delay, in[i]);
+    check_int("delay_o0", out[0], 0);
+    check_int("delay_o3", out[3], 1000);
+    check_int("delay_o6", out[6], 500);
+    audio_fx_delay_free(&delay);
+}
+
+static void test_fx_drive_clamp(void)
+{
+    int y0 = audio_fx_apply_drive(200, 0);
+    int y1 = audio_fx_apply_drive(200, 40);
+    int y2 = audio_fx_apply_drive(20000, 100);
+    check_int("drive_bypass", y0, 200);
+    check_true("drive_gain", y1 > y0);
+    check_true("drive_clamp", y2 <= 2047);
+}
+
+static void test_fx_lowpass_stability(void)
+{
+    AudioLowpass lp;
+    int y = 0;
+    int prev = -32768;
+    audio_fx_lowpass_init(&lp, 60);
+    for (int i = 0; i < 400; i++) {
+        y = audio_fx_lowpass_process(&lp, 1000);
+        check_true("lowpass_monotonic", y >= prev);
+        check_true("lowpass_bound", y <= 1000);
+        prev = y;
+    }
+    check_true("lowpass_converges", y >= 900);
+}
+
+static void test_fx_sidechain_decay(void)
+{
+    AudioSidechain sc;
+    int env = 32767;
+    int y0;
+    int y1 = 0;
+    audio_fx_sidechain_init(&sc, 1000, 40, 100);
+    y0 = audio_fx_sidechain_process(&sc, 1000, 1, &env);
+    for (int i = 0; i < 120; i++)
+        y1 = audio_fx_sidechain_process(&sc, 1000, 0, &env);
+    check_true("sidechain_duck", y0 < 800);
+    check_true("sidechain_recover", y1 > y0);
+    check_true("sidechain_release", y1 >= 980);
+}
+
+static void test_builtin_render_fx_disabled(void)
+{
+    static const unsigned char expected_prefix[16] = {
+        168, 168, 91, 170, 93, 172, 95, 173,
+        98, 98, 176, 101, 101, 161, 160, 85
+    };
+    static const uint64_t expected_checksum = 0xd138a815d4455aefull;
+    SeqSong song = *audio_builtin_menu_song();
+    unsigned char *pcm = NULL;
+    int pcm_len = 0;
+    uint64_t checksum;
+
+    for (int i = 0; i < song.fx_bus_count; i++) {
+        memset(&song.fx_buses[i], 0, sizeof(song.fx_buses[i]));
+    }
+    pcm = audio_mix_render_song(&song, 22050, &pcm_len);
+    check_true("builtin_fx_off_pcm_alloc", pcm != NULL);
+    if (!pcm) return;
+    check_int("builtin_fx_off_pcm_len", pcm_len, 176400);
+    checksum = fnv1a64(pcm, pcm_len);
+    if (checksum != expected_checksum) {
+        printf("FAIL builtin_fx_off_checksum: got 0x%016llx, expected 0x%016llx\n",
+               (unsigned long long)checksum, (unsigned long long)expected_checksum);
+        g_failures++;
+    }
+    if (memcmp(pcm, expected_prefix, sizeof(expected_prefix)) != 0) {
+        printf("FAIL builtin_fx_off_prefix\n");
+        g_failures++;
+    }
+    free(pcm);
+}
+
 int main(void)
 {
     printf("=== Audio sequencer regression tests ===\n");
@@ -165,7 +253,12 @@ int main(void)
     test_builtin_timeline();
     test_note_events();
     test_swing_timing();
+    test_fx_delay_circular();
+    test_fx_drive_clamp();
+    test_fx_lowpass_stability();
+    test_fx_sidechain_decay();
     test_builtin_render();
+    test_builtin_render_fx_disabled();
 
     printf("Audio sequencer regression: %d failure(s)\n", g_failures);
     printf("%s\n", g_failures == 0 ? "All tests passed." : "Some tests FAILED.");

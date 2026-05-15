@@ -1,5 +1,6 @@
 #include "audio_mix.h"
 #include "audio_dsp.h"
+#include "audio_fx.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,7 @@ typedef struct {
     int note;
     int fx_bus;
     int fx_trigger;
+    int accent;
     int osc_count;
     int detune_cents;
     int base_amplitude;
@@ -70,6 +72,35 @@ static double midi_note_to_freq(int note)
     return midi_freq_table[note];
 }
 
+static SeqFxBus normalize_fx_bus(const SeqFxBus *bus)
+{
+    SeqFxBus out;
+    if (!bus) {
+        memset(&out, 0, sizeof(out));
+        return out;
+    }
+    out = *bus;
+    if (out.enabled != 0 && out.enabled != 1) {
+        int legacy_drive = out.enabled;
+        int legacy_mix = out.delay_steps;
+        memset(&out, 0, sizeof(out));
+        out.enabled = 1;
+        out.drive_amount = legacy_drive;
+        out.mix_percent = legacy_mix;
+    }
+    if (out.mix_percent <= 0 && out.enabled &&
+        (out.delay_mix > 0 || out.drive_amount > 0 || out.lowpass_amount > 0 || out.sidechain_amount > 0))
+        out.mix_percent = 100;
+    out.mix_percent = dsp_clampi(out.mix_percent, 0, 100);
+    out.delay_feedback = dsp_clampi(out.delay_feedback, 0, 95);
+    out.delay_mix = dsp_clampi(out.delay_mix, 0, 100);
+    out.drive_amount = dsp_clampi(out.drive_amount, 0, 100);
+    out.lowpass_amount = dsp_clampi(out.lowpass_amount, 0, 100);
+    out.sidechain_amount = dsp_clampi(out.sidechain_amount, 0, 100);
+    if (out.sidechain_release_ms <= 0) out.sidechain_release_ms = 180;
+    return out;
+}
+
 static int track_amplitude(const SeqSong *song, const SeqTrack *track,
                            const SeqStep *step, int pattern_step)
 {
@@ -114,7 +145,7 @@ static void voice_set_frequency(MixVoiceState *voice, int sample_rate)
 static void voice_init(MixVoiceState *voice, const SeqInstrument *instrument,
                        int sample_rate, int amplitude, double target_freq,
                        double from_freq, int gate_samples, int instrument_index,
-                       int note, int fx_trigger)
+                       int note, int fx_trigger, int accent)
 {
     int pulse = dsp_clampi(instrument->pulse_width, 1, 99);
     int glide_samples = dsp_samples_from_ms(sample_rate, instrument->glide_ms);
@@ -125,6 +156,7 @@ static void voice_init(MixVoiceState *voice, const SeqInstrument *instrument,
     voice->note = note;
     voice->fx_bus = instrument->fx_send;
     voice->fx_trigger = fx_trigger;
+    voice->accent = accent;
     voice->detune_cents = instrument->detune_cents;
     voice->base_amplitude = amplitude;
     voice->pulse_width = pulse;
@@ -194,7 +226,9 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
 {
     unsigned char *buf;
     MixTrackState tracks[SEQ_MAX_TRACKS];
+    AudioFxBusState fx_states[SEQ_MAX_FX_BUSES];
     int fx_bus_levels[SEQ_MAX_FX_BUSES];
+    int fx_bus_trigger[SEQ_MAX_FX_BUSES];
     int base = 0;
 
     if (!song || !timeline || !out_len || timeline->total_steps <= 0 || timeline->total_samples <= 0)
@@ -204,6 +238,17 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
     if (!buf) return NULL;
     memset(buf, 128, (size_t)timeline->total_samples);
     memset(tracks, 0, sizeof(tracks));
+    memset(fx_states, 0, sizeof(fx_states));
+
+    for (int bus_index = 0; bus_index < song->fx_bus_count && bus_index < SEQ_MAX_FX_BUSES; bus_index++) {
+        SeqFxBus cfg = normalize_fx_bus(&song->fx_buses[bus_index]);
+        if (audio_fx_bus_init(&fx_states[bus_index], &cfg, sample_rate, song->tempo_bpm, song->steps_per_beat) != 0) {
+            for (int i = 0; i < song->fx_bus_count && i < SEQ_MAX_FX_BUSES; i++)
+                audio_fx_bus_free(&fx_states[i]);
+            free(buf);
+            return NULL;
+        }
+    }
 
     for (int absolute_step = 0; absolute_step < timeline->total_steps; absolute_step++) {
         SeqNoteEvent events[SEQ_MAX_STEP_EVENTS];
@@ -225,13 +270,16 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
 
             voice_init(voice, instrument, sample_rate, amp, target_freq,
                        track_state->last_freq, gate_samples, event->instrument_index,
-                       event->note, event->fx_trigger);
+                       event->note, event->fx_trigger, event->accent);
             track_state->last_freq = target_freq;
         }
 
         for (int i = 0; i < samples_this_step; i++) {
-            int val = 128;
+            int dry = 0;
+            int wet = 0;
+            int master_env_q15 = 32767;
             memset(fx_bus_levels, 0, sizeof(fx_bus_levels));
+            memset(fx_bus_trigger, 0, sizeof(fx_bus_trigger));
 
             for (int track_index = 0; track_index < timeline->max_track_count; track_index++) {
                 for (int v = 0; v < MIX_VOICES_PER_TRACK; v++) {
@@ -239,26 +287,32 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
                     int sample;
                     if (!voice->active) continue;
                     sample = voice_next(voice);
-                    val += sample;
-                    if (voice->fx_trigger > 0 &&
-                        voice->fx_bus >= 0 && voice->fx_bus < song->fx_bus_count) {
-                        const SeqFxBus *bus = &song->fx_buses[voice->fx_bus];
-                        int drive = dsp_clampi(bus->drive, 0, 200);
-                        fx_bus_levels[voice->fx_bus] += (sample * voice->fx_trigger * drive) / 10000;
+                    dry += sample;
+                    if (voice->fx_bus >= 0 && voice->fx_bus < song->fx_bus_count) {
+                        int trig = voice->fx_trigger > 0 ? voice->fx_trigger : 0;
+                        if (voice->accent > 0 && trig < 1) trig = 1;
+                        fx_bus_levels[voice->fx_bus] += sample;
+                        if (trig > fx_bus_trigger[voice->fx_bus])
+                            fx_bus_trigger[voice->fx_bus] = trig;
                     }
                 }
             }
 
             for (int bus_index = 0; bus_index < song->fx_bus_count; bus_index++) {
-                const SeqFxBus *bus = &song->fx_buses[bus_index];
-                val += (fx_bus_levels[bus_index] * dsp_clampi(bus->mix_percent, 0, 100)) / 100;
+                int sc_env = 32767;
+                wet += audio_fx_bus_process(&fx_states[bus_index], fx_bus_levels[bus_index],
+                                            fx_bus_trigger[bus_index], &sc_env);
+                if (sc_env < master_env_q15)
+                    master_env_q15 = sc_env;
             }
 
-            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
+            buf[base + i] = (unsigned char)dsp_clamp_u8(128 + ((dry + wet) * master_env_q15) / 32767);
         }
         base += samples_this_step;
     }
 
+    for (int i = 0; i < song->fx_bus_count && i < SEQ_MAX_FX_BUSES; i++)
+        audio_fx_bus_free(&fx_states[i]);
     *out_len = timeline->total_samples;
     return buf;
 }

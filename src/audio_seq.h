@@ -15,7 +15,14 @@
 #define SEQ_NOTE_REST (-1)
 
 typedef struct {
-    int drive;
+    int enabled;
+    int delay_steps;
+    int delay_feedback;
+    int delay_mix;
+    int drive_amount;
+    int lowpass_amount;
+    int sidechain_amount;
+    int sidechain_release_ms;
     int mix_percent;
 } SeqFxBus;
 
