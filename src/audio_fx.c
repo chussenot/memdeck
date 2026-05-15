@@ -217,3 +217,21 @@ int audio_fx_bus_process(AudioFxBusState *state, int input, int trigger, int *ou
     if (out_sidechain_env_q15) *out_sidechain_env_q15 = env_q15;
     return sample;
 }
+
+void audio_fx_clip_stats_reset(AudioClipStats *stats)
+{
+    if (!stats) return;
+    memset(stats, 0, sizeof(*stats));
+}
+
+void audio_fx_clip_stats_push(AudioClipStats *stats, unsigned char sample)
+{
+    if (!stats) return;
+    if (sample == 0 || sample == 255) {
+        stats->edge_run++;
+        if (stats->edge_run >= 4)
+            stats->clipping_count++;
+        return;
+    }
+    stats->edge_run = 0;
+}

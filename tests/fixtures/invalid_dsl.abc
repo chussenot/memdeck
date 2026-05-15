@@ -1,0 +1,10 @@
+X:1
+T:Invalid DSL Fixture
+M:4/4
+L:1/16
+Q:1/4=120
+K:C
+%%pattern A length=16
+%%arrangement B
+V:main
+|: C2D2 E2F2 G2A2 B2c2 :|

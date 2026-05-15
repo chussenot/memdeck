@@ -95,6 +95,84 @@ static int closest_midi_from_freq(double freq)
     return (dlo <= dhi) ? lo : hi;
 }
 
+static void clear_seq_track(SeqTrack *track)
+{
+    if (!track) return;
+    memset(track, 0, sizeof(*track));
+    for (int s = 0; s < SEQ_MAX_STEPS; s++)
+        track->steps[s].note = SEQ_NOTE_REST;
+}
+
+static int default_steps_per_beat(int tempo_bpm, int step_ms)
+{
+    int denom;
+    int spb;
+
+    if (tempo_bpm <= 0 || step_ms <= 0)
+        return 4;
+    denom = tempo_bpm * step_ms;
+    if (denom <= 0)
+        return 4;
+    spb = (60000 + denom / 2) / denom;
+    if (spb < 1) spb = 1;
+    if (spb > 16) spb = 16;
+    return spb;
+}
+
+static void fill_track_steps(SeqTrack *track, const AbcVoice *voice,
+                             int source_step_base, int length, int steps_per_beat)
+{
+    int gate_percent;
+
+    if (!track || !voice) return;
+    gate_percent = dsp_clampi(voice->gate_percent > 0 ? voice->gate_percent : (voice->staccato ? 75 : 90), 1, 100);
+    clear_seq_track(track);
+    for (int s = 0; s < length && s < SEQ_MAX_STEPS; s++) {
+        int source_step = source_step_base + s;
+        SeqStep *step = &track->steps[s];
+
+        step->gate = (uint8_t)gate_percent;
+        if (source_step >= voice->note_count || voice->freqs[source_step] <= 0.0) {
+            step->gate = 0;
+            continue;
+        }
+
+        step->note = (int16_t)closest_midi_from_freq(voice->freqs[source_step]);
+        step->velocity = 88;
+        step->accent = (uint8_t)((steps_per_beat > 0 && (s % steps_per_beat) == 0) ? 1 : 0);
+        step->fx_trigger = step->accent;
+    }
+}
+
+static int append_pattern_instance(SeqSong *song, const AbcMusic *music, int track_count,
+                                   int pattern_length, int source_step_base, int *arrangement_written)
+{
+    SeqPattern *pattern;
+
+    if (!song || !music || !arrangement_written)
+        return -1;
+    if (song->pattern_count >= SEQ_MAX_PATTERNS || *arrangement_written >= SEQ_MAX_ARRANGEMENT)
+        return -1;
+    if (pattern_length < 1)
+        pattern_length = 1;
+    if (pattern_length > SEQ_MAX_STEPS)
+        pattern_length = SEQ_MAX_STEPS;
+
+    pattern = &song->patterns[song->pattern_count];
+    memset(pattern, 0, sizeof(*pattern));
+    pattern->length = pattern_length;
+    pattern->track_count = track_count;
+    for (int t = 0; t < track_count; t++) {
+        fill_track_steps(&pattern->tracks[t], &music->voices[t], source_step_base, pattern_length, song->steps_per_beat);
+        pattern->tracks[t].instrument = t;
+    }
+
+    song->arrangement[*arrangement_written] = (uint8_t)song->pattern_count;
+    song->pattern_count++;
+    (*arrangement_written)++;
+    return 0;
+}
+
 static int note_char_to_index(char c)
 {
     /* C=0, D=1, E=2, F=3, G=4, A=5, B=6 */
@@ -952,6 +1030,8 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
     memset(music, 0, sizeof(*music));
     music->bpm = 120;
     music->step_ms = 125;
+    music->fx_sidechain_release_ms = 180;
+    music->fx_bus_count = 1;
 
     for (int i = 0; i < path_count && i < ABC_MAX_VOICES; i++) {
         AbcMusic single;
@@ -967,6 +1047,22 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
         if (i == 0) {
             music->bpm = single.bpm;
             music->step_ms = single.step_ms;
+            music->swing_pct = single.swing_pct;
+            music->instrument_count = single.instrument_count;
+            memcpy(music->instruments, single.instruments, sizeof(music->instruments));
+            music->pattern_count = single.pattern_count;
+            memcpy(music->patterns, single.patterns, sizeof(music->patterns));
+            music->arrangement_length = single.arrangement_length;
+            memcpy(music->arrangement, single.arrangement, sizeof(music->arrangement));
+            music->fx_bus_count = single.fx_bus_count;
+            memcpy(music->fx_buses, single.fx_buses, sizeof(music->fx_buses));
+            music->fx_delay_steps = single.fx_delay_steps;
+            music->fx_delay_feedback = single.fx_delay_feedback;
+            music->fx_delay_mix = single.fx_delay_mix;
+            music->fx_drive_amount = single.fx_drive_amount;
+            music->fx_lowpass_amount = single.fx_lowpass_amount;
+            music->fx_sidechain_amount = single.fx_sidechain_amount;
+            music->fx_sidechain_release_ms = single.fx_sidechain_release_ms;
             snprintf(music->title, sizeof(music->title), "%s", single.title);
         }
     }
@@ -974,42 +1070,33 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
     return (music->voice_count > 0) ? 0 : -1;
 }
 
-unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
+int abc_build_seq_song(const AbcMusic *music, SeqSong *song)
 {
-    SeqSong song;
     int track_count;
     int max_steps = 0;
     int cursor = 0;
     int arrangement_written = 0;
 
-    if (!music || !out_len || music->voice_count <= 0)
-        return NULL;
+    if (!music || !song || music->voice_count <= 0)
+        return -1;
 
-    memset(&song, 0, sizeof(song));
+    memset(song, 0, sizeof(*song));
     track_count = music->voice_count;
     if (track_count > SEQ_MAX_TRACKS) track_count = SEQ_MAX_TRACKS;
-    if (track_count <= 0) return NULL;
+    if (track_count <= 0) return -1;
 
-    snprintf(song.title, sizeof(song.title), "%.127s", music->title);
-    song.tempo_bpm = music->bpm > 0 ? music->bpm : 120;
-    if (music->step_ms > 0) {
-        /* steps_per_beat ~= quarter_note_ms / step_ms where quarter_note_ms = 60000 / BPM */
-        int spb = (60000 + (song.tempo_bpm * music->step_ms) / 2) / (song.tempo_bpm * music->step_ms);
-        if (spb < 1) spb = 1;
-        if (spb > 16) spb = 16;
-        song.steps_per_beat = spb;
-    } else {
-        song.steps_per_beat = 4;
-    }
-    if (music->swing_pct <= 0) song.swing_pct = 50;
-    else if (music->swing_pct < 50) song.swing_pct = 50;
-    else if (music->swing_pct > 75) song.swing_pct = 75;
-    else song.swing_pct = music->swing_pct;
+    snprintf(song->title, sizeof(song->title), "%.127s", music->title);
+    song->tempo_bpm = music->bpm > 0 ? music->bpm : 120;
+    song->steps_per_beat = default_steps_per_beat(song->tempo_bpm, music->step_ms);
+    if (music->swing_pct <= 0) song->swing_pct = 50;
+    else if (music->swing_pct < 50) song->swing_pct = 50;
+    else if (music->swing_pct > 75) song->swing_pct = 75;
+    else song->swing_pct = music->swing_pct;
 
-    song.instrument_count = track_count;
+    song->instrument_count = track_count;
     for (int t = 0; t < track_count; t++) {
         const AbcVoice *v = &music->voices[t];
-        SeqInstrument *inst = &song.instruments[t];
+        SeqInstrument *inst = &song->instruments[t];
         memset(inst, 0, sizeof(*inst));
         inst->waveform = sanitize_waveform(v->waveform);
         /* Keep ABC-to-sequencer conversion gain conservative to avoid hard saturation. */
@@ -1029,12 +1116,12 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
             inst->noise_mode = 1;
     }
 
-    song.fx_bus_count = music->fx_bus_count;
-    if (song.fx_bus_count < 1) song.fx_bus_count = 1;
-    if (song.fx_bus_count > SEQ_MAX_FX_BUSES) song.fx_bus_count = SEQ_MAX_FX_BUSES;
-    for (int i = 0; i < song.fx_bus_count; i++) {
+    song->fx_bus_count = music->fx_bus_count;
+    if (song->fx_bus_count < 1) song->fx_bus_count = 1;
+    if (song->fx_bus_count > SEQ_MAX_FX_BUSES) song->fx_bus_count = SEQ_MAX_FX_BUSES;
+    for (int i = 0; i < song->fx_bus_count; i++) {
         const AbcFxBus *src = &music->fx_buses[i];
-        SeqFxBus *dst = &song.fx_buses[i];
+        SeqFxBus *dst = &song->fx_buses[i];
         dst->enabled = src->enabled ? 1 : 0;
         dst->delay_steps = dsp_clampi(src->delay_steps, 0, 64);
         dst->delay_feedback = dsp_clampi(src->delay_feedback, 0, 95);
@@ -1050,101 +1137,64 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
         if (music->voices[t].note_count > max_steps)
             max_steps = music->voices[t].note_count;
     }
-    if (max_steps <= 0) return NULL;
+    if (max_steps <= 0) return -1;
 
-    if (music->pattern_count > 0) {
-        song.pattern_count = music->pattern_count;
-        if (song.pattern_count > SEQ_MAX_PATTERNS) song.pattern_count = SEQ_MAX_PATTERNS;
-        for (int p = 0; p < song.pattern_count; p++) {
-            int length = music->patterns[p].length > 0 ? music->patterns[p].length : 16;
-            SeqPattern *pat = &song.patterns[p];
-            if (length > SEQ_MAX_STEPS) length = SEQ_MAX_STEPS;
-            pat->length = length;
-            pat->track_count = track_count;
-            for (int t = 0; t < track_count; t++) {
-                const AbcVoice *v = &music->voices[t];
-                SeqTrack *track = &pat->tracks[t];
-                track->instrument = t;
-                for (int s = 0; s < SEQ_MAX_STEPS; s++) {
-                    track->steps[s].note = SEQ_NOTE_REST;
-                    track->steps[s].velocity = 0;
-                    track->steps[s].gate = 0;
-                    track->steps[s].accent = 0;
-                    track->steps[s].fx_trigger = 0;
-                }
-                for (int s = 0; s < length; s++) {
-                    int source_step = cursor + s;
-                    SeqStep *st = &track->steps[s];
-                    if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
-                        continue;
-                    st->note = closest_midi_from_freq(v->freqs[source_step]);
-                    st->velocity = 88;
-                    st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
-                    st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
-                    st->fx_trigger = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
+    if (music->pattern_count > 0 && music->arrangement_length > 0) {
+        for (int i = 0; i < music->arrangement_length; i++) {
+            int found = -1;
+            int length = 16;
+
+            for (int p = 0; p < music->pattern_count; p++) {
+                if (strcmp(music->arrangement[i], music->patterns[p].name) == 0) {
+                    found = p;
+                    length = music->patterns[p].length;
+                    break;
                 }
             }
-            cursor += length;
+            if (found < 0)
+                return -1;
+            if (append_pattern_instance(song, music, track_count, length, cursor, &arrangement_written) != 0)
+                return -1;
+            cursor += dsp_clampi(length, 1, SEQ_MAX_STEPS);
         }
+    } else if (music->pattern_count > 0) {
+        for (int p = 0; p < music->pattern_count; p++) {
+            int length = music->patterns[p].length > 0 ? music->patterns[p].length : 16;
 
-        if (music->arrangement_length > 0) {
-            for (int i = 0; i < music->arrangement_length && arrangement_written < SEQ_MAX_ARRANGEMENT; i++) {
-                int idx = -1;
-                for (int p = 0; p < song.pattern_count; p++) {
-                    if (strcmp(music->arrangement[i], music->patterns[p].name) == 0) {
-                        idx = p;
-                        break;
-                    }
-                }
-                if (idx >= 0)
-                    song.arrangement[arrangement_written++] = (uint8_t)idx;
-            }
+            if (append_pattern_instance(song, music, track_count, length, cursor, &arrangement_written) != 0)
+                return -1;
+            cursor += dsp_clampi(length, 1, SEQ_MAX_STEPS);
         }
     } else {
-        song.pattern_count = (max_steps + SEQ_MAX_STEPS - 1) / SEQ_MAX_STEPS;
-        if (song.pattern_count < 1) song.pattern_count = 1;
-        if (song.pattern_count > SEQ_MAX_PATTERNS) song.pattern_count = SEQ_MAX_PATTERNS;
-        for (int p = 0; p < song.pattern_count; p++) {
+        int pattern_count = (max_steps + SEQ_MAX_STEPS - 1) / SEQ_MAX_STEPS;
+        if (pattern_count < 1) pattern_count = 1;
+        if (pattern_count > SEQ_MAX_PATTERNS) pattern_count = SEQ_MAX_PATTERNS;
+        for (int p = 0; p < pattern_count; p++) {
             int base_step = p * SEQ_MAX_STEPS;
             int length = max_steps - base_step;
-            SeqPattern *pat = &song.patterns[p];
             if (length > SEQ_MAX_STEPS) length = SEQ_MAX_STEPS;
             if (length < 1) length = 1;
-            pat->length = length;
-            pat->track_count = track_count;
-            for (int t = 0; t < track_count; t++) {
-                const AbcVoice *v = &music->voices[t];
-                SeqTrack *track = &pat->tracks[t];
-                track->instrument = t;
-                for (int s = 0; s < SEQ_MAX_STEPS; s++) {
-                    track->steps[s].note = SEQ_NOTE_REST;
-                    track->steps[s].velocity = 0;
-                    track->steps[s].gate = 0;
-                    track->steps[s].accent = 0;
-                    track->steps[s].fx_trigger = 0;
-                }
-                for (int s = 0; s < length; s++) {
-                    int source_step = base_step + s;
-                    SeqStep *st = &track->steps[s];
-                    if (source_step >= v->note_count || v->freqs[source_step] <= 0.0)
-                        continue;
-                    st->note = closest_midi_from_freq(v->freqs[source_step]);
-                    st->velocity = 88;
-                    st->gate = dsp_clampi(v->gate_percent > 0 ? v->gate_percent : (v->staccato ? 75 : 90), 1, 100);
-                    st->accent = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
-                    st->fx_trigger = ((source_step % song.steps_per_beat) == 0) ? 1 : 0;
-                }
-            }
-            if (arrangement_written < SEQ_MAX_ARRANGEMENT)
-                song.arrangement[arrangement_written++] = (uint8_t)p;
+            if (append_pattern_instance(song, music, track_count, length, base_step, &arrangement_written) != 0)
+                return -1;
         }
     }
 
     if (arrangement_written == 0) {
-        if (song.pattern_count <= 0) return NULL;
-        song.arrangement[0] = 0;
+        if (song->pattern_count <= 0) return -1;
+        song->arrangement[0] = 0;
         arrangement_written = 1;
     }
-    song.arrangement_length = arrangement_written;
+    song->arrangement_length = arrangement_written;
+    return 0;
+}
+
+unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
+{
+    SeqSong song;
+
+    if (!out_len) return NULL;
+    *out_len = 0;
+    if (abc_build_seq_song(music, &song) != 0)
+        return NULL;
     return audio_mix_render_song(&song, SAMPLE_RATE_ABC, out_len);
 }

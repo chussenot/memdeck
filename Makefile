@@ -3,7 +3,7 @@ CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
 LDFLAGS ?= -lncursesw -lm
 
-SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_song_builtin.c src/audio_fx.c
+SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c
 BIN          = bin/memdeck-tui
 BENCH        = bin/bench-audio
 TEST_DSP     = bin/test-audio-dsp
@@ -59,17 +59,17 @@ test-abc: $(TEST_ABC_BIN)
 	@echo "Running ABC parser tests..."
 	@$(TEST_ABC_BIN)
 
-$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/memdeck.h
+$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
 	@mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
 test-audio-seq: $(TEST_SEQ_BIN)
 	@echo "Running sequencer regression tests..."
 	@$(TEST_SEQ_BIN)
 
-$(TEST_SEQ_BIN): tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_seq.h src/audio_mix.h src/audio_song_builtin.h src/audio_fx.h
+$(TEST_SEQ_BIN): tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c src/audio_seq.h src/audio_mix.h src/audio_song_builtin.h src/audio_fx.h src/memdeck.h
 	@mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c src/abc.c $(LDFLAGS)
 
 bench-audio: src/audio_dsp.c tests/bench_audio.c
 	@mkdir -p bin
@@ -80,9 +80,9 @@ bench-audio: src/audio_dsp.c tests/bench_audio.c
 render-demos: $(RENDER_DEMOS_BIN)
 	@$(RENDER_DEMOS_BIN)
 
-$(RENDER_DEMOS_BIN): tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c
+$(RENDER_DEMOS_BIN): tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
 	@mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
