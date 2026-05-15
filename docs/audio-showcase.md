@@ -1,34 +1,28 @@
-# Audio Showcase Tracks
+# Audio Showcase
 
-The showcase demos are:
+Use `make render-demos` to render the demo catalog through the public audio engine API.
 
-- `data/music/dark_moroder.abc`
-- `data/music/perturbator_loop.abc`
-- `data/music/carpenter_drive.abc`
-- `data/music/advanced_dsl_demo.abc`
-- `data/music/multi_fx_demo.abc`
+The command prints:
 
-## Render and inspect
-
-Run:
-
-```sh
-make render-demos
-```
-
-The command renders each track and prints:
-
-- file name
+- title
 - duration
 - PCM length
 - checksum
-- peak/min/max
 - clipping count
 
-## Writing showcase-quality demos
+## Current deterministic outputs
 
-- Use named `%%instrument` presets for reusable timbre/ADSR design.
-- Use `%%effect` buses to separate punchy and ambient roles.
-- Use `%%pattern` and `%%arrangement` for intentional structure.
-- Use accents/transients so sidechain pumping is audible but controlled.
-- Keep output deterministic so regression checks remain stable.
+| Title | Duration | PCM length | Checksum | Clipping |
+| --- | ---: | ---: | --- | ---: |
+| Dark Moroder - Synth Disco | 7.619s | 168000 | `0x5d483689cfbba730` | 1821 |
+| Perturbator Loop - Dark Synth | 6.857s | 151200 | `0x778fd5f57cf83b36` | 5881 |
+| Carpenter Drive - Horror Synth | 9.412s | 207529 | `0xa739faef6dac5b67` | 4009 |
+| Advanced DSL Demo - Instruments and FX Buses | 17.308s | 381634 | `0xe74909ce1c1beae3` | 2153 |
+| Multi-FX Bus Demo - Dual Processing | 14.222s | 313600 | `0x25da3aed91b9d649` | 12436 |
+
+## Writing stable demos
+
+- keep timing deterministic
+- use named instruments and explicit FX bus routing
+- use `%%pattern` and `%%arrangement` for intentional structure
+- keep clipping controlled enough for regression thresholds

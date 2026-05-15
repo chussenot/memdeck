@@ -1,7 +1,5 @@
 #include "memdeck.h"
 #include "audio_dsp.h"
-#include "audio_mix.h"
-#include "audio_song_builtin.h"
 #include <signal.h>
 #include <sys/wait.h>
 
@@ -177,93 +175,17 @@ static void writer_collect_status(int block)
     writer_pid = 0;
 }
 
-/*
- * Dark synth chiptune in D minor, ~120 BPM.
- *
- * 3 channels mixed together:
- *   Bass  — low square wave, whole/half notes (amplitude 45)
- *   Arp   — mid-range pulsing 16th-note arpeggios, staccato (amplitude 28)
- *   Lead  — sparse haunting melody, high register (amplitude 40)
- *
- * Built-in sequencer fallback is now defined in src/audio_song_builtin.c and
- * rendered by the portable sequencing + mixing pipeline.
- */
 static char music_track_title[128] = {0};
-
-static unsigned char *music_generate_legacy_loop(int *out_len)
-{
-    static const double bass_steps[16] = {
-        73.42, 73.42, 73.42, 73.42, 73.42, 73.42, 73.42, 73.42,
-        69.30, 69.30, 69.30, 69.30, 69.30, 69.30, 69.30, 69.30
-    };
-    static const double arp_steps[16] = {
-        293.66, 349.23, 440.00, 587.33, 293.66, 349.23, 440.00, 587.33,
-        293.66, 349.23, 440.00, 587.33, 293.66, 349.23, 440.00, 587.33
-    };
-    static const double lead_steps[16] = {
-        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        587.33, 587.33, 0.0, 0.0, 698.46, 659.25, 587.33, 587.33
-    };
-    enum { LOOP_STEPS = 64, STEP_MS = 125 };
-    int step_samples = dsp_samples_from_ms(SAMPLE_RATE, STEP_MS);
-    int total_samples = step_samples * LOOP_STEPS;
-    unsigned char *buf = malloc((size_t)total_samples);
-
-    if (!out_len || !buf) {
-        free(buf);
-        return NULL;
-    }
-    memset(buf, 128, (size_t)total_samples);
-
-    for (int step = 0; step < LOOP_STEPS; step++) {
-        int idx = step % 16;
-        DspOscillator bass, arp, lead;
-        int base = step * step_samples;
-        int has_bass = bass_steps[idx] > 0.0;
-        int has_arp = arp_steps[idx] > 0.0;
-        int has_lead = lead_steps[idx] > 0.0;
-        if (has_bass) {
-            dsp_osc_init(&bass, DSP_WAVE_SQUARE, 44);
-            dsp_osc_set_frequency(&bass, bass_steps[idx], SAMPLE_RATE);
-        }
-        if (has_arp) {
-            dsp_osc_init(&arp, DSP_WAVE_PULSE, 26);
-            dsp_osc_set_pulse_width_percent(&arp, 25);
-            dsp_osc_set_frequency(&arp, arp_steps[idx], SAMPLE_RATE);
-        }
-        if (has_lead) {
-            dsp_osc_init(&lead, DSP_WAVE_SQUARE, 36);
-            dsp_osc_set_frequency(&lead, lead_steps[idx], SAMPLE_RATE);
-        }
-        for (int i = 0; i < step_samples; i++) {
-            int val = 128;
-            if (has_bass) val += dsp_osc_next(&bass);
-            if (has_arp && i < (step_samples * 3) / 4) val += dsp_osc_next(&arp);
-            if (has_lead && i < (step_samples * 9) / 10) val += dsp_osc_next(&lead);
-            buf[base + i] = (unsigned char)dsp_clamp_u8(val);
-        }
-    }
-
-    *out_len = total_samples;
-    return buf;
-}
 
 static unsigned char *music_generate_loop(int *out_len)
 {
-    const SeqSong *song = audio_builtin_menu_song();
+    AudioRenderStats stats;
     uint64_t t0 = dsp_profile_now_ticks();
     unsigned char *buf;
 
-    if (!song) {
-        snprintf(music_track_title, sizeof(music_track_title), "MemDeck legacy fallback");
-        return music_generate_legacy_loop(out_len);
-    }
-    snprintf(music_track_title, sizeof(music_track_title), "%.127s", song->title);
-    buf = audio_mix_render_song(song, SAMPLE_RATE, out_len);
-    if (!buf) {
-        snprintf(music_track_title, sizeof(music_track_title), "MemDeck legacy fallback");
-        buf = music_generate_legacy_loop(out_len);
-    }
+    buf = audio_engine_render_builtin_menu(SAMPLE_RATE, out_len, &stats);
+    snprintf(music_track_title, sizeof(music_track_title), "%s",
+             buf ? "MemDeck Built-in Retro Sequencer" : "");
     if (buf && out_len) profile_generation(*out_len, dsp_profile_now_ticks() - t0);
     return buf;
 }
@@ -324,10 +246,12 @@ static unsigned char *music_load_abc(int *out_len, const char *data_dir)
     /* Fallback: try combined menu.abc */
     char combined[MAX_PATH + 128];
     snprintf(combined, sizeof(combined), "%s/menu.abc", music_dir);
-    AbcMusic music;
-    if (abc_load(combined, &music) == 0 && music.voice_count > 0) {
-        snprintf(music_track_title, sizeof(music_track_title), "%.127s", music.title);
-        return abc_generate_pcm(&music, out_len);
+    {
+        AbcMusic music;
+        if (abc_load(combined, &music) == 0 && music.voice_count > 0) {
+            snprintf(music_track_title, sizeof(music_track_title), "%.127s", music.title);
+            return audio_engine_render_abc_file(combined, SAMPLE_RATE, out_len, NULL);
+        }
     }
 
     music_track_title[0] = '\0';
@@ -377,17 +301,17 @@ void sound_music_start(void)
 
     /* Parent creates the pipe */
     int pipefd[2];
-    if (pipe(pipefd) < 0) { free(loop_buf); return; }
+    if (pipe(pipefd) < 0) { audio_engine_free_buffer(loop_buf); return; }
 
     /* Fork aplay: reads from pipe[0] */
     aplay_pid = fork();
     if (aplay_pid < 0) {
         close(pipefd[0]); close(pipefd[1]);
-        free(loop_buf);
+        audio_engine_free_buffer(loop_buf);
         return;
     }
     if (aplay_pid == 0) {
-        free(loop_buf);
+        audio_engine_free_buffer(loop_buf);
         close(pipefd[1]);           /* child doesn't write */
         dup2(pipefd[0], STDIN_FILENO);
         close(pipefd[0]);
@@ -408,7 +332,7 @@ void sound_music_start(void)
         kill(aplay_pid, SIGKILL);
         waitpid(aplay_pid, NULL, 0);
         aplay_pid = 0;
-        free(loop_buf);
+        audio_engine_free_buffer(loop_buf);
         return;
     }
     if (writer_pid == 0) {
@@ -420,20 +344,20 @@ void sound_music_start(void)
                 ssize_t w = write(pipefd[1], loop_buf + off, (size_t)(loop_len - off));
                 if (w <= 0) {
                     close(pipefd[1]);
-                    free(loop_buf);
+                    audio_engine_free_buffer(loop_buf);
                     _exit(WRITER_EXIT_UNDERRUN);
                 }
                 off += (int)w;
             }
         }
         close(pipefd[1]);
-        free(loop_buf);
+        audio_engine_free_buffer(loop_buf);
         _exit(0);
     }
 
     /* Parent keeps write-end so we can close it to trigger EOF on aplay */
     music_fd = pipefd[1];
-    free(loop_buf);
+    audio_engine_free_buffer(loop_buf);
 }
 
 void sound_music_stop(void)

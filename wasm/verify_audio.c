@@ -7,6 +7,8 @@
 int main(void)
 {
     AbcMusic music;
+    SeqSong song;
+    AudioRenderStats stats;
     int pcm_len = 0;
     unsigned char *pcm;
 
@@ -32,10 +34,13 @@ int main(void)
     music.voices[1].freqs[1] = 329.627557;
     music.voices[1].note_count = 2;
 
-    pcm = abc_generate_pcm(&music, &pcm_len);
-    if (!pcm || pcm_len <= 0)
+    if (abc_build_seq_song(&music, &song) != 0)
         return 1;
 
-    free(pcm);
+    pcm = audio_engine_render_song(&song, SAMPLE_RATE_ABC, &pcm_len, &stats);
+    if (!pcm || pcm_len <= 0 || stats.sample_count != (unsigned long long)pcm_len)
+        return 1;
+
+    audio_engine_free_buffer(pcm);
     return 0;
 }

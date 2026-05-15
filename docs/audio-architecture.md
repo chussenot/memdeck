@@ -1,43 +1,62 @@
 # Audio Architecture
 
-MemDeck audio is a single deterministic path:
+MemDeck now renders built-in songs and ABC tracks through the same portable engine path.
 
-1. Parse ABC DSL (`src/abc.c`)
-2. Build `SeqSong`
-3. Compile `SeqTimeline` (`src/audio_seq.c`)
-4. Render and mix (`src/audio_mix.c`)
-5. Apply FX buses (`src/audio_fx.c`)
-6. Emit PCM to backend (`src/sound.c`)
+## Public API
+
+Declared in `src/memdeck.h`:
+
+- `audio_engine_render_builtin_menu()`
+- `audio_engine_render_abc_file()`
+- `audio_engine_render_song()`
+- `audio_engine_free_buffer()`
+
+All render functions return a heap-allocated U8 PCM buffer on success and `NULL` on failure. The caller owns the returned buffer and must release it with `audio_engine_free_buffer()`.
+
+## Data flow
 
 ```mermaid
 flowchart TD
-  ABC[ABC DSL Track] --> Parser
-  Parser --> Song[SeqSong]
-  Song --> Timeline[SeqTimeline]
-  Timeline --> Mixer[Audio Mixer]
-  Mixer --> FX[Audio FX]
-  FX --> PCM[PCM Buffer]
-  PCM --> Backend[Native / WASM Output]
+  Sound[sound.c runtime] --> Engine[Audio Engine API]
+  Engine --> ABC[ABC DSL Parser]
+  Engine --> Builtin[Built-in SeqSong]
+  ABC --> Song[SeqSong]
+  Builtin --> Song
+  Song --> Seq[Sequencer / Timeline]
+  Seq --> Mix[Mixer / Instruments / ADSR]
+  Mix --> FX[FX Bus]
+  FX --> PCM[U8 PCM Buffer]
+  PCM --> Backend[aplay / WASM / future backends]
 ```
 
 ## Modules
 
-- `src/abc.c`: ABC parsing + ABC->SeqSong conversion
-- `src/audio_seq.c/.h`: timeline compilation and note event collection
-- `src/audio_mix.c/.h`: oscillator/envelope rendering and summing
-- `src/audio_fx.c/.h`: delay, drive, one-pole low-pass, fake sidechain
-- `src/sound.c`: output backend orchestration
+- `src/audio_engine.c`: stable render entry points, ownership rules, render statistics
+- `src/abc.c`: ABC parsing, DSL validation, legacy ABC compatibility, `AbcMusic -> SeqSong`
+- `src/audio_song_builtin.c`: built-in menu `SeqSong`
+- `src/audio_seq.c`: deterministic timeline compilation and step event collection
+- `src/audio_mix.c`: voice allocation, oscillators, instruments, note events, track mixing
+- `src/audio_fx.c`: delay, drive, low-pass, sidechain, clipping statistics helper
+- `src/sound.c`: native runtime/backend orchestration only
 
-## FX bus model
+## Diagnostics
 
-`SeqFxBus` fields used by the mixer:
+`AudioRenderStats` reports:
 
-- `enabled`
-- `delay_steps`
-- `delay_feedback`
-- `delay_mix`
-- `drive_amount`
-- `lowpass_amount`
-- `sidechain_amount`
-- `sidechain_release_ms`
-- `mix_percent`
+- sample count
+- duration in ms
+- min/max sample
+- peak offset from center (`128`)
+- clipping count
+- checksum
+- render time in ms
+
+The engine computes these after rendering so tests, demo rendering, and debug output share the same metrics.
+
+## Ownership and failure rules
+
+- render failures leave `out_len` at `0`
+- render failures return `NULL`
+- partially rendered buffers are freed internally on failure paths
+- callers may pass `NULL` for optional stats
+- `audio_engine_free_buffer(NULL)` is safe

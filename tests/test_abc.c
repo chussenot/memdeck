@@ -171,9 +171,9 @@ static void test_showcase_demo_regression(void)
         int max_clipping;
     } DemoExpectation;
     static const DemoExpectation demos[] = {
-        { "data/music/dark_moroder.abc", 168000, 0x96c50916401f02a5ull, 5000 },
-        { "data/music/perturbator_loop.abc", 151200, 0xd5e6165e8c40df61ull, 12000 },
-        { "data/music/carpenter_drive.abc", 207529, 0x00f44dc868c9312aull, 12000 },
+        { "data/music/dark_moroder.abc", 168000, 0x5d483689cfbba730ull, 5000 },
+        { "data/music/perturbator_loop.abc", 151200, 0x778fd5f57cf83b36ull, 12000 },
+        { "data/music/carpenter_drive.abc", 207529, 0xa739faef6dac5b67ull, 12000 },
         { "data/music/advanced_dsl_demo.abc", 381634, 0xe74909ce1c1beae3ull, 6000 },
         { "data/music/multi_fx_demo.abc", 313600, 0x25da3aed91b9d649ull, 18000 }
     };
@@ -182,6 +182,8 @@ static void test_showcase_demo_regression(void)
         AbcMusic music;
         unsigned char *pcm1 = NULL;
         unsigned char *pcm2 = NULL;
+        AudioRenderStats stats1;
+        AudioRenderStats stats2;
         int len1 = 0;
         int len2 = 0;
         uint64_t c1;
@@ -198,8 +200,8 @@ static void test_showcase_demo_regression(void)
             g_failures++;
             continue;
         }
-        pcm1 = abc_generate_pcm(&music, &len1);
-        pcm2 = abc_generate_pcm(&music, &len2);
+        pcm1 = audio_engine_render_abc_file(demos[i].path, SAMPLE_RATE_ABC, &len1, &stats1);
+        pcm2 = audio_engine_render_abc_file(demos[i].path, SAMPLE_RATE_ABC, &len2, &stats2);
         if (!pcm1 || !pcm2 || len1 <= 0 || len2 <= 0) {
             printf("FAIL showcase render: %s\n", demos[i].path);
             g_failures++;
@@ -225,9 +227,15 @@ static void test_showcase_demo_regression(void)
                    (unsigned long long)demos[i].expected_checksum);
             g_failures++;
         }
+        if (stats1.checksum != c1 || stats2.checksum != c2 ||
+            stats1.sample_count != (unsigned long long)len1 ||
+            stats2.sample_count != (unsigned long long)len2) {
+            printf("FAIL showcase stats: %s inconsistent render stats\n", demos[i].path);
+            g_failures++;
+        }
         if (clip > demos[i].max_clipping) {
             printf("FAIL showcase clipping: %s got %d max %d\n",
-                   demos[i].path, clip, demos[i].max_clipping);
+                    demos[i].path, clip, demos[i].max_clipping);
             g_failures++;
         }
 
@@ -283,6 +291,96 @@ static void test_dsl_directives(void)
     }
     printf("  ✓ PCM: %d samples (%.2f seconds)\n", pcm_len, pcm_len / 22050.0);
     free(pcm);
+}
+
+static void test_seq_song_mapping(void)
+{
+    const char *path = "data/music/dark_moroder.abc";
+    AbcMusic music;
+    SeqSong song;
+
+    if (abc_load(path, &music) != 0) {
+        failf("seq mapping", "could not load dark_moroder.abc");
+        return;
+    }
+    if (abc_build_seq_song(&music, &song) != 0) {
+        failf("seq mapping", "abc_build_seq_song failed");
+        return;
+    }
+
+    if (song.tempo_bpm != 126 || song.swing_pct != 56) {
+        printf("FAIL seq mapping: got tempo=%d swing=%d\n", song.tempo_bpm, song.swing_pct);
+        g_failures++;
+    }
+    if (song.fx_bus_count != 2) {
+        printf("FAIL seq mapping: got fx_bus_count=%d expected 2\n", song.fx_bus_count);
+        g_failures++;
+    }
+    if (song.arrangement_length != 4 || song.pattern_count != 4) {
+        printf("FAIL seq mapping: got arrangement=%d patterns=%d expected 4/4\n",
+               song.arrangement_length, song.pattern_count);
+        g_failures++;
+    }
+    if (song.patterns[0].length != 16 || song.patterns[1].length != 16) {
+        printf("FAIL seq mapping: unexpected pattern lengths %d/%d\n",
+               song.patterns[0].length, song.patterns[1].length);
+        g_failures++;
+    }
+    if (song.patterns[0].tracks[0].steps[0].note == SEQ_NOTE_REST ||
+        song.patterns[0].tracks[1].steps[0].velocity == 0 ||
+        song.patterns[0].tracks[1].steps[0].gate == 0 ||
+        song.patterns[0].tracks[1].steps[0].fx_trigger == 0) {
+        failf("seq mapping", "first pattern step was not fully populated");
+    }
+    if (song.patterns[0].tracks[2].steps[0].note != SEQ_NOTE_REST ||
+        song.patterns[1].tracks[2].steps[8].note == SEQ_NOTE_REST) {
+        failf("seq mapping", "lead rests and notes were not preserved");
+    }
+}
+
+static void test_legacy_render_api(void)
+{
+    static const uint64_t expected_checksum = 0x0de5a3a1954d471bull;
+    unsigned char *pcm;
+    AudioRenderStats stats;
+    int pcm_len = 0;
+
+    pcm = audio_engine_render_abc_file("tests/fixtures/golden_small.abc", SAMPLE_RATE_ABC, &pcm_len, &stats);
+    if (!pcm) {
+        failf("legacy render api", "audio_engine_render_abc_file returned NULL");
+        return;
+    }
+    if (pcm_len != 44100 || stats.sample_count != 44100ull || stats.checksum != expected_checksum) {
+        printf("FAIL legacy render api: len=%d sample_count=%llu checksum=0x%016llx\n",
+               pcm_len, stats.sample_count, (unsigned long long)stats.checksum);
+        g_failures++;
+    }
+    if (stats.clipping_count > 1000) {
+        printf("FAIL legacy render api: clipping=%llu exceeds max 1000\n", stats.clipping_count);
+        g_failures++;
+    }
+    audio_engine_free_buffer(pcm);
+}
+
+static void test_invalid_dsl_handling(void)
+{
+    AbcMusic music;
+    SeqSong song;
+    unsigned char *pcm;
+    int pcm_len = 0;
+
+    if (abc_load("tests/fixtures/invalid_dsl.abc", &music) != 0) {
+        failf("invalid dsl", "could not load invalid_dsl.abc");
+        return;
+    }
+    if (abc_build_seq_song(&music, &song) == 0) {
+        failf("invalid dsl", "abc_build_seq_song unexpectedly succeeded");
+    }
+    pcm = audio_engine_render_abc_file("tests/fixtures/invalid_dsl.abc", SAMPLE_RATE_ABC, &pcm_len, NULL);
+    if (pcm != NULL || pcm_len != 0) {
+        failf("invalid dsl", "invalid DSL rendered successfully");
+        audio_engine_free_buffer(pcm);
+    }
 }
 
 static void test_advanced_dsl_features(void)
@@ -426,6 +524,15 @@ int main(void)
 
     printf("\n");
     test_multi_fx_buses();
+
+    printf("\n");
+    test_seq_song_mapping();
+
+    printf("\n");
+    test_legacy_render_api();
+
+    printf("\n");
+    test_invalid_dsl_handling();
 
     printf("\n");
     test_showcase_demo_regression();

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../src/memdeck.h"
 #include "../src/audio_mix.h"
 #include "../src/audio_fx.h"
 #include "../src/audio_song_builtin.h"
@@ -144,28 +145,30 @@ static void test_builtin_render(void)
         109, 107, 158, 111, 109, 148, 149, 100
     };
     static const uint64_t expected_checksum = 0x1cc9f7453a231fafull;
-    const SeqSong *song = audio_builtin_menu_song();
+    AudioRenderStats stats;
     unsigned char *pcm = NULL;
     int pcm_len = 0;
-    uint64_t checksum;
 
-    pcm = audio_mix_render_song(song, 22050, &pcm_len);
+    pcm = audio_engine_render_builtin_menu(22050, &pcm_len, &stats);
     check_true("builtin_pcm_alloc", pcm != NULL);
     if (!pcm) return;
 
     check_int("builtin_pcm_len", pcm_len, 176400);
-    checksum = fnv1a64(pcm, pcm_len);
-    if (checksum != expected_checksum) {
+    check_true("builtin_stats_sample_count", stats.sample_count == (unsigned long long)pcm_len);
+    check_true("builtin_stats_duration", stats.duration_ms > 7999.0 && stats.duration_ms < 8001.0);
+    check_true("builtin_stats_clipping", stats.clipping_count < 8000);
+    if (stats.checksum != expected_checksum) {
         printf("FAIL builtin_checksum: got 0x%016llx, expected 0x%016llx\n",
-               (unsigned long long)checksum, (unsigned long long)expected_checksum);
+               (unsigned long long)stats.checksum, (unsigned long long)expected_checksum);
         g_failures++;
     }
+    check_true("builtin_stats_checksum_matches_pcm", stats.checksum == fnv1a64(pcm, pcm_len));
     if (memcmp(pcm, expected_prefix, sizeof(expected_prefix)) != 0) {
         printf("FAIL builtin_prefix\n");
         g_failures++;
     }
 
-    free(pcm);
+    audio_engine_free_buffer(pcm);
 }
 
 static void test_fx_delay_circular(void)
@@ -231,26 +234,27 @@ static void test_builtin_render_fx_disabled(void)
     };
     static const uint64_t expected_checksum = 0xd138a815d4455aefull;
     SeqSong song = *audio_builtin_menu_song();
+    AudioRenderStats stats;
     unsigned char *pcm = NULL;
     int pcm_len = 0;
-    uint64_t checksum;
 
     memset(song.fx_buses, 0, sizeof(SeqFxBus) * (size_t)song.fx_bus_count);
-    pcm = audio_mix_render_song(&song, 22050, &pcm_len);
+    pcm = audio_engine_render_song(&song, 22050, &pcm_len, &stats);
     check_true("builtin_fx_off_pcm_alloc", pcm != NULL);
     if (!pcm) return;
     check_int("builtin_fx_off_pcm_len", pcm_len, 176400);
-    checksum = fnv1a64(pcm, pcm_len);
-    if (checksum != expected_checksum) {
+    check_true("builtin_fx_off_stats_sample_count", stats.sample_count == (unsigned long long)pcm_len);
+    check_true("builtin_fx_off_stats_clipping", stats.clipping_count < 8000);
+    if (stats.checksum != expected_checksum) {
         printf("FAIL builtin_fx_off_checksum: got 0x%016llx, expected 0x%016llx\n",
-               (unsigned long long)checksum, (unsigned long long)expected_checksum);
+               (unsigned long long)stats.checksum, (unsigned long long)expected_checksum);
         g_failures++;
     }
     if (memcmp(pcm, expected_prefix, sizeof(expected_prefix)) != 0) {
         printf("FAIL builtin_fx_off_prefix\n");
         g_failures++;
     }
-    free(pcm);
+    audio_engine_free_buffer(pcm);
 }
 
 static void test_accent_triggers_fx_sidechain(void)

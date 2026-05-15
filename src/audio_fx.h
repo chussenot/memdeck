@@ -39,6 +39,11 @@ typedef struct {
     AudioSidechain sidechain;
 } AudioFxBusState;
 
+typedef struct {
+    int edge_run;
+    unsigned long long clipping_count;
+} AudioClipStats;
+
 int audio_fx_delay_samples_from_steps(int sample_rate, int tempo_bpm, int steps_per_beat, int delay_steps);
 
 int audio_fx_delay_init(AudioDelay *delay, int sample_rate, int delay_samples,
@@ -59,5 +64,8 @@ int audio_fx_bus_init(AudioFxBusState *state, const SeqFxBus *bus,
                       int sample_rate, int tempo_bpm, int steps_per_beat);
 void audio_fx_bus_free(AudioFxBusState *state);
 int audio_fx_bus_process(AudioFxBusState *state, int input, int trigger, int *out_sidechain_env_q15);
+
+void audio_fx_clip_stats_reset(AudioClipStats *stats);
+void audio_fx_clip_stats_push(AudioClipStats *stats, unsigned char sample);
 
 #endif

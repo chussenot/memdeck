@@ -68,8 +68,8 @@ $(OUT): $(SRC) ../src/memdeck.h ncursesw/curses.h
 	  -s NO_EXIT_RUNTIME=1 \
 	  -s ASSERTIONS=0
 
-$(VERIFY_OUT): verify_audio.c ../src/abc.c ../src/audio_dsp.c ../src/audio_dsp.h ../src/memdeck.h
-	$(EMCC) $(CFLAGS) verify_audio.c ../src/abc.c ../src/audio_dsp.c \
+$(VERIFY_OUT): verify_audio.c ../src/abc.c ../src/audio_dsp.c ../src/audio_seq.c ../src/audio_mix.c ../src/audio_fx.c ../src/audio_song_builtin.c ../src/audio_engine.c ../src/audio_dsp.h ../src/audio_seq.h ../src/audio_mix.h ../src/audio_fx.h ../src/audio_song_builtin.h ../src/memdeck.h
+	$(EMCC) $(CFLAGS) verify_audio.c ../src/abc.c ../src/audio_dsp.c ../src/audio_seq.c ../src/audio_mix.c ../src/audio_fx.c ../src/audio_song_builtin.c ../src/audio_engine.c \
 	  -o $@ \
 	  -s WASM=1 \
 	  -s SINGLE_FILE=1 \
