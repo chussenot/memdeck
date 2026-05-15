@@ -122,6 +122,9 @@ static int validate_duty_cycle(int duty)
     return (duty >= 1 && duty <= 99);
 }
 
+/* Reserved for future FX bus routing feature (%%instrument bass fx=0)
+ * Currently unused but defined to maintain validation pattern consistency */
+__attribute__((unused))
 static int validate_fx_bus(int fx_bus)
 {
     return (fx_bus >= 0 && fx_bus < 4);  /* SEQ_MAX_FX_BUSES */
