@@ -165,6 +165,116 @@ static void test_dsl_directives(void)
     free(pcm);
 }
 
+static void test_advanced_dsl_features(void)
+{
+    const char *path = "data/music/advanced_dsl_demo.abc";
+    AbcMusic music;
+
+    printf("[Advanced DSL Test] Loading %s\n", path);
+    if (abc_load(path, &music) != 0) {
+        failf("Advanced DSL", "could not load advanced_dsl_demo.abc");
+        return;
+    }
+
+    /* Verify instruments were parsed */
+    if (music.instrument_count != 4) {
+        printf("FAIL Advanced DSL: expected 4 instruments, got %d\n", music.instrument_count);
+        g_failures++;
+    } else {
+        printf("  ✓ Instruments: %d\n", music.instrument_count);
+        for (int i = 0; i < music.instrument_count; i++) {
+            AbcInstrument *inst = &music.instruments[i];
+            printf("    Instrument %d (%s): preset=%s amp=%d wave=%d fx=%d\n",
+                   i, inst->name, inst->preset, inst->amplitude, inst->waveform, inst->fx_bus);
+        }
+    }
+
+    /* Verify FX buses were parsed */
+    if (music.fx_bus_count < 2) {
+        printf("FAIL Advanced DSL: expected at least 2 FX buses, got %d\n", music.fx_bus_count);
+        g_failures++;
+    } else {
+        printf("  ✓ FX Buses: %d\n", music.fx_bus_count);
+        for (int i = 0; i < music.fx_bus_count && i < 2; i++) {
+            AbcFxBus *bus = &music.fx_buses[i];
+            printf("    Bus %d: delay=%d drive=%d lowpass=%d mix=%d\n",
+                   i, bus->delay_steps, bus->drive_amount, bus->lowpass_amount, bus->mix_percent);
+        }
+    }
+
+    /* Verify voices reference instruments */
+    printf("  ✓ Voice-Instrument mapping:\n");
+    for (int i = 0; i < music.voice_count; i++) {
+        AbcVoice *v = &music.voices[i];
+        printf("    Voice %d (%s): instrument_ref='%s' fx_bus=%d amp=%d\n",
+               i, v->name, v->instrument_ref, v->fx_bus, v->amplitude);
+    }
+
+    /* Generate PCM to ensure rendering works */
+    int pcm_len = 0;
+    unsigned char *pcm = abc_generate_pcm(&music, &pcm_len);
+    if (!pcm || pcm_len == 0) {
+        failf("Advanced DSL", "PCM generation failed");
+        return;
+    }
+    printf("  ✓ PCM: %d samples (%.2f seconds)\n", pcm_len, pcm_len / 22050.0);
+    free(pcm);
+}
+
+static void test_multi_fx_buses(void)
+{
+    const char *path = "data/music/multi_fx_demo.abc";
+    AbcMusic music;
+
+    printf("[Multi-FX Test] Loading %s\n", path);
+    if (abc_load(path, &music) != 0) {
+        failf("Multi-FX", "could not load multi_fx_demo.abc");
+        return;
+    }
+
+    /* Verify 2 FX buses configured */
+    if (music.fx_bus_count < 2) {
+        printf("FAIL Multi-FX: expected at least 2 FX buses, got %d\n", music.fx_bus_count);
+        g_failures++;
+    } else {
+        printf("  ✓ FX Buses: %d\n", music.fx_bus_count);
+        
+        /* Bus 0: dry/punchy */
+        if (music.fx_buses[0].delay_steps != 2 || music.fx_buses[0].mix_percent != 90) {
+            printf("FAIL Multi-FX: bus 0 configuration incorrect\n");
+            g_failures++;
+        } else {
+            printf("    Bus 0: delay=%d mix=%d (dry/punchy) ✓\n",
+                   music.fx_buses[0].delay_steps, music.fx_buses[0].mix_percent);
+        }
+        
+        /* Bus 1: wet/ambient */
+        if (music.fx_buses[1].delay_steps != 8 || music.fx_buses[1].mix_percent != 60) {
+            printf("FAIL Multi-FX: bus 1 configuration incorrect\n");
+            g_failures++;
+        } else {
+            printf("    Bus 1: delay=%d mix=%d (wet/ambient) ✓\n",
+                   music.fx_buses[1].delay_steps, music.fx_buses[1].mix_percent);
+        }
+    }
+
+    /* Verify voices routed to correct FX buses */
+    for (int i = 0; i < music.voice_count; i++) {
+        AbcVoice *v = &music.voices[i];
+        printf("    Voice %d (%s): fx_bus=%d\n", i, v->name, v->fx_bus);
+    }
+
+    /* Generate PCM */
+    int pcm_len = 0;
+    unsigned char *pcm = abc_generate_pcm(&music, &pcm_len);
+    if (!pcm || pcm_len == 0) {
+        failf("Multi-FX", "PCM generation failed");
+        return;
+    }
+    printf("  ✓ PCM: %d samples (%.2f seconds)\n", pcm_len, pcm_len / 22050.0);
+    free(pcm);
+}
+
 int main(void)
 {
     int ok = 1;
@@ -190,6 +300,12 @@ int main(void)
 
     printf("\n");
     test_dsl_directives();
+
+    printf("\n");
+    test_advanced_dsl_features();
+
+    printf("\n");
+    test_multi_fx_buses();
 
     if (g_failures > 0) ok = 0;
     printf("\n%s\n", ok ? "All tests passed." : "Some tests FAILED.");

@@ -1,0 +1,41 @@
+X:1
+T:Advanced DSL Demo - Instruments and FX Buses
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=130
+K:Am
+%%swing 55
+%
+%% Define instrument presets
+%%instrument bass preset=heavy_bass wave=pulse amp=85 duty=40 attack=1 decay=50 sustain=75 release=100 gate=70 fx=0
+%%instrument arp preset=plucky_arp wave=pulse amp=50 duty=25 attack=0 decay=20 sustain=60 release=40 gate=45 vibrato=6 fx=1
+%%instrument pad preset=soft_pad wave=triangle amp=35 attack=120 decay=160 sustain=85 release=400 gate=98 fx=1
+%%instrument lead preset=synth_lead wave=triangle amp=55 attack=80 decay=120 sustain=80 release=300 gate=95 vibrato=8 glide=15 fx=0
+%
+%% Configure FX buses
+%%effect 0 delay_steps=3 delay_feedback=35 delay_mix=25 drive=25 lowpass=30 sidechain=45 sidechain_release=180 mix=85
+%%effect 1 delay_steps=6 delay_feedback=45 delay_mix=35 drive=10 lowpass=55 mix=70
+%
+%% Define voices using instruments
+V:bass instrument=bass
+V:arp instrument=arp
+V:pad instrument=pad
+V:lead instrument=lead
+%
+%% Music content
+V:bass
+|: A,,4A,,4 A,,4A,,4 | G,,4G,,4 F,,4F,,4 |
+E,,4E,,4 E,,4E,,4 | E,,4E,,4 F,,4A,,4 :|
+%
+V:arp
+|: A2E2A2=c2 A2E2A2=c2 | G2D2G2B2 F2C2F2A2 |
+E2B,2E2G2 E2B,2E2G2 | E2B,2E2G2 F2C2A2=c2 :|
+%
+V:pad
+|: A8z8 | G8F8 |
+E16 | z8 F4A4 :|
+%
+V:lead
+|: z16 | z8 =c=c2z2 z6 |
+z8 A2z2 z12 | z16 :|
