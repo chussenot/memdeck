@@ -275,8 +275,8 @@ static void test_dsl_directives(void)
     printf("  ✓ FX sidechain release: %dms\n", music.fx_sidechain_release_ms);
 
     /* Verify voices parsed with instruments */
-    if (music.voice_count != 3) {
-        printf("FAIL DSL: expected 3 voices, got %d\n", music.voice_count);
+    if (music.voice_count != 4) {
+        printf("FAIL DSL: expected 4 voices, got %d\n", music.voice_count);
         g_failures++;
     } else {
         printf("  ✓ Voices: %d\n", music.voice_count);
@@ -322,8 +322,8 @@ static void test_seq_song_mapping(void)
         printf("FAIL seq mapping: got fx_bus_count=%d expected 2\n", song.fx_bus_count);
         g_failures++;
     }
-    if (song.arrangement_length != 8 || song.pattern_count != 4) {
-        printf("FAIL seq mapping: got arrangement=%d patterns=%d expected 8/4\n",
+    if (song.arrangement_length != 8 || song.pattern_count != 8) {
+        printf("FAIL seq mapping: got arrangement=%d patterns=%d expected 8/8\n",
                song.arrangement_length, song.pattern_count);
         g_failures++;
     }
@@ -338,8 +338,8 @@ static void test_seq_song_mapping(void)
         song.patterns[0].tracks[1].steps[0].fx_trigger == 0) {
         failf("seq mapping", "first pattern step was not fully populated");
     }
-    if (song.patterns[0].tracks[2].steps[0].note != SEQ_NOTE_REST ||
-        song.patterns[1].tracks[2].steps[8].note == SEQ_NOTE_REST) {
+    if (song.patterns[0].tracks[3].steps[0].note != SEQ_NOTE_REST ||
+        song.patterns[2].tracks[3].steps[8].note == SEQ_NOTE_REST) {
         failf("seq mapping", "lead rests and notes were not preserved");
     }
 }
