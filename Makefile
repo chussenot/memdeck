@@ -11,13 +11,13 @@ TEST_ABC_BIN = bin/test-abc
 TEST_SEQ_BIN = bin/test-audio-seq
 RENDER_DEMOS_BIN = bin/render-demos
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos help FORCE
 
 .DEFAULT_GOAL := help
 
 all: $(BIN)
 
-$(BIN): $(SRC) src/memdeck.h
+$(BIN): FORCE $(SRC) src/memdeck.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS)
 	@echo "Build complete: $(BIN)"
@@ -51,7 +51,7 @@ test-audio: $(TEST_DSP)
 	@echo "Running audio DSP regression tests..."
 	@$(TEST_DSP)
 
-$(TEST_DSP): tests/test_audio_dsp.c src/audio_dsp.c src/audio_dsp.h
+$(TEST_DSP): FORCE tests/test_audio_dsp.c src/audio_dsp.c src/audio_dsp.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/test_audio_dsp.c src/audio_dsp.c $(LDFLAGS)
 
@@ -59,7 +59,7 @@ test-abc: $(TEST_ABC_BIN)
 	@echo "Running ABC parser tests..."
 	@$(TEST_ABC_BIN)
 
-$(TEST_ABC_BIN): tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
+$(TEST_ABC_BIN): FORCE tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/test_abc.c src/abc.c src/card.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
@@ -67,7 +67,7 @@ test-audio-seq: $(TEST_SEQ_BIN)
 	@echo "Running sequencer regression tests..."
 	@$(TEST_SEQ_BIN)
 
-$(TEST_SEQ_BIN): tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c src/audio_seq.h src/audio_mix.h src/audio_song_builtin.h src/audio_fx.h src/memdeck.h
+$(TEST_SEQ_BIN): FORCE tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c src/audio_seq.h src/audio_mix.h src/audio_song_builtin.h src/audio_fx.h src/memdeck.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/test_audio_seq.c src/audio_seq.c src/audio_mix.c src/audio_dsp.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c src/abc.c $(LDFLAGS)
 
@@ -80,7 +80,7 @@ bench-audio: src/audio_dsp.c tests/bench_audio.c
 render-demos: $(RENDER_DEMOS_BIN)
 	@$(RENDER_DEMOS_BIN)
 
-$(RENDER_DEMOS_BIN): tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
+$(RENDER_DEMOS_BIN): FORCE tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/memdeck.h
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/render_demos.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
@@ -101,3 +101,5 @@ help:
 	@echo "  bench-audio Build and run audio microbenchmark"
 	@echo "  render-demos Render showcase ABC demos and print deterministic metrics"
 	@echo "  help       Show this help message (default)"
+
+FORCE:
