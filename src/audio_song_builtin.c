@@ -394,7 +394,17 @@ static const SeqSong g_menu_song = {
     .arrangement = { 0, 1, 2, 3 },
     .fx_bus_count = 1,
     .fx_buses = {
-        { 22, 30 },
+        {
+            .enabled = 1,
+            .delay_steps = 3,
+            .delay_feedback = 35,
+            .delay_mix = 25,
+            .drive_amount = 20,
+            .lowpass_amount = 35,
+            .sidechain_amount = 40,
+            .sidechain_release_ms = 180,
+            .mix_percent = 40,
+        },
     },
 };
 

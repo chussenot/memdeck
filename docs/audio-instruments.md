@@ -62,15 +62,32 @@ flowchart LR
 - Bass + arp presets use pulse, light detune, and PWM for retro motion.
 - Lead/brass use faster attack and controlled vibrato for melodic shape.
 - Drum presets use compact envelopes and optional noise for hats/snare.
+- FX bus can add delay, drive, low-pass darkening, and fake sidechain pumping.
 
 This model is intentionally lightweight and keeps the chiptune identity while enabling richer arrangement control.
 
-## Forward compatibility
+## FX bus model (`SeqFxBus`)
 
-Current layering keeps instrument synthesis separated from backend output (`sound.c`), preparing follow-up work:
+- `enabled`
+- `delay_steps`
+- `delay_feedback`
+- `delay_mix`
+- `drive_amount`
+- `lowpass_amount`
+- `sidechain_amount`
+- `sidechain_release_ms`
+- `mix_percent`
 
-- delay buses
-- drive shaping
-- sidechain-style gain modulation
+Built-in dark synth routing uses this bus to process arp/pad/drum sends while keeping dry voices intact.
 
-without replacing the song/pattern/sequencer architecture.
+## Flow reminder
+
+```mermaid
+flowchart LR
+    Voice[Instrument voice] --> Dry[Dry mix]
+    Voice --> Send[Bus send]
+    Send --> FX[Drive -> LPF -> Delay -> Sidechain]
+    FX --> Return[Bus return]
+    Dry --> Master
+    Return --> Master
+```

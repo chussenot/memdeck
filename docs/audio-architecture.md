@@ -9,7 +9,8 @@
 ## Layered structure
 - `src/audio_song_builtin.c` = built-in retro song definitions using reusable song/pattern/track/step data.
 - `src/audio_seq.c/.h` = portable sequencing layer with arrangement expansion, pattern chaining, tempo timing, swing, and note-event emission.
-- `src/audio_mix.c/.h` = portable PCM renderer that consumes sequencer note events with instrument + envelope + modulation state.
+- `src/audio_mix.c/.h` = portable PCM renderer that consumes sequencer note events with instrument + envelope + modulation state plus FX bus routing.
+- `src/audio_fx.c/.h` = deterministic FX processing primitives (delay, drive, low-pass, fake sidechain).
 - `src/audio_dsp.c/.h` = low-level oscillator/timing/profile primitives.
 - `src/abc.c` = ABC parsing + ABC-specific render path.
 - `src/sound.c` = native output backend (`fork`, `pipe`, `aplay`) and SFX orchestration.
@@ -19,6 +20,7 @@ flowchart LR
     Song[SeqSong] --> Sequencer[audio_seq]
     Sequencer --> Timeline[SeqTimeline]
     Timeline --> Mixer[audio_mix]
+    Mixer --> FX[audio_fx]
     Mixer --> DSP[audio_dsp oscillators]
     Mixer --> PCM[U8 PCM loop]
     PCM --> Backend[sound.c backend]
@@ -34,7 +36,7 @@ classDiagram
         +steps_per_beat
         +patterns[]
         +arrangement[]
-        +fx_buses[]
+        +fx_buses[] (SeqFxBus)
     }
     class SeqPattern {
         +length
@@ -80,19 +82,24 @@ classDiagram
 - Voices render with `DspOscillator` + `DspEnvelopeRuntime` per sample.
 - Optional modulation is applied in the mixer: vibrato, PWM, detune stack, glide.
 - Velocity, gate, accent, and per-track automation shape note output before sample summing.
-- FX buses stay intentionally lightweight: they are simple per-sample send accumulators instead of a heavyweight realtime effects graph.
+- FX buses run in this order: drive -> low-pass -> delay -> fake sidechain.
+- Delay is tempo-synced from song timing (steps), with deterministic circular buffer behavior.
+- Fake sidechain applies tempo-aware ducking envelope to create pumping without realtime compression.
 
 ```mermaid
 sequenceDiagram
     participant Song
     participant Seq as audio_seq
     participant Mix as audio_mix
+    participant FX as audio_fx
     participant DSP
     participant Backend as sound.c
     Song->>Seq: seq_compile_timeline()
     Seq->>Mix: seq_collect_step_events()
     Mix->>DSP: oscillator setup + envelope stepping
     DSP-->>Mix: signed voice samples
+    Mix->>FX: FX sends + per-bus processing
+    FX-->>Mix: wet return + sidechain env
     Mix-->>Backend: rendered PCM loop
     Backend->>Backend: fork writer + pipe to aplay
 ```

@@ -137,6 +137,42 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
     if (v->gate_percent > 100) v->gate_percent = 100;
 }
 
+static int parse_int_param(const char *text, const char *key, int fallback)
+{
+    const char *p;
+    if (!text || !key) return fallback;
+    p = strstr(text, key);
+    if (!p) return fallback;
+    p += strlen(key);
+    return atoi(p);
+}
+
+static void parse_effect_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val) return;
+    while (*val == ' ') val++;
+    if (strncmp(val, "delay", 5) == 0) {
+        music->fx_delay_steps = parse_int_param(val, "time=", music->fx_delay_steps);
+        music->fx_delay_feedback = parse_int_param(val, "feedback=", music->fx_delay_feedback);
+        music->fx_delay_mix = parse_int_param(val, "mix=", music->fx_delay_mix);
+        return;
+    }
+    if (strncmp(val, "drive", 5) == 0) {
+        music->fx_drive_amount = parse_int_param(val, "amount=", music->fx_drive_amount);
+        return;
+    }
+    if (strncmp(val, "lowpass", 7) == 0) {
+        music->fx_lowpass_amount = parse_int_param(val, "amount=", music->fx_lowpass_amount);
+    }
+}
+
+static void parse_sidechain_directive(AbcMusic *music, const char *val)
+{
+    if (!music || !val) return;
+    music->fx_sidechain_amount = parse_int_param(val, "amount=", music->fx_sidechain_amount);
+    music->fx_sidechain_release_ms = parse_int_param(val, "release=", music->fx_sidechain_release_ms);
+}
+
 /* ─── Parser state ───────────────────────────────────────────── */
 
 typedef struct {
@@ -353,6 +389,7 @@ int abc_load(const char *path, AbcMusic *music)
     memset(music, 0, sizeof(*music));
     music->voice_count = 0;
     music->bpm = 120;
+    music->fx_sidechain_release_ms = 180;
 
     AbcHeader header;
     memset(&header, 0, sizeof(header));
@@ -482,6 +519,14 @@ int abc_load(const char *path, AbcMusic *music)
 
                 parse_voice_directives(v, val);
             }
+            continue;
+        }
+        if (strncmp(line, "%%effect", 8) == 0) {
+            parse_effect_directive(music, line + 8);
+            continue;
+        }
+        if (strncmp(line, "%%sidechain", 11) == 0) {
+            parse_sidechain_directive(music, line + 11);
             continue;
         }
 
