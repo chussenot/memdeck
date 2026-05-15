@@ -85,6 +85,9 @@ int  dsp_total_samples_for_steps(int sample_rate, int step_ms, int steps);
 int  dsp_samples_from_ms(int sample_rate, int ms);
 
 int  dsp_clamp_u8(int value);
+int  dsp_clampi(int value, int lo, int hi);
+int  dsp_tri_lfo_q15(uint32_t *phase, int rate_millihz, int sample_rate);
+double dsp_freq_with_cents(double freq, int cents);
 
 void dsp_profile_reset(DspProfile *p);
 void dsp_profile_add_generation(DspProfile *p, int samples, uint64_t ticks);

@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <string.h>
+#include <math.h>
 
 #define DSP_PHASE_SCALE_U32 4294967296.0
 #define DSP_PHASE_MAX_U32   ((double)UINT32_MAX)
@@ -17,7 +18,7 @@ static uint32_t u32_from_fraction(double x)
     return (uint32_t)(x * DSP_PHASE_MAX_U32);
 }
 
-static int clampi(int value, int lo, int hi)
+int dsp_clampi(int value, int lo, int hi)
 {
     if (value < lo) return lo;
     if (value > hi) return hi;
@@ -89,8 +90,8 @@ void dsp_envelope_init(DspEnvelopeRuntime *runtime, const DspEnvelope *env,
     memset(runtime, 0, sizeof(*runtime));
     runtime->sample_rate = sample_rate;
     if (env) runtime->env = *env;
-    runtime->env.sustain_level = clampi(runtime->env.sustain_level, 0, 100);
-    runtime->env.gate_percent = clampi(runtime->env.gate_percent, 1, 100);
+    runtime->env.sustain_level = dsp_clampi(runtime->env.sustain_level, 0, 100);
+    runtime->env.gate_percent = dsp_clampi(runtime->env.gate_percent, 1, 100);
     runtime->attack_samples = dsp_samples_from_ms(sample_rate, runtime->env.attack_ms);
     runtime->decay_samples = dsp_samples_from_ms(sample_rate, runtime->env.decay_ms);
     runtime->release_samples = dsp_samples_from_ms(sample_rate, runtime->env.release_ms);
@@ -175,8 +176,30 @@ int dsp_envelope_next_q15(DspEnvelopeRuntime *runtime)
             break;
     }
 
-    runtime->level_q15 = clampi(runtime->level_q15, 0, 32767);
+    runtime->level_q15 = dsp_clampi(runtime->level_q15, 0, 32767);
     return runtime->level_q15;
+}
+
+int dsp_tri_lfo_q15(uint32_t *phase, int rate_millihz, int sample_rate)
+{
+    uint64_t increment;
+    uint32_t p;
+    int tri;
+
+    if (!phase || rate_millihz <= 0 || sample_rate <= 0) return 0;
+    increment = ((uint64_t)rate_millihz << 32) / ((uint64_t)sample_rate * 1000ull);
+    *phase += (uint32_t)increment;
+    p = *phase >> 16;
+    tri = (*phase & 0x80000000u)
+        ? (int)(65535u - ((p & 0x7fffu) << 1))
+        : (int)((p & 0x7fffu) << 1);
+    return tri - 32768;
+}
+
+double dsp_freq_with_cents(double freq, int cents)
+{
+    if (freq <= 0.0 || cents == 0) return freq;
+    return freq * pow(2.0, (double)cents / 1200.0);
 }
 
 void dsp_stepper_init(DspSampleStepper *stepper, int sample_rate, int step_ms)
