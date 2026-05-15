@@ -1007,7 +1007,7 @@ impl MemDeckGuiApp {
     }
 
     fn draw_status_line(&self, ui: &mut egui::Ui) {
-        let render_state = if self.current_render().is_some() {
+        let render_state_label = if self.current_render().is_some() {
             "READY"
         } else {
             "IDLE"
@@ -1053,10 +1053,10 @@ impl MemDeckGuiApp {
                     );
                     ui.separator();
                     ui.label(
-                        RichText::new(format!("RENDER {render_state}"))
+                        RichText::new(format!("RENDER {render_state_label}"))
                             .monospace()
                             .size(12.0)
-                            .color(if render_state == "READY" {
+                            .color(if render_state_label == "READY" {
                                 ACCENT
                             } else {
                                 TEXT_DIM
