@@ -159,19 +159,27 @@ impl MemDeckGuiApp {
     }
 
     fn select_demo(&mut self, index: usize) {
-        if index == self.runtime.selected_demo || index >= self.demos.len() {
+        // Guard: out of bounds or already selected.
+        if index >= self.demos.len() || index == self.runtime.selected_demo {
             return;
         }
 
         self.stop_playback(false);
         self.runtime.selected_demo = index;
-        self.runtime.loaded_metadata = self.demos[index].overview.clone();
-        if let Some(error) = self.demos[index].error.clone() {
+
+        // Snapshot the fields we need before any further &mut borrow.
+        let (overview, error, key) = {
+            let demo = &self.demos[index];
+            (demo.overview.clone(), demo.error.clone(), demo.key.clone())
+        };
+
+        self.runtime.loaded_metadata = overview;
+        if let Some(error) = error {
             self.runtime.last_error = Some(error.clone());
             self.status_line = format!("DEMO ERROR • {error}");
         } else {
             self.runtime.last_error = None;
-            self.status_line = format!("SELECTED {}.", self.demos[index].key.to_uppercase());
+            self.status_line = format!("SELECTED {}.", key.to_uppercase());
         }
     }
 
