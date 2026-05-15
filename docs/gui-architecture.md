@@ -37,15 +37,15 @@ sequenceDiagram
     participant C as C audio_engine
 
     U->>GUI: Select demo + Render
-    GUI->>AD: render_builtin_menu() or render_abc_file(path)
+    GUI->>AD: render_abc_file(path)
     AD->>FFI: GUI-facing FFI function call
-    FFI->>C: audio_engine_render_* (C ABI)
+    FFI->>C: audio_engine_render_abc_file (C ABI)
     C-->>FFI: PCM buffer + AudioRenderStats
     FFI->>FFI: Copy PCM into Vec<u8>
     FFI->>C: free_buffer()
     FFI-->>AD: Rendered data + stats
     AD-->>GUI: RenderState
-    GUI-->>U: Stats panel + waveform placeholder update
+    GUI-->>U: Stats panel + waveform / pattern overview update
 ```
 
 ## Build and Linking
@@ -59,15 +59,15 @@ The `gui/build.rs` script compiles and links required C engine modules directly 
 
 The GUI-facing API is exposed in `gui/src/ffi.rs`:
 
-- `render_builtin_menu()`
 - `render_abc_file(path)`
+- `load_demo_overview(path)`
 - `free_buffer()`
 - `get_render_stats()`
 
 These wrap C functions from `src/audio_engine.h`:
 
-- `audio_engine_render_builtin_menu(...)`
 - `audio_engine_render_abc_file(...)`
+- `abc_load(...)`
 - `audio_engine_free_buffer(...)`
 
 ## Data Ownership
@@ -79,8 +79,9 @@ These wrap C functions from `src/audio_engine.h`:
 
 ## UI Foundation Layout
 
-- Left pane: demo list + actions.
-- Right pane: render stats + waveform preview placeholder.
-- Bottom bar: low-noise status feedback.
+- Left pane: demo list.
+- Right pane: render stats.
+- Bottom section: waveform minimap + pattern/arrangement overview.
+- Bottom bar: status feedback.
 
 This establishes a minimal, extensible shell for future non-editor interactions without introducing DAW or tracker behaviors.

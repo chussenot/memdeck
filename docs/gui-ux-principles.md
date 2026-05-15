@@ -23,7 +23,7 @@ The initial foundation keeps all critical actions on one screen:
 - choose demo
 - render
 - inspect stats
-- see waveform placeholder
+- see waveform and pattern overview
 
 No mode-heavy navigation or hidden interaction trees.
 
@@ -47,23 +47,25 @@ Every render action updates a clear status line and a stable stats panel to redu
 ```mermaid
 stateDiagram-v2
     [*] --> DemoListFocus
-    DemoListFocus --> ActionsFocus: Tab
-    ActionsFocus --> DemoListFocus: Tab
+    DemoListFocus --> OverviewFocus: Tab
+    OverviewFocus --> DemoListFocus: Tab
 
     DemoListFocus --> DemoListFocus: Up/Down
-    ActionsFocus --> ActionsFocus: Up/Down
+    OverviewFocus --> OverviewFocus: Up/Down
 
-    DemoListFocus --> Rendered: Enter (Render)
-    ActionsFocus --> Rendered: Enter on Render
-    ActionsFocus --> PlaceholderPlay: Enter on Play
+    DemoListFocus --> Rendered: Enter
+    OverviewFocus --> Rendered: Enter
 
-    DemoListFocus --> PlaceholderPlay: Space
-    ActionsFocus --> PlaceholderPlay: Space
+    DemoListFocus --> Playing: Space
+    OverviewFocus --> Playing: Space
+    Rendered --> Playing: Space
 
+    Playing --> Stopped: Space
+    Playing --> Stopped: Esc
+    DemoListFocus --> Stopped: Esc
+
+    Stopped --> DemoListFocus: Continue navigation
     Rendered --> DemoListFocus: Continue navigation
-    PlaceholderPlay --> DemoListFocus: Continue navigation
-
-    DemoListFocus --> [*]: Esc (from neutral state)
 ```
 
 ## Visual System Foundations
@@ -73,8 +75,9 @@ flowchart TD
     A[Monochrome Base] --> B[High Contrast Text]
     A --> C[Subtle Focus States]
     A --> D[Grid/Panel Rhythm]
-    D --> E[List + Actions]
-    D --> F[Stats + Waveform Placeholder]
+    D --> E[Demo List]
+    D --> F[Render Stats]
+    D --> G[Waveform + Pattern Overview]
 ```
 
 ## Non-Goals (Explicit)

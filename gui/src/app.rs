@@ -158,6 +158,23 @@ impl MemDeckGuiApp {
         self.boot_applied = true;
     }
 
+    fn select_demo(&mut self, index: usize) {
+        if index == self.runtime.selected_demo || index >= self.demos.len() {
+            return;
+        }
+
+        self.stop_playback(false);
+        self.runtime.selected_demo = index;
+        self.runtime.loaded_metadata = self.demos[index].overview.clone();
+        if let Some(error) = self.demos[index].error.clone() {
+            self.runtime.last_error = Some(error.clone());
+            self.status_line = format!("DEMO ERROR • {error}");
+        } else {
+            self.runtime.last_error = None;
+            self.status_line = format!("SELECTED {}.", self.demos[index].key.to_uppercase());
+        }
+    }
+
     fn move_selection(&mut self, delta: isize) {
         if self.demos.is_empty() {
             return;
@@ -165,20 +182,7 @@ impl MemDeckGuiApp {
 
         let next = (self.runtime.selected_demo as isize + delta)
             .clamp(0, self.demos.len().saturating_sub(1) as isize) as usize;
-        if next == self.runtime.selected_demo {
-            return;
-        }
-
-        self.stop_playback(false);
-        self.runtime.selected_demo = next;
-        self.runtime.loaded_metadata = self.selected_demo().overview.clone();
-        if let Some(error) = self.selected_demo().error.clone() {
-            self.runtime.last_error = Some(error.clone());
-            self.status_line = format!("DEMO ERROR • {error}");
-        } else {
-            self.runtime.last_error = None;
-            self.status_line = format!("SELECTED {}.", self.selected_demo().key.to_uppercase());
-        }
+        self.select_demo(next);
     }
 
     fn render_selected_demo(&mut self) -> Result<(), String> {
@@ -362,9 +366,7 @@ impl MemDeckGuiApp {
 
                 if ui.add(button).clicked() {
                     self.runtime.focus = FocusArea::DemoList;
-                    if index != self.runtime.selected_demo {
-                        self.move_selection(index as isize - self.runtime.selected_demo as isize);
-                    }
+                    self.select_demo(index);
                 }
             }
 
@@ -474,6 +476,28 @@ impl MemDeckGuiApp {
                         RichText::new(
                             stats
                                 .map(|value| value.peak.to_string())
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("min/max").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| format!("{} / {}", value.min_sample, value.max_sample))
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("render ms").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| format!("{:.2} ms", value.render_time_ms))
                                 .unwrap_or_else(|| "--".to_string()),
                         )
                         .monospace(),
