@@ -1,91 +1,73 @@
-use std::path::Path;
+use std::env;
+use std::time::Duration;
 
-use eframe::egui;
+use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Stroke, TextStyle, Vec2};
 
-use crate::audio_engine::{GuiAudioEngine, RenderState};
+use crate::audio_engine::{DemoEntry, DemoOverview, GuiAudioEngine, RenderState};
 use crate::ffi::AudioRenderStats;
+use crate::playback::PlaybackController;
 
-const DEFAULT_STATUS_LINE: &str = "Ready. Select a demo and render.";
-
-#[derive(Clone, Copy)]
-struct DemoEntry {
-    name: &'static str,
-    path: Option<&'static str>,
-}
+const DEFAULT_STATUS_LINE: &str = "READY. SELECT A DEMO AND PRESS ENTER TO RENDER.";
+const BASE_BG: Color32 = Color32::from_rgb(10, 12, 10);
+const PANEL_BG: Color32 = Color32::from_rgb(16, 20, 16);
+const PANEL_ALT_BG: Color32 = Color32::from_rgb(20, 26, 20);
+const PANEL_DIM_BG: Color32 = Color32::from_rgb(12, 16, 12);
+const BORDER: Color32 = Color32::from_rgb(88, 106, 88);
+const BORDER_DIM: Color32 = Color32::from_rgb(58, 72, 58);
+const TEXT: Color32 = Color32::from_rgb(214, 226, 214);
+const TEXT_DIM: Color32 = Color32::from_rgb(136, 150, 136);
+const ACCENT: Color32 = Color32::from_rgb(130, 214, 144);
+const ACCENT_SOFT: Color32 = Color32::from_rgb(72, 108, 76);
+const WARNING: Color32 = Color32::from_rgb(234, 122, 106);
+const WAVEFORM: Color32 = Color32::from_rgb(194, 222, 194);
+const GRID: Color32 = Color32::from_rgb(34, 44, 34);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FocusArea {
     DemoList,
-    Actions,
+    Overview,
+}
+
+#[derive(Default)]
+struct BootOptions {
+    demo_key: Option<String>,
+    auto_render: bool,
+    focus: Option<FocusArea>,
 }
 
 pub struct MemDeckGuiApp {
     audio_engine: GuiAudioEngine,
+    playback: PlaybackController,
     demos: Vec<DemoEntry>,
     selected_demo: usize,
-    selected_action: usize,
     focus: FocusArea,
     status_line: String,
     last_render: Option<RenderState>,
+    boot_options: BootOptions,
+    boot_applied: bool,
 }
 
 impl Default for MemDeckGuiApp {
     fn default() -> Self {
-        let demos = vec![
-            DemoEntry {
-                name: "Built-in Menu Song",
-                path: None,
-            },
-            DemoEntry {
-                name: "dark_moroder",
-                path: Some("../data/music/dark_moroder.abc"),
-            },
-            DemoEntry {
-                name: "perturbator_loop",
-                path: Some("../data/music/perturbator_loop.abc"),
-            },
-            DemoEntry {
-                name: "carpenter_drive",
-                path: Some("../data/music/carpenter_drive.abc"),
-            },
-            DemoEntry {
-                name: "advanced_dsl_demo",
-                path: Some("../data/music/advanced_dsl_demo.abc"),
-            },
-            DemoEntry {
-                name: "multi_fx_demo",
-                path: Some("../data/music/multi_fx_demo.abc"),
-            },
-            DemoEntry {
-                name: "neon_nightdrive",
-                path: Some("../data/music/neon_nightdrive.abc"),
-            },
-            DemoEntry {
-                name: "metro_chase",
-                path: Some("../data/music/metro_chase.abc"),
-            },
-            DemoEntry {
-                name: "black_sunrise",
-                path: Some("../data/music/black_sunrise.abc"),
-            },
-            DemoEntry {
-                name: "machine_romance",
-                path: Some("../data/music/machine_romance.abc"),
-            },
-            DemoEntry {
-                name: "hypersleep_dream",
-                path: Some("../data/music/hypersleep_dream.abc"),
-            },
-        ];
+        let audio_engine = GuiAudioEngine::new();
+        let demos = audio_engine.demo_catalog();
+        let boot_options = BootOptions::from_env();
+        let selected_demo = boot_options
+            .demo_key
+            .as_deref()
+            .and_then(|demo_key| demos.iter().position(|demo| demo.key == demo_key))
+            .unwrap_or(0);
 
         Self {
-            audio_engine: GuiAudioEngine::new(),
+            audio_engine,
+            playback: PlaybackController::default(),
             demos,
-            selected_demo: 0,
-            selected_action: 0,
-            focus: FocusArea::DemoList,
+            selected_demo,
+            focus: boot_options.focus.unwrap_or(FocusArea::DemoList),
             status_line: DEFAULT_STATUS_LINE.to_string(),
             last_render: None,
+            boot_options,
+            boot_applied: false,
         }
     }
 }
@@ -93,313 +75,788 @@ impl Default for MemDeckGuiApp {
 impl MemDeckGuiApp {
     pub fn configure_visuals(ctx: &egui::Context) {
         let mut visuals = egui::Visuals::dark();
-        visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(16, 16, 16);
-        visuals.window_fill = egui::Color32::from_rgb(8, 8, 8);
-        visuals.panel_fill = egui::Color32::from_rgb(10, 10, 10);
-        visuals.override_text_color = Some(egui::Color32::from_gray(210));
-        visuals.widgets.inactive.bg_fill = egui::Color32::from_gray(18);
-        visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(28);
-        visuals.widgets.active.bg_fill = egui::Color32::from_gray(42);
-        visuals.selection.bg_fill = egui::Color32::from_gray(64);
-        visuals.faint_bg_color = egui::Color32::from_gray(22);
-        visuals.extreme_bg_color = egui::Color32::from_gray(2);
+        visuals.window_fill = BASE_BG;
+        visuals.panel_fill = BASE_BG;
+        visuals.faint_bg_color = PANEL_DIM_BG;
+        visuals.extreme_bg_color = BASE_BG;
+        visuals.override_text_color = Some(TEXT);
+        visuals.selection.bg_fill = ACCENT_SOFT;
+        visuals.selection.stroke = Stroke::new(1.0, ACCENT);
+        visuals.widgets.noninteractive.bg_fill = PANEL_BG;
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER_DIM);
+        visuals.widgets.inactive.bg_fill = PANEL_DIM_BG;
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, BORDER_DIM);
+        visuals.widgets.hovered.bg_fill = PANEL_ALT_BG;
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, ACCENT);
+        visuals.widgets.active.bg_fill = PANEL_ALT_BG;
+        visuals.widgets.active.bg_stroke = Stroke::new(1.0, ACCENT);
+        visuals.window_stroke = Stroke::new(1.0, BORDER);
         ctx.set_visuals(visuals);
 
         let mut style = (*ctx.style()).clone();
-        style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-        style.spacing.button_padding = egui::vec2(10.0, 4.0);
-        style.visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_gray(72));
-        style.visuals.widgets.noninteractive.bg_stroke =
-            egui::Stroke::new(1.0, egui::Color32::from_gray(54));
+        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        style.spacing.button_padding = egui::vec2(8.0, 4.0);
+        style.spacing.window_margin = egui::Margin::same(10);
+        style.visuals.window_stroke = Stroke::new(1.0, BORDER);
+        style.text_styles = [
+            (TextStyle::Heading, FontId::monospace(21.0)),
+            (TextStyle::Name("Title".into()), FontId::monospace(18.0)),
+            (TextStyle::Body, FontId::monospace(14.0)),
+            (TextStyle::Button, FontId::monospace(14.0)),
+            (TextStyle::Monospace, FontId::monospace(13.0)),
+            (TextStyle::Small, FontId::monospace(12.0)),
+        ]
+        .into();
         ctx.set_style(style);
     }
 
-    fn selected_demo_entry(&self) -> DemoEntry {
-        self.demos[self.selected_demo]
+    fn selected_demo(&self) -> &DemoEntry {
+        &self.demos[self.selected_demo]
     }
 
-    fn render_selected_demo(&mut self) {
-        let selected = self.selected_demo_entry();
-        let render_result = match selected.path {
-            Some(path) => self.audio_engine.render_abc_file(Path::new(path)),
-            None => self.audio_engine.render_builtin_menu(),
-        };
+    fn selected_overview(&self) -> Option<&DemoOverview> {
+        self.selected_demo().overview.as_ref()
+    }
 
-        match render_result {
+    fn current_render(&self) -> Option<&RenderState> {
+        self.last_render
+            .as_ref()
+            .filter(|render| render.demo_key == self.selected_demo().key)
+    }
+
+    fn current_stats(&self) -> Option<AudioRenderStats> {
+        self.current_render().and_then(|render| render.stats)
+    }
+
+    fn apply_boot_options(&mut self) {
+        if self.boot_applied {
+            return;
+        }
+
+        if self.boot_options.auto_render {
+            let _ = self.render_selected_demo();
+        }
+
+        self.boot_applied = true;
+    }
+
+    fn move_selection(&mut self, delta: isize) {
+        if self.demos.is_empty() {
+            return;
+        }
+
+        let next = (self.selected_demo as isize + delta)
+            .clamp(0, self.demos.len().saturating_sub(1) as isize) as usize;
+        if next == self.selected_demo {
+            return;
+        }
+
+        self.stop_playback(false);
+        self.selected_demo = next;
+        self.status_line = format!("SELECTED {}.", self.selected_demo().key.to_uppercase());
+    }
+
+    fn render_selected_demo(&mut self) -> Result<(), String> {
+        self.stop_playback(false);
+        let demo = self.selected_demo().clone();
+
+        match self.audio_engine.render_demo(&demo.key, &demo.path) {
             Ok(render) => {
                 let sample_count = render.samples.len();
-                self.status_line = format!(
-                    "Rendered {} ({} samples @ 22050Hz)",
-                    selected.name, sample_count
-                );
+                let stats = render.stats;
                 self.last_render = Some(render);
+                self.status_line = if let Some(stats) = stats {
+                    format!(
+                        "RENDER OK • {} • {} SAMPLES • CHECKSUM {:016X}",
+                        demo.key.to_uppercase(),
+                        stats.sample_count,
+                        stats.checksum
+                    )
+                } else {
+                    format!(
+                        "RENDER OK • {} • {} SAMPLES",
+                        demo.key.to_uppercase(),
+                        sample_count
+                    )
+                };
+                Ok(())
             }
-            Err(err) => {
-                self.status_line = format!("Render failed for {}: {}", selected.name, err);
+            Err(error) => {
+                if self
+                    .last_render
+                    .as_ref()
+                    .is_some_and(|render| render.demo_key == demo.key)
+                {
+                    self.last_render = None;
+                }
+                let message = format!("RENDER ERROR • {} • {error}", demo.key.to_uppercase());
+                self.status_line = message.clone();
+                Err(message)
             }
         }
     }
 
-    fn play_placeholder(&mut self) {
-        let selected = self.selected_demo_entry();
-        self.status_line = format!(
-            "Play placeholder: '{}' ready (audio output binding not implemented in foundation).",
-            selected.name
-        );
+    fn ensure_render_for_selected(&mut self) -> Result<(), String> {
+        if self.current_render().is_some() {
+            return Ok(());
+        }
+
+        self.render_selected_demo()
+    }
+
+    fn toggle_playback(&mut self) {
+        if self.playback.is_playing() {
+            self.stop_playback(true);
+            return;
+        }
+
+        if let Err(error) = self.ensure_render_for_selected() {
+            self.status_line = error;
+            return;
+        }
+
+        let demo_name = self.selected_demo().key.clone();
+        let samples = self
+            .current_render()
+            .map(|render| render.samples.clone())
+            .unwrap_or_default();
+
+        if samples.is_empty() {
+            self.status_line = format!("PLAYBACK ERROR • {} HAS NO PCM.", demo_name.to_uppercase());
+            return;
+        }
+
+        match self.playback.start(&samples) {
+            Ok(()) => {
+                self.status_line = format!("PLAYING • {}", demo_name.to_uppercase());
+            }
+            Err(error) => {
+                self.status_line = format!("PLAYBACK ERROR • {error}");
+            }
+        }
+    }
+
+    fn stop_playback(&mut self, update_status: bool) {
+        match self.playback.stop() {
+            Ok(true) if update_status => {
+                self.status_line = "STOPPED PLAYBACK.".to_string();
+            }
+            Ok(_) => {}
+            Err(error) if update_status => {
+                self.status_line = format!("STOP ERROR • {error}");
+            }
+            Err(_) => {}
+        }
+    }
+
+    fn poll_playback(&mut self) {
+        if let Some(result) = self.playback.poll() {
+            self.status_line = match result {
+                Ok(()) => "PLAYBACK FINISHED.".to_string(),
+                Err(error) => format!("PLAYBACK ERROR • {error}"),
+            };
+        }
     }
 
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
             if input.key_pressed(egui::Key::Tab) {
                 self.focus = match self.focus {
-                    FocusArea::DemoList => FocusArea::Actions,
-                    FocusArea::Actions => FocusArea::DemoList,
+                    FocusArea::DemoList => FocusArea::Overview,
+                    FocusArea::Overview => FocusArea::DemoList,
                 };
             }
 
             if input.key_pressed(egui::Key::ArrowUp) {
-                match self.focus {
-                    FocusArea::DemoList => {
-                        if self.selected_demo > 0 {
-                            self.selected_demo -= 1;
-                        }
-                    }
-                    FocusArea::Actions => {
-                        if self.selected_action > 0 {
-                            self.selected_action -= 1;
-                        }
-                    }
-                }
+                self.move_selection(-1);
             }
 
             if input.key_pressed(egui::Key::ArrowDown) {
-                match self.focus {
-                    FocusArea::DemoList => {
-                        if self.selected_demo + 1 < self.demos.len() {
-                            self.selected_demo += 1;
-                        }
-                    }
-                    FocusArea::Actions => {
-                        if self.selected_action < 1 {
-                            self.selected_action += 1;
-                        }
-                    }
-                }
+                self.move_selection(1);
             }
 
             if input.key_pressed(egui::Key::Enter) {
-                match self.focus {
-                    FocusArea::DemoList => self.render_selected_demo(),
-                    FocusArea::Actions => {
-                        if self.selected_action == 0 {
-                            self.render_selected_demo();
-                        } else {
-                            self.play_placeholder();
-                        }
+                let _ = self.render_selected_demo();
+            }
+
+            if input.key_pressed(egui::Key::Space) {
+                self.toggle_playback();
+            }
+
+            if input.key_pressed(egui::Key::Escape) {
+                self.stop_playback(true);
+            }
+        });
+    }
+
+    fn draw_demo_list(&mut self, ui: &mut egui::Ui) {
+        let focus = self.focus == FocusArea::DemoList;
+        Self::retro_panel(ui, "DEMOS", focus, |ui| {
+            ui.add_space(2.0);
+            for index in 0..self.demos.len() {
+                let selected = self.selected_demo == index;
+                let available = self.demos[index].overview.is_some();
+                let prefix = if selected { ">" } else { " " };
+                let label = format!("{prefix} {}", self.demos[index].key);
+                let text_color = if !available {
+                    WARNING
+                } else if selected {
+                    BASE_BG
+                } else {
+                    TEXT
+                };
+                let fill = if selected { ACCENT } else { PANEL_BG };
+                let stroke = if selected {
+                    Stroke::new(1.0, ACCENT)
+                } else {
+                    Stroke::new(1.0, BORDER_DIM)
+                };
+
+                let button = egui::Button::new(
+                    RichText::new(label)
+                        .monospace()
+                        .size(14.0)
+                        .color(text_color),
+                )
+                .fill(fill)
+                .stroke(stroke)
+                .min_size(Vec2::new(ui.available_width(), 22.0));
+
+                if ui.add(button).clicked() {
+                    self.focus = FocusArea::DemoList;
+                    if index != self.selected_demo {
+                        self.move_selection(index as isize - self.selected_demo as isize);
                     }
                 }
             }
 
-            if input.key_pressed(egui::Key::Space) {
-                self.play_placeholder();
+            if let Some(error) = &self.selected_demo().error {
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(error)
+                        .monospace()
+                        .color(WARNING)
+                        .size(12.0),
+                );
             }
+        });
+    }
 
-            if input.key_pressed(egui::Key::Escape) {
-                if self.status_line != DEFAULT_STATUS_LINE {
-                    self.status_line = DEFAULT_STATUS_LINE.to_string();
-                } else {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    fn draw_stats_panel(&self, ui: &mut egui::Ui) {
+        let focus = self.focus == FocusArea::Overview;
+        let demo = self.selected_demo();
+        let overview = self.selected_overview();
+        let stats = self.current_stats();
+        let is_playing = self.playback.is_playing();
+
+        Self::retro_panel(ui, "RENDER STATS", focus, |ui| {
+            ui.label(
+                RichText::new(overview.map_or(demo.key.as_str(), |view| view.title.as_str()))
+                    .monospace()
+                    .size(16.0)
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(if is_playing { "STATE  PLAYING" } else { "STATE  IDLE" })
+                    .monospace()
+                    .color(if is_playing { ACCENT } else { TEXT_DIM }),
+            );
+            ui.add_space(4.0);
+
+            egui::Grid::new("runtime_stats_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(14.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label(RichText::new("demo").monospace().color(TEXT_DIM));
+                    ui.label(RichText::new(&demo.key).monospace().color(TEXT));
+                    ui.end_row();
+
+                    ui.label(RichText::new("bpm").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            overview
+                                .map(|value| value.bpm.to_string())
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("swing").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            overview
+                                .map(|value| format!("{}%", value.swing_pct))
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("duration").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| format!("{:.2} ms", value.duration_ms))
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("samples").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| value.sample_count.to_string())
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("clipping").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| value.clipping_count.to_string())
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace()
+                        .color(if stats.is_some_and(|value| value.clipping_count > 0) {
+                            WARNING
+                        } else {
+                            TEXT
+                        }),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("peak").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| value.peak.to_string())
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("checksum").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(
+                            stats
+                                .map(|value| format!("{:016X}", value.checksum))
+                                .unwrap_or_else(|| "--".to_string()),
+                        )
+                        .monospace(),
+                    );
+                    ui.end_row();
+
+                    ui.label(RichText::new("render").monospace().color(TEXT_DIM));
+                    ui.label(
+                        RichText::new(if stats.is_some() { "success" } else { "pending" })
+                            .monospace()
+                            .color(if stats.is_some() { ACCENT } else { TEXT_DIM }),
+                    );
+                    ui.end_row();
+                });
+
+            if let Some(overview) = overview {
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(format!(
+                        "PATTERNS {} • STEPS {} • TRACKS {}",
+                        overview.arrangement.len(),
+                        overview.total_steps,
+                        overview.tracks.len()
+                    ))
+                    .monospace()
+                    .color(TEXT_DIM),
+                );
+                if overview.hidden_track_count > 0 {
+                    ui.label(
+                        RichText::new(format!(
+                            "RENDERER SHOWS FIRST {} TRACKS • {} HIDDEN",
+                            overview.tracks.len(),
+                            overview.hidden_track_count
+                        ))
+                        .monospace()
+                        .color(TEXT_DIM)
+                        .size(12.0),
+                    );
                 }
             }
         });
     }
 
-    fn draw_stats_panel(ui: &mut egui::Ui, stats: Option<AudioRenderStats>) {
-        ui.heading("Render Stats");
-        ui.separator();
+    fn draw_waveform_and_pattern(&self, ui: &mut egui::Ui) {
+        let focus = self.focus == FocusArea::Overview;
+        let render = self.current_render();
+        let overview = self.selected_overview();
 
-        if let Some(stats) = stats {
-            egui::Grid::new("render_stats_grid")
-                .num_columns(2)
-                .spacing(egui::vec2(16.0, 4.0))
-                .show(ui, |ui| {
-                    ui.label("Samples");
-                    ui.label(stats.sample_count.to_string());
-                    ui.end_row();
+        Self::retro_panel(ui, "WAVEFORM / PATTERN OVERVIEW", focus, |ui| {
+            ui.label(
+                RichText::new("PCM MINIMAP")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT_DIM),
+            );
+            Self::draw_waveform_minimap(ui, render.map(|value| value.samples.as_slice()));
+            ui.add_space(6.0);
+            ui.separator();
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new("ARRANGEMENT + STEP ACTIVITY")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT_DIM),
+            );
+            Self::draw_pattern_visualization(ui, overview);
+        });
+    }
 
-                    ui.label("Duration");
-                    ui.label(format!("{:.2} ms", stats.duration_ms));
-                    ui.end_row();
+    fn draw_waveform_minimap(ui: &mut egui::Ui, samples: Option<&[u8]>) {
+        let desired_size = egui::vec2(ui.available_width(), 150.0);
+        let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
+        let rect = response.rect.shrink(4.0);
 
-                    ui.label("Range");
-                    ui.label(format!("{}..{}", stats.min_sample, stats.max_sample));
-                    ui.end_row();
+        painter.rect_filled(rect, 0.0, PANEL_DIM_BG);
+        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, BORDER_DIM));
 
-                    ui.label("Peak");
-                    ui.label(stats.peak.to_string());
-                    ui.end_row();
+        let mid_y = rect.center().y;
+        painter.line_segment(
+            [egui::pos2(rect.left(), mid_y), egui::pos2(rect.right(), mid_y)],
+            Stroke::new(1.0, GRID),
+        );
 
-                    ui.label("Clipping");
-                    ui.label(stats.clipping_count.to_string());
-                    ui.end_row();
+        for fraction in [0.25_f32, 0.5, 0.75] {
+            let x = egui::lerp(rect.left()..=rect.right(), fraction);
+            painter.line_segment(
+                [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+                Stroke::new(1.0, GRID),
+            );
+        }
 
-                    ui.label("Checksum");
-                    ui.label(format!("0x{:016x}", stats.checksum));
-                    ui.end_row();
+        let Some(samples) = samples.filter(|samples| !samples.is_empty()) else {
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                "RENDER TO PREVIEW PCM",
+                FontId::monospace(14.0),
+                TEXT_DIM,
+            );
+            return;
+        };
 
-                    ui.label("Render time");
-                    ui.label(format!("{:.2} ms", stats.render_time_ms));
-                    ui.end_row();
-                });
-        } else {
-            ui.label("No render stats yet.");
+        let columns = rect.width().max(64.0) as usize;
+        let stride = (samples.len() / columns).max(1);
+        let mut upper = Vec::new();
+        let mut lower = Vec::new();
+        let mut clip_markers = Vec::new();
+        let usable_width = (rect.width() - 8.0).max(1.0);
+
+        for (index, chunk) in samples.chunks(stride).take(columns).enumerate() {
+            let x = rect.left() + 4.0 + usable_width * (index as f32 / columns as f32);
+            let mut min_value = 1.0_f32;
+            let mut max_value = -1.0_f32;
+            let mut clipped = false;
+
+            for &sample in chunk {
+                let normalized = (sample as f32 - 128.0) / 128.0;
+                min_value = min_value.min(normalized);
+                max_value = max_value.max(normalized);
+                clipped |= sample == 0 || sample == 255;
+            }
+
+            upper.push(egui::pos2(
+                x,
+                egui::remap(max_value, -1.0..=1.0, rect.bottom()..=rect.top()),
+            ));
+            lower.push(egui::pos2(
+                x,
+                egui::remap(min_value, -1.0..=1.0, rect.bottom()..=rect.top()),
+            ));
+            if clipped {
+                clip_markers.push(x);
+            }
+        }
+
+        painter.add(egui::Shape::line(upper, Stroke::new(1.5, WAVEFORM)));
+        painter.add(egui::Shape::line(lower, Stroke::new(1.5, WAVEFORM)));
+
+        for x in clip_markers {
+            painter.line_segment(
+                [egui::pos2(x, rect.top() + 4.0), egui::pos2(x, rect.top() + 18.0)],
+                Stroke::new(1.5, WARNING),
+            );
         }
     }
 
-    fn draw_waveform_placeholder(ui: &mut egui::Ui, samples: Option<&[u8]>) {
-        ui.heading("Waveform Preview (placeholder)");
-        ui.separator();
+    fn draw_pattern_visualization(ui: &mut egui::Ui, overview: Option<&DemoOverview>) {
+        let Some(overview) = overview else {
+            ui.label(
+                RichText::new("PATTERN DATA NOT AVAILABLE FOR THIS DEMO.")
+                    .monospace()
+                    .color(WARNING),
+            );
+            return;
+        };
 
-        let desired_size = egui::vec2(ui.available_width(), 150.0);
-        let (response, painter) = ui.allocate_painter(desired_size, egui::Sense::hover());
-        let rect = response.rect;
+        if overview.arrangement.is_empty() || overview.tracks.is_empty() {
+            ui.label(
+                RichText::new("NO PATTERN ARRANGEMENT FOUND.")
+                    .monospace()
+                    .color(TEXT_DIM),
+            );
+            return;
+        }
 
-        painter.rect_stroke(
-            rect,
-            0.0,
-            egui::Stroke::new(1.0, egui::Color32::from_gray(80)),
+        let header_height = 26.0;
+        let row_height = 24.0;
+        let desired_height = header_height + row_height * overview.tracks.len() as f32 + 10.0;
+        let (response, painter) = ui.allocate_painter(
+            egui::vec2(ui.available_width(), desired_height.max(120.0)),
+            Sense::hover(),
         );
+        let rect = response.rect.shrink(4.0);
+        let label_width = rect.width().min(220.0).max(150.0);
+        let timeline_rect = egui::Rect::from_min_max(
+            egui::pos2(rect.left() + label_width, rect.top()),
+            egui::pos2(rect.right(), rect.bottom()),
+        );
+        let total_steps = overview.total_steps.max(1) as f32;
 
-        let center_y = rect.center().y;
+        painter.rect_filled(rect, 0.0, PANEL_DIM_BG);
+        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, BORDER_DIM));
         painter.line_segment(
             [
-                egui::pos2(rect.left() + 4.0, center_y),
-                egui::pos2(rect.right() - 4.0, center_y),
+                egui::pos2(timeline_rect.left(), rect.top()),
+                egui::pos2(timeline_rect.left(), rect.bottom()),
             ],
-            egui::Stroke::new(1.0, egui::Color32::from_gray(45)),
+            Stroke::new(1.0, BORDER_DIM),
         );
 
-        if let Some(data) = samples {
-            if !data.is_empty() {
-                let columns = 96usize;
-                let stride = (data.len() / columns).max(1);
-                let mut x = rect.left() + 4.0;
-                let dx = ((rect.width() - 8.0) / columns as f32).max(1.0);
-
-                for chunk in data.chunks(stride).take(columns) {
-                    let mut peak = 0.0_f32;
-                    for &sample in chunk {
-                        let centered = (sample as f32 - 128.0).abs() / 128.0;
-                        if centered > peak {
-                            peak = centered;
-                        }
-                    }
-                    let h = peak * (rect.height() * 0.45);
-                    painter.line_segment(
-                        [egui::pos2(x, center_y - h), egui::pos2(x, center_y + h)],
-                        egui::Stroke::new(1.0, egui::Color32::from_gray(180)),
-                    );
-                    x += dx;
-                }
-            }
-        } else {
+        for block in &overview.arrangement {
+            let x0 = egui::lerp(timeline_rect.left()..=timeline_rect.right(), block.start_step as f32 / total_steps);
+            let x1 = egui::lerp(
+                timeline_rect.left()..=timeline_rect.right(),
+                (block.start_step + block.length) as f32 / total_steps,
+            );
+            let block_rect = egui::Rect::from_min_max(
+                egui::pos2(x0, rect.top()),
+                egui::pos2(x1.max(x0 + 1.0), rect.top() + header_height),
+            );
+            painter.rect_filled(block_rect, 0.0, PANEL_ALT_BG);
+            painter.rect_stroke(block_rect, 0.0, Stroke::new(1.0, BORDER_DIM));
             painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "No waveform yet",
-                egui::FontId::monospace(13.0),
-                egui::Color32::from_gray(110),
+                block_rect.center(),
+                Align2::CENTER_CENTER,
+                &block.label,
+                FontId::monospace(12.0),
+                ACCENT,
             );
         }
+
+        for (track_index, track) in overview.tracks.iter().enumerate() {
+            let row_top = rect.top() + header_height + track_index as f32 * row_height;
+            let row_rect = egui::Rect::from_min_max(
+                egui::pos2(rect.left(), row_top),
+                egui::pos2(rect.right(), row_top + row_height),
+            );
+            let row_fill = if track_index % 2 == 0 { PANEL_DIM_BG } else { PANEL_BG };
+            painter.rect_filled(row_rect, 0.0, row_fill);
+            painter.line_segment(
+                [
+                    egui::pos2(rect.left(), row_rect.bottom()),
+                    egui::pos2(rect.right(), row_rect.bottom()),
+                ],
+                Stroke::new(1.0, GRID),
+            );
+            painter.text(
+                egui::pos2(rect.left() + 6.0, row_rect.center().y),
+                Align2::LEFT_CENTER,
+                format!("{} / {}", track.name, track.instrument),
+                FontId::monospace(12.0),
+                TEXT,
+            );
+
+            for block in &overview.arrangement {
+                let x = egui::lerp(timeline_rect.left()..=timeline_rect.right(), block.start_step as f32 / total_steps);
+                painter.line_segment(
+                    [egui::pos2(x, row_rect.top()), egui::pos2(x, row_rect.bottom())],
+                    Stroke::new(1.0, BORDER_DIM),
+                );
+            }
+
+            for (step_index, active) in track.activity.iter().enumerate() {
+                if !active || step_index >= overview.total_steps {
+                    continue;
+                }
+
+                let x0 = egui::lerp(timeline_rect.left()..=timeline_rect.right(), step_index as f32 / total_steps);
+                let x1 = egui::lerp(
+                    timeline_rect.left()..=timeline_rect.right(),
+                    (step_index + 1) as f32 / total_steps,
+                );
+                let cell_rect = egui::Rect::from_min_max(
+                    egui::pos2(x0 + 0.5, row_rect.top() + 4.0),
+                    egui::pos2((x1 - 1.0).max(x0 + 1.5), row_rect.bottom() - 4.0),
+                );
+                painter.rect_filled(cell_rect, 0.0, ACCENT_SOFT);
+                painter.rect_stroke(cell_rect, 0.0, Stroke::new(1.0, ACCENT));
+            }
+        }
+    }
+
+    fn draw_footer(&self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new("[TAB] FOCUS")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT_DIM),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("[UP/DOWN] SELECT")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT_DIM),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("[ENTER] RENDER")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("[SPACE] PLAY / STOP")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new("[ESC] STOP")
+                    .monospace()
+                    .size(13.0)
+                    .color(TEXT),
+            );
+        });
+    }
+
+    fn retro_panel<R>(
+        ui: &mut egui::Ui,
+        title: &str,
+        focused: bool,
+        add_contents: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
+        let frame = egui::Frame::group(ui.style())
+            .fill(PANEL_BG)
+            .inner_margin(egui::Margin::same(10))
+            .stroke(Stroke::new(if focused { 2.0 } else { 1.0 }, if focused { ACCENT } else { BORDER }));
+
+        frame
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new(title)
+                        .monospace()
+                        .size(14.0)
+                        .strong()
+                        .color(if focused { ACCENT } else { TEXT }),
+                );
+                ui.add_space(6.0);
+                add_contents(ui)
+            })
+            .inner
+    }
+}
+
+impl Drop for MemDeckGuiApp {
+    fn drop(&mut self) {
+        let _ = self.playback.stop();
     }
 }
 
 impl eframe::App for MemDeckGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_playback();
+        self.apply_boot_options();
         self.handle_keyboard(ctx);
 
-        egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("MemDeck GUI Foundation");
-                ui.label("| retro synth render front-end (egui/eframe)");
-            });
-            ui.separator();
-            ui.label("Keys: Up/Down navigate • Enter render/activate • Space play placeholder • Tab focus • Esc reset/quit");
-        });
+        if self.playback.is_playing() {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
 
-        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("Status:");
-                ui.monospace(&self.status_line);
+        egui::TopBottomPanel::top("runtime_header")
+            .exact_height(52.0)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.heading("MEMDECK SOUND MACHINE");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(match self.focus {
+                                FocusArea::DemoList => "FOCUS  DEMOS",
+                                FocusArea::Overview => "FOCUS  OVERVIEW",
+                            })
+                            .monospace()
+                            .color(TEXT_DIM),
+                        );
+                    });
+                });
+                ui.separator();
             });
-        });
+
+        egui::TopBottomPanel::bottom("runtime_footer")
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label(
+                    RichText::new(&self.status_line)
+                        .monospace()
+                        .color(if self.status_line.contains("ERROR") {
+                            WARNING
+                        } else if self.playback.is_playing() {
+                            ACCENT
+                        } else {
+                            TEXT
+                        }),
+                );
+                ui.separator();
+                self.draw_footer(ui);
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.columns(2, |columns| {
-                columns[0].group(|ui| {
-                    let focus_marker = if self.focus == FocusArea::DemoList {
-                        "[FOCUS]"
-                    } else {
-                        ""
-                    };
-                    ui.heading(format!("Demo List {focus_marker}"));
-                    ui.separator();
-
-                    for (idx, demo) in self.demos.iter().enumerate() {
-                        let selected = self.selected_demo == idx;
-                        if ui.selectable_label(selected, demo.name).clicked() {
-                            self.selected_demo = idx;
-                            self.focus = FocusArea::DemoList;
-                        }
-                    }
+            ui.vertical(|ui| {
+                ui.columns(2, |columns| {
+                    self.draw_demo_list(&mut columns[0]);
+                    self.draw_stats_panel(&mut columns[1]);
                 });
-
-                columns[0].add_space(8.0);
-
-                columns[0].group(|ui| {
-                    let focus_marker = if self.focus == FocusArea::Actions {
-                        "[FOCUS]"
-                    } else {
-                        ""
-                    };
-                    ui.heading(format!("Actions {focus_marker}"));
-                    ui.separator();
-
-                    let render_selected = self.selected_action == 0;
-                    let play_selected = self.selected_action == 1;
-
-                    let render_label = if render_selected { "> Render" } else { "Render" };
-                    let play_label = if play_selected { "> Play (placeholder)" } else { "Play (placeholder)" };
-
-                    if ui.button(render_label).clicked() {
-                        self.focus = FocusArea::Actions;
-                        self.selected_action = 0;
-                        self.render_selected_demo();
-                    }
-
-                    if ui.button(play_label).clicked() {
-                        self.focus = FocusArea::Actions;
-                        self.selected_action = 1;
-                        self.play_placeholder();
-                    }
-                });
-
-                columns[1].group(|ui| {
-                    let stats = self
-                        .last_render
-                        .as_ref()
-                        .and_then(|render| render.stats)
-                        .or_else(|| self.audio_engine.get_render_stats());
-                    Self::draw_stats_panel(ui, stats);
-                });
-
-                columns[1].add_space(8.0);
-
-                columns[1].group(|ui| {
-                    let samples = self.last_render.as_ref().map(|render| render.samples.as_slice());
-                    Self::draw_waveform_placeholder(ui, samples);
-                });
+                ui.add_space(8.0);
+                self.draw_waveform_and_pattern(ui);
             });
         });
     }
+}
+
+impl BootOptions {
+    fn from_env() -> Self {
+        Self {
+            demo_key: env::var("MEMDECK_GUI_BOOT_DEMO").ok(),
+            auto_render: env_flag("MEMDECK_GUI_BOOT_RENDER"),
+            focus: match env::var("MEMDECK_GUI_BOOT_FOCUS").ok().as_deref() {
+                Some("overview") => Some(FocusArea::Overview),
+                Some("demos") => Some(FocusArea::DemoList),
+                _ => None,
+            },
+        }
+    }
+}
+
+fn env_flag(name: &str) -> bool {
+    env::var(name)
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
 }

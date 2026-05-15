@@ -1,19 +1,22 @@
 mod app;
 mod audio_engine;
 mod ffi;
+mod playback;
 
 use app::MemDeckGuiApp;
 
 fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Glow,
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([1100.0, 700.0])
-            .with_title("MemDeck GUI Foundation"),
+            .with_inner_size([1200.0, 760.0])
+            .with_min_inner_size([960.0, 640.0])
+            .with_title("MEMDECK SOUND MACHINE"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "MemDeck GUI Foundation",
+        "MEMDECK SOUND MACHINE",
         native_options,
         Box::new(|cc| {
             MemDeckGuiApp::configure_visuals(&cc.egui_ctx);
