@@ -96,7 +96,7 @@ impl MemDeckGuiApp {
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = egui::vec2(8.0, 8.0);
         style.spacing.button_padding = egui::vec2(8.0, 4.0);
-        style.spacing.window_margin = egui::Margin::same(10);
+        style.spacing.window_margin = egui::Margin::same(10.0);
         style.visuals.window_stroke = Stroke::new(1.0, BORDER);
         style.text_styles = [
             (TextStyle::Heading, FontId::monospace(21.0)),
@@ -756,7 +756,7 @@ impl MemDeckGuiApp {
     ) -> R {
         let frame = egui::Frame::group(ui.style())
             .fill(PANEL_BG)
-            .inner_margin(egui::Margin::same(10))
+            .inner_margin(egui::Margin::same(10.0))
             .stroke(Stroke::new(if focused { 2.0 } else { 1.0 }, if focused { ACCENT } else { BORDER }));
 
         frame

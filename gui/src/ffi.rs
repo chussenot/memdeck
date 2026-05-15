@@ -70,7 +70,7 @@ struct AbcFxBus {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct AbcVoice {
     name: [c_char; 32],
     instrument_ref: [c_char; 32],
@@ -92,7 +92,7 @@ struct AbcVoice {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 struct AbcMusic {
     title: [c_char; 128],
     bpm: c_int,
@@ -115,6 +115,58 @@ struct AbcMusic {
     fx_sidechain_release_ms: c_int,
     voices: [AbcVoice; ABC_MAX_VOICES],
     voice_count: c_int,
+}
+
+impl Default for AbcVoice {
+    fn default() -> Self {
+        Self {
+            name: [0; 32],
+            instrument_ref: [0; 32],
+            amplitude: 0,
+            staccato: 0,
+            waveform: 0,
+            duty_cycle: 0,
+            attack_ms: 0,
+            decay_ms: 0,
+            sustain_level: 0,
+            release_ms: 0,
+            gate_percent: 0,
+            vibrato_cents: 0,
+            vibrato_rate: 0,
+            glide_ms: 0,
+            fx_bus: 0,
+            freqs: [0.0; ABC_MAX_NOTES],
+            note_count: 0,
+        }
+    }
+}
+
+impl Default for AbcMusic {
+    fn default() -> Self {
+        Self {
+            title: [0; 128],
+            bpm: 0,
+            step_ms: 0,
+            swing_pct: 0,
+            instruments: [AbcInstrument::default(); ABC_MAX_INSTRUMENTS],
+            instrument_count: 0,
+            patterns: [AbcPatternDef::default(); ABC_MAX_PATTERNS],
+            pattern_count: 0,
+            arrangement: [[0; 32]; ABC_MAX_ARRANGEMENT],
+            arrangement_length: 0,
+            fx_buses: [AbcFxBus::default(); ABC_MAX_FX_BUSES],
+            fx_bus_count: 0,
+            fx_delay_steps: 0,
+            fx_delay_feedback: 0,
+            fx_delay_mix: 0,
+            fx_drive_amount: 0,
+            fx_lowpass_amount: 0,
+            fx_sidechain_amount: 0,
+            fx_sidechain_release_ms: 0,
+            voices: [AbcVoice::default(); ABC_MAX_VOICES],
+            voice_count: 0,
+        }
+    }
 }
 
 unsafe extern "C" {
