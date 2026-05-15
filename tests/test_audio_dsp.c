@@ -213,6 +213,54 @@ static void test_stepper_sum(void)
     check_int("stepper_sum64", total, dsp_total_samples_for_steps(SAMPLE_RATE, 125, 64));
 }
 
+/* ─── 11. ADSR progression + gate/release ────────────────────── */
+
+static void test_adsr_progression(void)
+{
+    DspEnvelope env = { 10, 10, 50, 10, 50 };
+    DspEnvelopeRuntime rt;
+    int attack_samples = dsp_samples_from_ms(SAMPLE_RATE, env.attack_ms);
+    int decay_samples = dsp_samples_from_ms(SAMPLE_RATE, env.decay_ms);
+    int release_samples = dsp_samples_from_ms(SAMPLE_RATE, env.release_ms);
+    int gate_samples = dsp_samples_from_ms(SAMPLE_RATE, 40);
+    int v = 0;
+
+    dsp_envelope_init(&rt, &env, SAMPLE_RATE, gate_samples);
+    check_int("adsr_attack_phase_start", rt.phase, DSP_ENV_ATTACK);
+
+    for (int i = 0; i < attack_samples; i++)
+        v = dsp_envelope_next_q15(&rt);
+    check_int("adsr_attack_peak", v, 32767);
+    check_int("adsr_decay_phase_after_attack", rt.phase, DSP_ENV_DECAY);
+
+    for (int i = 0; i < decay_samples; i++)
+        v = dsp_envelope_next_q15(&rt);
+    check_int("adsr_sustain_level", v, (50 * 32767) / 100);
+
+    for (int i = attack_samples + decay_samples; i < gate_samples + release_samples + 4; i++)
+        v = dsp_envelope_next_q15(&rt);
+    check_int("adsr_released_to_zero", v, 0);
+    check_int("adsr_idle_after_release", rt.phase, DSP_ENV_IDLE);
+}
+
+static void test_adsr_note_off(void)
+{
+    DspEnvelope env = { 0, 0, 80, 10, 100 };
+    DspEnvelopeRuntime rt;
+    int release_samples = dsp_samples_from_ms(SAMPLE_RATE, env.release_ms);
+    int v = 0;
+
+    dsp_envelope_init(&rt, &env, SAMPLE_RATE, dsp_samples_from_ms(SAMPLE_RATE, 200));
+    for (int i = 0; i < 16; i++)
+        v = dsp_envelope_next_q15(&rt);
+    check_int("adsr_manual_off_pre_level", v, (80 * 32767) / 100);
+    dsp_envelope_note_off(&rt);
+    check_int("adsr_manual_off_phase", rt.phase, DSP_ENV_RELEASE);
+    for (int i = 0; i < release_samples + 2; i++)
+        v = dsp_envelope_next_q15(&rt);
+    check_int("adsr_manual_off_zero", v, 0);
+}
+
 /* ─── main ───────────────────────────────────────────────────── */
 
 int main(void)
@@ -229,6 +277,8 @@ int main(void)
     test_noise_wave();
     test_stepper();
     test_stepper_sum();
+    test_adsr_progression();
+    test_adsr_note_off();
 
     printf("Audio DSP regression: %d failure(s)\n", g_fails);
     printf("%s\n", g_fails == 0 ? "All tests passed." : "Some tests FAILED.");

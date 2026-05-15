@@ -17,6 +17,13 @@ static uint32_t u32_from_fraction(double x)
     return (uint32_t)(x * DSP_PHASE_MAX_U32);
 }
 
+static int clampi(int value, int lo, int hi)
+{
+    if (value < lo) return lo;
+    if (value > hi) return hi;
+    return value;
+}
+
 void dsp_osc_init(DspOscillator *osc, DspWaveform waveform, int amplitude)
 {
     memset(osc, 0, sizeof(*osc));
@@ -73,6 +80,103 @@ int dsp_osc_next(DspOscillator *osc)
 
     osc->phase += osc->increment;
     return sample;
+}
+
+void dsp_envelope_init(DspEnvelopeRuntime *runtime, const DspEnvelope *env,
+                       int sample_rate, int gate_samples)
+{
+    if (!runtime) return;
+    memset(runtime, 0, sizeof(*runtime));
+    runtime->sample_rate = sample_rate;
+    if (env) runtime->env = *env;
+    runtime->env.sustain_level = clampi(runtime->env.sustain_level, 0, 100);
+    runtime->env.gate_percent = clampi(runtime->env.gate_percent, 1, 100);
+    runtime->attack_samples = dsp_samples_from_ms(sample_rate, runtime->env.attack_ms);
+    runtime->decay_samples = dsp_samples_from_ms(sample_rate, runtime->env.decay_ms);
+    runtime->release_samples = dsp_samples_from_ms(sample_rate, runtime->env.release_ms);
+    runtime->gate_samples = gate_samples > 0 ? gate_samples : 1;
+    runtime->phase = DSP_ENV_ATTACK;
+}
+
+void dsp_envelope_note_off(DspEnvelopeRuntime *runtime)
+{
+    if (!runtime || runtime->phase == DSP_ENV_IDLE || runtime->phase == DSP_ENV_RELEASE)
+        return;
+    runtime->phase = DSP_ENV_RELEASE;
+    runtime->phase_progress = 0;
+    runtime->release_start_q15 = runtime->level_q15;
+}
+
+int dsp_envelope_next_q15(DspEnvelopeRuntime *runtime)
+{
+    int sustain_q15;
+    if (!runtime) return 0;
+    sustain_q15 = (runtime->env.sustain_level * 32767) / 100;
+
+    if (runtime->phase != DSP_ENV_IDLE) {
+        runtime->gate_progress++;
+        if (runtime->gate_progress >= runtime->gate_samples)
+            dsp_envelope_note_off(runtime);
+    }
+
+    switch (runtime->phase) {
+        case DSP_ENV_IDLE:
+            runtime->level_q15 = 0;
+            break;
+        case DSP_ENV_ATTACK:
+            if (runtime->attack_samples <= 0) {
+                runtime->level_q15 = 32767;
+                runtime->phase = DSP_ENV_DECAY;
+                runtime->phase_progress = 0;
+            } else {
+                runtime->phase_progress++;
+                runtime->level_q15 = (runtime->phase_progress * 32767) / runtime->attack_samples;
+                if (runtime->phase_progress >= runtime->attack_samples) {
+                    runtime->level_q15 = 32767;
+                    runtime->phase = DSP_ENV_DECAY;
+                    runtime->phase_progress = 0;
+                }
+            }
+            break;
+        case DSP_ENV_DECAY:
+            if (runtime->decay_samples <= 0) {
+                runtime->level_q15 = sustain_q15;
+                runtime->phase = DSP_ENV_SUSTAIN;
+                runtime->phase_progress = 0;
+            } else {
+                int delta = 32767 - sustain_q15;
+                runtime->phase_progress++;
+                runtime->level_q15 = 32767 - (runtime->phase_progress * delta) / runtime->decay_samples;
+                if (runtime->phase_progress >= runtime->decay_samples) {
+                    runtime->level_q15 = sustain_q15;
+                    runtime->phase = DSP_ENV_SUSTAIN;
+                    runtime->phase_progress = 0;
+                }
+            }
+            break;
+        case DSP_ENV_SUSTAIN:
+            runtime->level_q15 = sustain_q15;
+            break;
+        case DSP_ENV_RELEASE:
+            if (runtime->release_samples <= 0) {
+                runtime->level_q15 = 0;
+                runtime->phase = DSP_ENV_IDLE;
+                runtime->phase_progress = 0;
+            } else {
+                runtime->phase_progress++;
+                runtime->level_q15 = runtime->release_start_q15 -
+                    (runtime->phase_progress * runtime->release_start_q15) / runtime->release_samples;
+                if (runtime->phase_progress >= runtime->release_samples) {
+                    runtime->level_q15 = 0;
+                    runtime->phase = DSP_ENV_IDLE;
+                    runtime->phase_progress = 0;
+                }
+            }
+            break;
+    }
+
+    runtime->level_q15 = clampi(runtime->level_q15, 0, 32767);
+    return runtime->level_q15;
 }
 
 void dsp_stepper_init(DspSampleStepper *stepper, int sample_rate, int step_ms)

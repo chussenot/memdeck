@@ -1,11 +1,12 @@
 #include "memdeck.h"
 #include "audio_dsp.h"
+#include <math.h>
 
 /*
  * Minimal ABC notation parser for the MemDeck chiptune engine.
  *
  * Supports:
- *   - Header fields: X, T, M, L, Q, K, V (with amp= and staccato directives)
+ *   - Header fields: X, T, M, L, Q, K, V (with amp/wave/duty/ADSR/vibrato/glide directives)
  *   - Notes: C-B (octave 4), c-b (octave 5), with , (down) and ' (up) modifiers
  *   - Accidentals: ^ (sharp), _ (flat), = (natural)
  *   - Rests: z
@@ -97,11 +98,34 @@ static int parse_waveform_name(const char *s)
     return DSP_WAVE_SQUARE;
 }
 
+static int tri_lfo_q15(uint32_t *phase, int rate_mhz)
+{
+    uint64_t increment;
+    uint32_t p;
+    int tri;
+
+    if (rate_mhz <= 0) return 0;
+    increment = ((uint64_t)rate_mhz << 32) / ((uint64_t)SAMPLE_RATE_ABC * 1000ull);
+    *phase += (uint32_t)increment;
+    p = *phase >> 16;
+    tri = (*phase & 0x80000000u)
+        ? (int)(65535u - ((p & 0x7fffu) << 1))
+        : (int)((p & 0x7fffu) << 1);
+    return tri - 32768;
+}
+
 static void parse_voice_directives(AbcVoice *v, const char *val)
 {
     const char *amp = strstr(val, "amp=");
     const char *wave = strstr(val, "wave=");
     const char *duty = strstr(val, "duty=");
+    const char *attack = strstr(val, "attack=");
+    const char *decay = strstr(val, "decay=");
+    const char *sustain = strstr(val, "sustain=");
+    const char *release = strstr(val, "release=");
+    const char *gate = strstr(val, "gate=");
+    const char *vibrato = strstr(val, "vibrato=");
+    const char *glide = strstr(val, "glide=");
 
     if (amp) v->amplitude = atoi(amp + 4);
     if (strstr(val, "staccato")) v->staccato = 1;
@@ -112,6 +136,21 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
         if (pct > 99) pct = 99;
         v->duty_cycle = pct;
     }
+    if (attack) v->attack_ms = atoi(attack + 7);
+    if (decay) v->decay_ms = atoi(decay + 6);
+    if (sustain) v->sustain_level = atoi(sustain + 8);
+    if (release) v->release_ms = atoi(release + 8);
+    if (gate) v->gate_percent = atoi(gate + 5);
+    if (vibrato) {
+        v->vibrato_cents = atoi(vibrato + 8);
+        if (v->vibrato_rate <= 0) v->vibrato_rate = 5500;
+    }
+    if (glide) v->glide_ms = atoi(glide + 6);
+
+    if (v->sustain_level < 0) v->sustain_level = 0;
+    if (v->sustain_level > 100) v->sustain_level = 100;
+    if (v->gate_percent < 1) v->gate_percent = 1;
+    if (v->gate_percent > 100) v->gate_percent = 100;
 }
 
 /* ─── Parser state ───────────────────────────────────────────── */
@@ -303,9 +342,13 @@ static void compile_render_timeline(const AbcMusic *music, int max_steps,
                 continue;
 
             entry->freq = voice->freqs[step];
-            entry->note_end = voice->staccato
-                ? (step_samples[step] * 3) / 4
-                : (step_samples[step] * 9) / 10;
+            if (voice->gate_percent > 0) {
+                entry->note_end = (step_samples[step] * voice->gate_percent) / 100;
+            } else {
+                entry->note_end = voice->staccato
+                    ? (step_samples[step] * 3) / 4
+                    : (step_samples[step] * 9) / 10;
+            }
             entry->active = 1;
             if (step > 0 &&
                 step - 1 < voice->note_count &&
@@ -407,6 +450,14 @@ int abc_load(const char *path, AbcMusic *music)
                         v->staccato = 0;
                         v->waveform = DSP_WAVE_SQUARE;
                         v->duty_cycle = 25;
+                        v->attack_ms = 0;
+                        v->decay_ms = 0;
+                        v->sustain_level = 100;
+                        v->release_ms = 0;
+                        v->gate_percent = 90;
+                        v->vibrato_cents = 0;
+                        v->vibrato_rate = 5500;
+                        v->glide_ms = 0;
                     }
 
                     /* parse voice directives: amp=N, staccato */
@@ -436,6 +487,14 @@ int abc_load(const char *path, AbcMusic *music)
                 v->staccato = 0;
                 v->waveform = DSP_WAVE_SQUARE;
                 v->duty_cycle = 25;
+                v->attack_ms = 0;
+                v->decay_ms = 0;
+                v->sustain_level = 100;
+                v->release_ms = 0;
+                v->gate_percent = 90;
+                v->vibrato_cents = 0;
+                v->vibrato_rate = 5500;
+                v->glide_ms = 0;
 
                 parse_voice_directives(v, val);
             }
@@ -455,6 +514,14 @@ int abc_load(const char *path, AbcMusic *music)
                 v->amplitude = 40;
                 v->waveform = DSP_WAVE_SQUARE;
                 v->duty_cycle = 25;
+                v->attack_ms = 0;
+                v->decay_ms = 0;
+                v->sustain_level = 100;
+                v->release_ms = 0;
+                v->gate_percent = 90;
+                v->vibrato_cents = 0;
+                v->vibrato_rate = 5500;
+                v->glide_ms = 0;
             } else {
                 current_voice = 0;
             }
@@ -571,6 +638,15 @@ int abc_load_voices(const char *paths[], int path_count, AbcMusic *music)
 
 unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
 {
+    DspOscillator oscs[ABC_MAX_VOICES];
+    DspEnvelopeRuntime envs[ABC_MAX_VOICES];
+    uint32_t vibrato_phase[ABC_MAX_VOICES] = {0};
+    double current_freq[ABC_MAX_VOICES] = {0.0};
+    double target_freq[ABC_MAX_VOICES] = {0.0};
+    double glide_step[ABC_MAX_VOICES] = {0.0};
+    int glide_remaining[ABC_MAX_VOICES] = {0};
+    int osc_ready[ABC_MAX_VOICES] = {0};
+
     if (music->voice_count == 0) return NULL;
 
     /* find the longest voice (in steps) */
@@ -588,8 +664,6 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
     memset(buf, 128, total_samples);
     int step_samples[ABC_MAX_NOTES];
     AbcRenderVoice timeline[ABC_MAX_VOICES];
-    DspOscillator oscs[ABC_MAX_VOICES];
-    int osc_ready[ABC_MAX_VOICES] = {0};
     compile_render_timeline(music, max_steps, step_samples, timeline);
     int base = 0;
 
@@ -605,11 +679,33 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
             }
 
             DspWaveform wf = sanitize_waveform(voice->waveform);
-            if (!osc_ready[v] || !entry->reuse_prev) {
+            if (!osc_ready[v] || !entry->reuse_prev || voice->glide_ms <= 0) {
+                DspEnvelope env = {
+                    .attack_ms = voice->attack_ms,
+                    .decay_ms = voice->decay_ms,
+                    .sustain_level = voice->sustain_level,
+                    .release_ms = voice->release_ms,
+                    .gate_percent = voice->gate_percent > 0 ? voice->gate_percent : 90
+                };
+                int gate_samples = entry->note_end > 0 ? entry->note_end : samples_this_step;
+
                 dsp_osc_init(&oscs[v], wf, voice->amplitude);
-                dsp_osc_set_frequency(&oscs[v], entry->freq, SAMPLE_RATE_ABC);
                 if (wf == DSP_WAVE_PULSE)
                     dsp_osc_set_pulse_width_percent(&oscs[v], voice->duty_cycle);
+                target_freq[v] = entry->freq;
+                if (voice->glide_ms > 0 && current_freq[v] > 0.0) {
+                    int glide_samples = dsp_samples_from_ms(SAMPLE_RATE_ABC, voice->glide_ms);
+                    glide_remaining[v] = glide_samples;
+                    glide_step[v] = glide_samples > 0
+                        ? (target_freq[v] - current_freq[v]) / (double)glide_samples
+                        : 0.0;
+                } else {
+                    current_freq[v] = target_freq[v];
+                    glide_remaining[v] = 0;
+                    glide_step[v] = 0.0;
+                }
+                dsp_osc_set_frequency(&oscs[v], current_freq[v], SAMPLE_RATE_ABC);
+                dsp_envelope_init(&envs[v], &env, SAMPLE_RATE_ABC, gate_samples);
                 osc_ready[v] = 1;
             }
         }
@@ -619,8 +715,26 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
 
             for (int v = 0; v < music->voice_count; v++) {
                 const AbcRenderStep *entry = &timeline[v].steps[step];
+                const AbcVoice *voice = &music->voices[v];
+                int env_q15;
+                int vibrato_cents;
+                double f;
                 if (!entry->active || i >= entry->note_end) continue;
-                val += dsp_osc_next(&oscs[v]);
+
+                if (glide_remaining[v] > 0) {
+                    current_freq[v] += glide_step[v];
+                    glide_remaining[v]--;
+                    if (glide_remaining[v] <= 0)
+                        current_freq[v] = target_freq[v];
+                }
+
+                vibrato_cents = (voice->vibrato_cents * tri_lfo_q15(&vibrato_phase[v], voice->vibrato_rate)) / 32767;
+                f = current_freq[v] * pow(2.0, (double)vibrato_cents / 1200.0);
+                dsp_osc_set_frequency(&oscs[v], f, SAMPLE_RATE_ABC);
+
+                env_q15 = dsp_envelope_next_q15(&envs[v]);
+                if (envs[v].phase == DSP_ENV_IDLE) continue;
+                val += (dsp_osc_next(&oscs[v]) * env_q15) / 32767;
             }
 
             buf[base + i] = (unsigned char)dsp_clamp_u8(val);

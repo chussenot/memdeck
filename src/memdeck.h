@@ -265,6 +265,14 @@ typedef struct {
     int staccato;         /* 1 = staccato (3/4 length), 0 = legato (9/10 length) */
     int waveform;         /* 0=square, 1=pulse, 2=triangle, 3=noise */
     int duty_cycle;       /* pulse duty cycle percent (1-99), ignored otherwise */
+    int attack_ms;
+    int decay_ms;
+    int sustain_level;
+    int release_ms;
+    int gate_percent;
+    int vibrato_cents;
+    int vibrato_rate;
+    int glide_ms;
     double freqs[ABC_MAX_NOTES]; /* frequency per step (0 = rest) */
     int note_count;
 } AbcVoice;
