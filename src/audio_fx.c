@@ -22,10 +22,12 @@ static int clamp_sample(int value, int limit)
 
 int audio_fx_delay_samples_from_steps(int sample_rate, int tempo_bpm, int steps_per_beat, int delay_steps)
 {
+    int denom;
     int step_samples;
     if (sample_rate <= 0 || tempo_bpm <= 0 || steps_per_beat <= 0 || delay_steps <= 0)
         return 0;
-    step_samples = (sample_rate * 60 + (tempo_bpm * steps_per_beat) / 2) / (tempo_bpm * steps_per_beat);
+    denom = tempo_bpm * steps_per_beat;
+    step_samples = (sample_rate * 60 + denom / 2) / denom;
     if (step_samples <= 0) return 0;
     return step_samples * delay_steps;
 }
