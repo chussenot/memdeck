@@ -7,7 +7,8 @@
 | `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
 | `Enter` | Render selected demo |
 | `Space` | Start or stop playback |
-| `Tab` | Cycle focus across all panels |
+| `Tab` | Cycle focus forward across all panels |
+| `Shift+Tab` | Cycle focus backward across all panels |
 | `Esc` | Stop playback |
 
 ## Direct panel focus
