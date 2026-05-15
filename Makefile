@@ -12,7 +12,7 @@ TEST_SEQ_BIN = bin/test-audio-seq
 RENDER_DEMOS_BIN = bin/render-demos
 PLAY_DEMO_BIN = bin/play-demo
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo gui-check gui-test gui-run help
 
 .DEFAULT_GOAL := help
 
@@ -110,6 +110,15 @@ $(PLAY_DEMO_BIN): tests/play_demo.c src/abc.c src/audio_mix.c src/audio_seq.c sr
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ tests/play_demo.c src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c $(LDFLAGS)
 
+gui-check:
+	cargo check --manifest-path gui/Cargo.toml
+
+gui-test:
+	cargo test --manifest-path gui/Cargo.toml
+
+gui-run:
+	cargo run --manifest-path gui/Cargo.toml
+
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
 	@echo ""
@@ -127,4 +136,7 @@ help:
 	@echo "  bench-audio Build and run audio microbenchmark"
 	@echo "  render-demos Render showcase ABC demos and print deterministic metrics"
 	@echo "  play-demo DEMO=name [WAV=1] Render a single demo and optionally export WAV"
+	@echo "  gui-check  Run cargo check for the GUI crate"
+	@echo "  gui-test   Run cargo test for the GUI crate"
+	@echo "  gui-run    Run the GUI crate"
 	@echo "  help       Show this help message (default)"

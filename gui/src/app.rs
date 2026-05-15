@@ -5,7 +5,7 @@ use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Stroke, TextS
 
 use crate::audio_engine::{DemoEntry, DemoOverview, GuiAudioEngine, RenderState};
 use crate::ffi::AudioRenderStats;
-use crate::playback::PlaybackController;
+use crate::playback::{PlaybackController, PlaybackState};
 
 const DEFAULT_STATUS_LINE: &str = "READY. SELECT A DEMO AND PRESS ENTER TO RENDER.";
 const BASE_BG: Color32 = Color32::from_rgb(10, 12, 10);
@@ -35,14 +35,20 @@ struct BootOptions {
     focus: Option<FocusArea>,
 }
 
+struct RuntimeState {
+    selected_demo: usize,
+    loaded_metadata: Option<DemoOverview>,
+    rendered_audio: Option<RenderState>,
+    focus: FocusArea,
+    last_error: Option<String>,
+}
+
 pub struct MemDeckGuiApp {
     audio_engine: GuiAudioEngine,
     playback: PlaybackController,
     demos: Vec<DemoEntry>,
-    selected_demo: usize,
-    focus: FocusArea,
     status_line: String,
-    last_render: Option<RenderState>,
+    runtime: RuntimeState,
     boot_options: BootOptions,
     boot_applied: bool,
 }
@@ -57,15 +63,26 @@ impl Default for MemDeckGuiApp {
             .as_deref()
             .and_then(|demo_key| demos.iter().position(|demo| demo.key == demo_key))
             .unwrap_or(0);
+        let loaded_metadata = demos.get(selected_demo).and_then(|demo| demo.overview.clone());
+        let mut status_line = DEFAULT_STATUS_LINE.to_string();
+        let mut last_error = None;
+        if let Some(error) = demos.get(selected_demo).and_then(|demo| demo.error.clone()) {
+            status_line = format!("DEMO ERROR • {error}");
+            last_error = Some(error);
+        }
 
         Self {
             audio_engine,
             playback: PlaybackController::default(),
             demos,
-            selected_demo,
-            focus: boot_options.focus.unwrap_or(FocusArea::DemoList),
-            status_line: DEFAULT_STATUS_LINE.to_string(),
-            last_render: None,
+            status_line,
+            runtime: RuntimeState {
+                selected_demo,
+                loaded_metadata,
+                rendered_audio: None,
+                focus: boot_options.focus.unwrap_or(FocusArea::DemoList),
+                last_error,
+            },
             boot_options,
             boot_applied: false,
         }
@@ -111,15 +128,16 @@ impl MemDeckGuiApp {
     }
 
     fn selected_demo(&self) -> &DemoEntry {
-        &self.demos[self.selected_demo]
+        &self.demos[self.runtime.selected_demo]
     }
 
     fn selected_overview(&self) -> Option<&DemoOverview> {
-        self.selected_demo().overview.as_ref()
+        self.runtime.loaded_metadata.as_ref()
     }
 
     fn current_render(&self) -> Option<&RenderState> {
-        self.last_render
+        self.runtime
+            .rendered_audio
             .as_ref()
             .filter(|render| render.demo_key == self.selected_demo().key)
     }
@@ -145,15 +163,22 @@ impl MemDeckGuiApp {
             return;
         }
 
-        let next = (self.selected_demo as isize + delta)
+        let next = (self.runtime.selected_demo as isize + delta)
             .clamp(0, self.demos.len().saturating_sub(1) as isize) as usize;
-        if next == self.selected_demo {
+        if next == self.runtime.selected_demo {
             return;
         }
 
         self.stop_playback(false);
-        self.selected_demo = next;
-        self.status_line = format!("SELECTED {}.", self.selected_demo().key.to_uppercase());
+        self.runtime.selected_demo = next;
+        self.runtime.loaded_metadata = self.selected_demo().overview.clone();
+        if let Some(error) = self.selected_demo().error.clone() {
+            self.runtime.last_error = Some(error.clone());
+            self.status_line = format!("DEMO ERROR • {error}");
+        } else {
+            self.runtime.last_error = None;
+            self.status_line = format!("SELECTED {}.", self.selected_demo().key.to_uppercase());
+        }
     }
 
     fn render_selected_demo(&mut self) -> Result<(), String> {
@@ -164,7 +189,8 @@ impl MemDeckGuiApp {
             Ok(render) => {
                 let sample_count = render.samples.len();
                 let stats = render.stats;
-                self.last_render = Some(render);
+                self.runtime.rendered_audio = Some(render);
+                self.runtime.last_error = None;
                 self.status_line = if let Some(stats) = stats {
                     format!(
                         "RENDER OK • {} • {} SAMPLES • CHECKSUM {:016X}",
@@ -183,14 +209,16 @@ impl MemDeckGuiApp {
             }
             Err(error) => {
                 if self
-                    .last_render
+                    .runtime
+                    .rendered_audio
                     .as_ref()
                     .is_some_and(|render| render.demo_key == demo.key)
                 {
-                    self.last_render = None;
+                    self.runtime.rendered_audio = None;
                 }
                 let message = format!("RENDER ERROR • {} • {error}", demo.key.to_uppercase());
                 self.status_line = message.clone();
+                self.runtime.last_error = Some(message.clone());
                 Err(message)
             }
         }
@@ -212,6 +240,7 @@ impl MemDeckGuiApp {
 
         if let Err(error) = self.ensure_render_for_selected() {
             self.status_line = error;
+            self.runtime.last_error = Some(self.status_line.clone());
             return;
         }
 
@@ -223,15 +252,18 @@ impl MemDeckGuiApp {
 
         if samples.is_empty() {
             self.status_line = format!("PLAYBACK ERROR • {} HAS NO PCM.", demo_name.to_uppercase());
+            self.runtime.last_error = Some(self.status_line.clone());
             return;
         }
 
-        match self.playback.start(&samples) {
+        match self.playback.start_pcm(&samples) {
             Ok(()) => {
                 self.status_line = format!("PLAYING • {}", demo_name.to_uppercase());
+                self.runtime.last_error = None;
             }
             Err(error) => {
                 self.status_line = format!("PLAYBACK ERROR • {error}");
+                self.runtime.last_error = Some(self.status_line.clone());
             }
         }
     }
@@ -240,10 +272,12 @@ impl MemDeckGuiApp {
         match self.playback.stop() {
             Ok(true) if update_status => {
                 self.status_line = "STOPPED PLAYBACK.".to_string();
+                self.runtime.last_error = None;
             }
             Ok(_) => {}
             Err(error) if update_status => {
                 self.status_line = format!("STOP ERROR • {error}");
+                self.runtime.last_error = Some(self.status_line.clone());
             }
             Err(_) => {}
         }
@@ -255,13 +289,17 @@ impl MemDeckGuiApp {
                 Ok(()) => "PLAYBACK FINISHED.".to_string(),
                 Err(error) => format!("PLAYBACK ERROR • {error}"),
             };
+            self.runtime.last_error = match self.playback.state() {
+                PlaybackState::Error(message) => Some(message.clone()),
+                _ => None,
+            };
         }
     }
 
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
             if input.key_pressed(egui::Key::Tab) {
-                self.focus = match self.focus {
+                self.runtime.focus = match self.runtime.focus {
                     FocusArea::DemoList => FocusArea::Overview,
                     FocusArea::Overview => FocusArea::DemoList,
                 };
@@ -290,11 +328,11 @@ impl MemDeckGuiApp {
     }
 
     fn draw_demo_list(&mut self, ui: &mut egui::Ui) {
-        let focus = self.focus == FocusArea::DemoList;
+        let focus = self.runtime.focus == FocusArea::DemoList;
         Self::retro_panel(ui, "DEMOS", focus, |ui| {
             ui.add_space(2.0);
             for index in 0..self.demos.len() {
-                let selected = self.selected_demo == index;
+                let selected = self.runtime.selected_demo == index;
                 let available = self.demos[index].overview.is_some();
                 let prefix = if selected { ">" } else { " " };
                 let label = format!("{prefix} {}", self.demos[index].key);
@@ -323,9 +361,9 @@ impl MemDeckGuiApp {
                 .min_size(Vec2::new(ui.available_width(), 22.0));
 
                 if ui.add(button).clicked() {
-                    self.focus = FocusArea::DemoList;
-                    if index != self.selected_demo {
-                        self.move_selection(index as isize - self.selected_demo as isize);
+                    self.runtime.focus = FocusArea::DemoList;
+                    if index != self.runtime.selected_demo {
+                        self.move_selection(index as isize - self.runtime.selected_demo as isize);
                     }
                 }
             }
@@ -343,11 +381,11 @@ impl MemDeckGuiApp {
     }
 
     fn draw_stats_panel(&self, ui: &mut egui::Ui) {
-        let focus = self.focus == FocusArea::Overview;
+        let focus = self.runtime.focus == FocusArea::Overview;
         let demo = self.selected_demo();
         let overview = self.selected_overview();
         let stats = self.current_stats();
-        let is_playing = self.playback.is_playing();
+        let is_playing = matches!(self.playback.state(), PlaybackState::Playing);
 
         Self::retro_panel(ui, "RENDER STATS", focus, |ui| {
             ui.label(
@@ -491,7 +529,7 @@ impl MemDeckGuiApp {
     }
 
     fn draw_waveform_and_pattern(&self, ui: &mut egui::Ui) {
-        let focus = self.focus == FocusArea::Overview;
+        let focus = self.runtime.focus == FocusArea::Overview;
         let render = self.current_render();
         let overview = self.selected_overview();
 
@@ -798,7 +836,7 @@ impl eframe::App for MemDeckGuiApp {
                     ui.heading("MEMDECK SOUND MACHINE");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            RichText::new(match self.focus {
+                            RichText::new(match self.runtime.focus {
                                 FocusArea::DemoList => "FOCUS  DEMOS",
                                 FocusArea::Overview => "FOCUS  OVERVIEW",
                             })
@@ -816,7 +854,7 @@ impl eframe::App for MemDeckGuiApp {
                 ui.label(
                     RichText::new(&self.status_line)
                         .monospace()
-                        .color(if self.status_line.contains("ERROR") {
+                        .color(if self.runtime.last_error.is_some() {
                             WARNING
                         } else if self.playback.is_playing() {
                             ACCENT
