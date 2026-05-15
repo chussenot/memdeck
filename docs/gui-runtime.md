@@ -1,66 +1,57 @@
 # MemDeck GUI Runtime
 
-MemDeck's Rust GUI is a thin runtime shell over the existing C renderer. It stays read-only and keeps the C engine as the source of truth for demo parsing, sequencing, mixing, FX, and deterministic PCM generation.
+MemDeck's Rust GUI is a read-only runtime shell over the existing C renderer. It keeps the C engine as the source of truth for parsing, sequencing, FX, PCM generation, and deterministic render stats.
 
 ## Runtime architecture
 
 ```mermaid
 flowchart LR
-    GUI[egui / eframe runtime screen] --> WRAPPER[gui/src/audio_engine.rs]
+    GUI[egui / eframe screen] --> WRAPPER[gui/src/audio_engine.rs]
     WRAPPER --> FFI[gui/src/ffi.rs]
     FFI --> ENGINE[src/audio_engine.c]
-    ENGINE --> ABC[ABC loader / parser]
-    ABC --> SONG[SeqSong]
-    SONG --> MIXER[mixer]
-    MIXER --> FX[FX buses]
-    FX --> PCM[deterministic PCM buffer]
+    ENGINE --> ABC[abc loader]
+    ABC --> MUSIC[AbcMusic metadata]
+    ENGINE --> SONG[SeqSong build]
+    SONG --> MIXER[mix + FX buses]
+    MIXER --> PCM[deterministic PCM]
 ```
+
+## Runtime responsibilities
+
+- `gui/src/ffi.rs` owns the unsafe boundary and metadata extraction.
+- `gui/src/audio_engine.rs` exposes safe overview structs for demos, tracks, buses, and render output.
+- `gui/src/playback.rs` wraps OS playback commands and reports process state + playback progress.
+- `gui/src/app.rs` owns layout, focus flow, status messaging, and read-only panel rendering.
 
 ## Runtime flow
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant GUI as Rust GUI
-    participant FFI as Rust FFI wrapper
-    participant Engine as C audio_engine
-    participant Seq as SeqSong
-    participant Mixer as mixer + FX
-    participant PCM as PCM buffer
+1. The app boots a fixed demo catalog from `data/music/*.abc`.
+2. `abc_load` is used up front to build overview metadata for arrangement, tracks, and FX buses.
+3. `Enter` renders the selected demo through `audio_engine_render_abc_file`.
+4. Rust copies the PCM into owned GUI memory and caches the latest render stats.
+5. `Space` writes the rendered PCM to a temporary WAV and delegates playback to the platform audio command.
+6. The frame loop polls playback to update cursor position and stop/error state.
 
-    User->>GUI: select demo
-    User->>GUI: Enter render
-    GUI->>FFI: load metadata + render_abc_file(path)
-    FFI->>Engine: abc_load(path)
-    FFI->>Engine: audio_engine_render_abc_file(path)
-    Engine->>Seq: build deterministic sequence
-    Seq->>Mixer: render arranged steps
-    Mixer->>PCM: mix + FX + clip stats
-    PCM-->>FFI: PCM + AudioRenderStats
-    FFI-->>GUI: safe Rust state
-    GUI-->>User: stats + waveform + pattern overview
-```
+## Visible runtime states
 
-## Stable runtime responsibilities
+The status line and stats panel always expose:
 
-- `gui/src/ffi.rs` contains the unsafe boundary.
-- `gui/src/audio_engine.rs` exposes safe demo metadata and render helpers.
-- `gui/src/playback.rs` handles simple OS-level playback of rendered WAV output.
-- `gui/src/app.rs` owns the one-screen keyboard-first runtime UI.
+- selected demo
+- selected track
+- render readiness
+- playback state
+- render duration, sample count, clipping, peak, checksum
+- parser/render/playback errors
 
-## Runtime feedback
+## Stability rules
 
-The runtime screen shows:
-
-- render duration
-- sample count
-- clipping count
-- peak level
-- checksum
-- render state
-- invalid ABC/load failures
+- the GUI stays read-only
+- stop always tears down the child playback process and removes temporary WAV files
+- repeated render/play/stop cycles reuse the same runtime shell without rebuilding the engine
+- invalid demo files fail gracefully with visible status text instead of crashing the UI
 
 ## Screenshots
 
 - Main runtime screen: `docs/screenshots/gui-runtime-main.png`
-- Waveform / pattern overview: `docs/screenshots/gui-runtime-overview.png`
+- Waveform + pattern focus: `docs/screenshots/gui-runtime-overview.png`
+- Inspector focus: `docs/screenshots/gui-runtime-inspector.png`

@@ -1,74 +1,54 @@
 # MemDeck GUI Pattern View
 
-The pattern/arrangement overview is a read-only, tracker-inspired visualization of the step activity across all tracks in the selected demo.
+The pattern overview is a read-only tracker-style map of arrangement and step activity.
 
 ## Layout
 
 ```text
-+--------------------+------------------------------------+
-| TRACK 01 / inst    | [P1     ][P2     ][P3     ][P4   ] |
-| TRACK 02 / inst    | [  ][  ][  ][  ][  ][  ][  ][    ] |
-| TRACK 03 / inst    | [ ][  ][ ][ ][  ][ ][ ][  ][ ][  ] |
-| TRACK 04 / inst    | [    ][      ][    ][      ][      ] |
-+--------------------+------------------------------------+
++-----------------------------+---------------------------------------------+
+| 01 KICK / kick              | A 16 | A 16 | B 16 | A 16 | ...         |
+| 02 BASS / bassline          | beat grid + active cells + accent markers   |
+| 03 ARP / arp16              | beat grid + active cells + FX markers       |
+| 04 LEAD / leadpad           | selected row highlight + playback cursor    |
++-----------------------------+---------------------------------------------+
 ```
 
-The view is split into two horizontal zones:
+## What is shown
 
-- **Label column** (left, fixed width): shows `track_name / instrument_ref` for each track.
-- **Timeline column** (right): shows arrangement blocks and step-level activity dots.
+- left label column with track index, track name, and instrument name
+- arrangement header using `PatternBlock { label, length, start_step }`
+- beat grid derived from `DemoOverview.steps_per_beat`
+- active steps from `TrackOverview.activity`
+- accent emphasis using stronger fill
+- FX trigger tick marks using the warning color
+- selected-track row highlight for inspector coherence
+- playback cursor when the render is playing
 
-## Arrangement Header
+## Data model
 
-The top strip of the timeline column shows the arrangement blocks defined in the ABC file:
+`ffi::load_demo_overview()` builds:
 
-- Each block represents a named pattern segment (e.g. `Verse`, `Chorus`, `P1`).
-- Block boundaries are derived from `%%pattern` / `%%arrangement` directives, or auto-generated 16-step chunks if no named patterns exist.
-- Block labels are rendered in `ACCENT` green at the block center.
-- Adjacent blocks are separated by `BORDER_DIM` strokes.
-
-## Track Rows
-
-Each row corresponds to one sequencer voice (up to 4 visible; additional voices are counted but not rendered).
-
-- Alternating row fills (`PANEL_DIM_BG` / `PANEL_BG`) improve scanability.
-- A horizontal `GRID` stroke separates each row.
-- A vertical `BORDER_DIM` stroke at each block boundary aligns rows with the arrangement header.
-
-## Step Activity Cells
-
-Each active step (note frequency > 0 in the rendered ABC voice) is drawn as a filled cell:
-
-- Fill: `ACCENT_SOFT`
-- Stroke: `ACCENT` (1 px)
-- Cell height: row height minus 8 px padding top/bottom.
-- Cell width: proportional to one step within the total step count.
-
-Inactive steps (rest / frequency = 0) have no cell — the row background is visible.
-
-## Empty / Unavailable State
-
-| Condition | Display |
-|---|---|
-| No overview loaded | `PATTERN DATA NOT AVAILABLE FOR THIS DEMO.` (WARNING color) |
-| Overview present but no arrangement or tracks | `NO PATTERN ARRANGEMENT FOUND.` (TEXT_DIM color) |
-
-## Data Source
-
-Pattern data is extracted from the ABC file at demo load time by `ffi::load_demo_overview()` → `build_demo_overview()`. It is stored in `DemoOverview`:
-
-```
+```text
 DemoOverview {
-  arrangement: Vec<PatternBlock>,   // label, start_step, length
-  tracks: Vec<TrackOverview>,       // name, instrument, activity: Vec<bool>
-  total_steps: usize,
-  hidden_track_count: usize,        // voices beyond SEQ_MAX_TRACKS (4)
+  steps_per_beat,
+  total_steps,
+  arrangement: Vec<PatternBlock>,
+  tracks: Vec<TrackOverview>,
+  fx_buses: Vec<FxBusOverview>,
 }
 ```
 
-## Design Constraints
+Each `TrackOverview` contains `Vec<StepState>` where every step exposes:
 
-- Read-only. No step editing.
-- No zoom or scroll. The full arrangement fits in the available width.
-- Maximum 4 visible tracks (seq engine hard limit).
-- No piano-roll, no note labels, no timing grid numbers.
+- `active`
+- `accent`
+- `fx_trigger`
+
+The current accent / FX markers are inferred from beat positions in the read-only ABC overview path, which keeps rendering lightweight and avoids promoting the screen into an editor.
+
+## Constraints
+
+- read-only only
+- full arrangement fits in the panel width
+- max 4 rendered rows (matching the sequencer display limit)
+- no note names, piano roll, zoom, drag, or edit gestures

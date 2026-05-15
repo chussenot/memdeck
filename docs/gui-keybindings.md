@@ -1,33 +1,60 @@
 # MemDeck GUI Keybindings
 
-## Runtime keys
+## Required runtime keys
 
 | Key | Action |
 | --- | --- |
-| `Up` / `Down` | Select demo |
+| `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
 | `Enter` | Render selected demo |
-| `Space` | Play or stop the current rendered demo |
-| `Tab` | Switch focus highlight between demos and overview |
+| `Space` | Start or stop playback |
+| `Tab` | Cycle focus across all panels |
 | `Esc` | Stop playback |
+
+## Direct panel focus
+
+| Key | Panel |
+| --- | --- |
+| `D` | Demo Browser |
+| `S` | Render Stats |
+| `W` | Waveform View |
+| `P` | Pattern Overview |
+| `I` | Instrument Inspector |
+| `F` | FX Inspector |
 
 ## Interaction model
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DemoSelection
-    DemoSelection --> DemoSelection: Up / Down
-    DemoSelection --> Rendered: Enter
+    [*] --> DemoBrowser
+    DemoBrowser --> RenderStats: Tab
+    RenderStats --> WaveformView: Tab
+    WaveformView --> PatternOverview: Tab
+    PatternOverview --> InstrumentInspector: Tab
+    InstrumentInspector --> FxInspector: Tab
+    FxInspector --> DemoBrowser: Tab
+
+    DemoBrowser --> DemoBrowser: Up / Down
+    RenderStats --> RenderStats: Up / Down (track select)
+    WaveformView --> WaveformView: Up / Down (track select)
+    PatternOverview --> PatternOverview: Up / Down (track select)
+    InstrumentInspector --> InstrumentInspector: Up / Down (track select)
+    FxInspector --> FxInspector: Up / Down (track select)
+
+    DemoBrowser --> Rendered: Enter
+    RenderStats --> Rendered: Enter
+    WaveformView --> Rendered: Enter
+    PatternOverview --> Rendered: Enter
+    InstrumentInspector --> Rendered: Enter
+    FxInspector --> Rendered: Enter
+
     Rendered --> Playing: Space
     Playing --> Rendered: Space
     Playing --> Rendered: Esc
-    DemoSelection --> OverviewFocus: Tab
-    OverviewFocus --> DemoSelection: Tab
-    OverviewFocus --> Rendered: Enter
 ```
 
-## Design intent
+## Intent
 
 - keyboard-first
 - low cognitive load
-- no mouse-heavy workflow
-- no editing or DAW behavior
+- explicit status reporting
+- read-only transport only
