@@ -81,12 +81,12 @@ static SeqFxBus normalize_fx_bus(const SeqFxBus *bus)
     }
     out = *bus;
     if (out.enabled != 0 && out.enabled != 1) {
-        int legacy_drive = out.enabled;
-        int legacy_mix = out.delay_steps;
+        int legacy_drive_from_enabled = out.enabled;
+        int legacy_mix_from_delay_steps = out.delay_steps;
         memset(&out, 0, sizeof(out));
         out.enabled = 1;
-        out.drive_amount = legacy_drive;
-        out.mix_percent = legacy_mix;
+        out.drive_amount = legacy_drive_from_enabled;
+        out.mix_percent = legacy_mix_from_delay_steps;
     }
     if (out.mix_percent <= 0 && out.enabled &&
         (out.delay_mix > 0 || out.drive_amount > 0 || out.lowpass_amount > 0 || out.sidechain_amount > 0))
