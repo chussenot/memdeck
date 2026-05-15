@@ -66,6 +66,12 @@ static void test_builtin_timeline(void)
     check_int("builtin_pattern_2_start", timeline.steps[32].pattern_index, 2);
     check_int("builtin_pattern_3_start", timeline.steps[48].pattern_index, 3);
     check_int("builtin_pattern_3_end_step", timeline.steps[63].pattern_step, 15);
+    check_int("builtin_track4_instrument",
+              song->patterns[0].tracks[3].instrument, MEMDECK_PRESET_HAT);
+    check_int("builtin_track4_step0_note",
+              song->patterns[0].tracks[3].steps[0].note, 72);
+    check_true("builtin_track4_has_activity",
+               song->patterns[0].tracks[3].steps[0].velocity > 0);
 }
 
 static void test_note_events(void)

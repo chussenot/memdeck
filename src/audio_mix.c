@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
 #define MIX_VOICES_PER_TRACK 3
 #define MIX_MAX_STACKED_OSC  2
@@ -39,13 +38,6 @@ typedef struct {
     double last_freq;
 } MixTrackState;
 
-static int clampi(int value, int lo, int hi)
-{
-    if (value < lo) return lo;
-    if (value > hi) return hi;
-    return value;
-}
-
 static DspWaveform sanitize_waveform(int waveform, int noise_mode)
 {
     if (noise_mode) return DSP_WAVE_NOISE;
@@ -78,28 +70,6 @@ static double midi_note_to_freq(int note)
     return midi_freq_table[note];
 }
 
-static int tri_lfo_q15(uint32_t *phase, int rate_millihz, int sample_rate)
-{
-    uint64_t increment;
-    uint32_t p;
-    int tri;
-
-    if (rate_millihz <= 0 || sample_rate <= 0) return 0;
-    increment = ((uint64_t)rate_millihz << 32) / ((uint64_t)sample_rate * 1000ull);
-    *phase += (uint32_t)increment;
-    p = *phase >> 16;
-    tri = (*phase & 0x80000000u)
-        ? (int)(65535u - ((p & 0x7fffu) << 1))
-        : (int)((p & 0x7fffu) << 1);
-    return tri - 32768;
-}
-
-static double freq_with_cents(double freq, int cents)
-{
-    if (freq <= 0.0 || cents == 0) return freq;
-    return freq * pow(2.0, (double)cents / 1200.0);
-}
-
 static int track_amplitude(const SeqSong *song, const SeqTrack *track,
                            const SeqStep *step, int pattern_step)
 {
@@ -110,7 +80,7 @@ static int track_amplitude(const SeqSong *song, const SeqTrack *track,
     amplitude = (amplitude * (100 + track->automation[pattern_step])) / 100;
     if (step->accent)
         amplitude = (amplitude * (100 + instrument->accent_gain)) / 100;
-    return clampi(amplitude, 0, 127);
+    return dsp_clampi(amplitude, 0, 127);
 }
 
 static MixVoiceState *pick_voice_slot(MixTrackState *track)
@@ -128,16 +98,16 @@ static MixVoiceState *pick_voice_slot(MixTrackState *track)
 static void voice_set_frequency(MixVoiceState *voice, int sample_rate)
 {
     int vib = (voice->vibrato_depth > 0 && voice->vibrato_rate > 0)
-        ? (tri_lfo_q15(&voice->vibrato_phase, voice->vibrato_rate, sample_rate) * voice->vibrato_depth) / 32767
+        ? (dsp_tri_lfo_q15(&voice->vibrato_phase, voice->vibrato_rate, sample_rate) * voice->vibrato_depth) / 32767
         : 0;
-    double base = freq_with_cents(voice->current_freq, vib);
+    double base = dsp_freq_with_cents(voice->current_freq, vib);
 
     if (voice->osc_count == 1) {
         dsp_osc_set_frequency(&voice->oscs[0], base, sample_rate);
     } else {
-        int detune = clampi(voice->detune_cents, 0, 200);
-        dsp_osc_set_frequency(&voice->oscs[0], freq_with_cents(base, -detune), sample_rate);
-        dsp_osc_set_frequency(&voice->oscs[1], freq_with_cents(base, detune), sample_rate);
+        int detune = dsp_clampi(voice->detune_cents, 0, 200);
+        dsp_osc_set_frequency(&voice->oscs[0], dsp_freq_with_cents(base, -detune), sample_rate);
+        dsp_osc_set_frequency(&voice->oscs[1], dsp_freq_with_cents(base, detune), sample_rate);
     }
 }
 
@@ -146,7 +116,7 @@ static void voice_init(MixVoiceState *voice, const SeqInstrument *instrument,
                        double from_freq, int gate_samples, int instrument_index,
                        int note, int fx_trigger)
 {
-    int pulse = clampi(instrument->pulse_width, 1, 99);
+    int pulse = dsp_clampi(instrument->pulse_width, 1, 99);
     int glide_samples = dsp_samples_from_ms(sample_rate, instrument->glide_ms);
 
     memset(voice, 0, sizeof(*voice));
@@ -158,9 +128,9 @@ static void voice_init(MixVoiceState *voice, const SeqInstrument *instrument,
     voice->detune_cents = instrument->detune_cents;
     voice->base_amplitude = amplitude;
     voice->pulse_width = pulse;
-    voice->pwm_depth = clampi(instrument->pwm_depth, 0, 40);
+    voice->pwm_depth = dsp_clampi(instrument->pwm_depth, 0, 40);
     voice->pwm_rate = instrument->pwm_rate;
-    voice->vibrato_depth = clampi(instrument->vibrato_depth_cents, 0, 120);
+    voice->vibrato_depth = dsp_clampi(instrument->vibrato_depth_cents, 0, 120);
     voice->vibrato_rate = instrument->vibrato_rate;
     voice->sample_rate = sample_rate;
     voice->waveform = sanitize_waveform(instrument->waveform, instrument->noise_mode);
@@ -201,8 +171,8 @@ static int voice_next(MixVoiceState *voice)
     voice_set_frequency(voice, voice->sample_rate);
 
     if (voice->waveform == DSP_WAVE_PULSE && voice->pwm_depth > 0 && voice->pwm_rate > 0) {
-        int mod = (tri_lfo_q15(&voice->pwm_phase, voice->pwm_rate, voice->sample_rate) * voice->pwm_depth) / 32767;
-        int duty = clampi(voice->pulse_width + mod, 1, 99);
+        int mod = (dsp_tri_lfo_q15(&voice->pwm_phase, voice->pwm_rate, voice->sample_rate) * voice->pwm_depth) / 32767;
+        int duty = dsp_clampi(voice->pulse_width + mod, 1, 99);
         for (int i = 0; i < voice->osc_count; i++)
             dsp_osc_set_pulse_width_percent(&voice->oscs[i], duty);
     }
@@ -273,7 +243,7 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
                     if (voice->fx_trigger > 0 &&
                         voice->fx_bus >= 0 && voice->fx_bus < song->fx_bus_count) {
                         const SeqFxBus *bus = &song->fx_buses[voice->fx_bus];
-                        int drive = clampi(bus->drive, 0, 200);
+                        int drive = dsp_clampi(bus->drive, 0, 200);
                         fx_bus_levels[voice->fx_bus] += (sample * voice->fx_trigger * drive) / 10000;
                     }
                 }
@@ -281,7 +251,7 @@ unsigned char *audio_mix_render_timeline(const SeqSong *song, const SeqTimeline 
 
             for (int bus_index = 0; bus_index < song->fx_bus_count; bus_index++) {
                 const SeqFxBus *bus = &song->fx_buses[bus_index];
-                val += (fx_bus_levels[bus_index] * clampi(bus->mix_percent, 0, 100)) / 100;
+                val += (fx_bus_levels[bus_index] * dsp_clampi(bus->mix_percent, 0, 100)) / 100;
             }
 
             buf[base + i] = (unsigned char)dsp_clamp_u8(val);

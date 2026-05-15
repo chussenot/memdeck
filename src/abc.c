@@ -1,6 +1,5 @@
 #include "memdeck.h"
 #include "audio_dsp.h"
-#include <math.h>
 
 /*
  * Minimal ABC notation parser for the MemDeck chiptune engine.
@@ -19,6 +18,7 @@
 
 /* semitone offsets from C: C=0, D=2, E=4, F=5, G=7, A=9, B=11 */
 static const int note_semitones[7] = { 0, 2, 4, 5, 7, 9, 11 };
+#define ABC_DEFAULT_VIBRATO_RATE 5500
 
 /*
  * Precomputed MIDI note frequencies (Hz).
@@ -98,22 +98,6 @@ static int parse_waveform_name(const char *s)
     return DSP_WAVE_SQUARE;
 }
 
-static int tri_lfo_q15(uint32_t *phase, int rate_millihz)
-{
-    uint64_t increment;
-    uint32_t p;
-    int tri;
-
-    if (rate_millihz <= 0) return 0;
-    increment = ((uint64_t)rate_millihz << 32) / ((uint64_t)SAMPLE_RATE_ABC * 1000ull);
-    *phase += (uint32_t)increment;
-    p = *phase >> 16;
-    tri = (*phase & 0x80000000u)
-        ? (int)(65535u - ((p & 0x7fffu) << 1))
-        : (int)((p & 0x7fffu) << 1);
-    return tri - 32768;
-}
-
 static void parse_voice_directives(AbcVoice *v, const char *val)
 {
     const char *amp = strstr(val, "amp=");
@@ -143,7 +127,7 @@ static void parse_voice_directives(AbcVoice *v, const char *val)
     if (gate) v->gate_percent = atoi(gate + 5);
     if (vibrato) {
         v->vibrato_cents = atoi(vibrato + 8);
-        if (v->vibrato_rate <= 0) v->vibrato_rate = 5500;
+        if (v->vibrato_rate <= 0) v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
     }
     if (glide) v->glide_ms = atoi(glide + 6);
 
@@ -456,7 +440,7 @@ int abc_load(const char *path, AbcMusic *music)
                         v->release_ms = 0;
                         v->gate_percent = 90;
                         v->vibrato_cents = 0;
-                        v->vibrato_rate = 5500;
+                        v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
                         v->glide_ms = 0;
                     }
 
@@ -493,7 +477,7 @@ int abc_load(const char *path, AbcMusic *music)
                 v->release_ms = 0;
                 v->gate_percent = 90;
                 v->vibrato_cents = 0;
-                v->vibrato_rate = 5500;
+                v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
                 v->glide_ms = 0;
 
                 parse_voice_directives(v, val);
@@ -520,7 +504,7 @@ int abc_load(const char *path, AbcMusic *music)
                 v->release_ms = 0;
                 v->gate_percent = 90;
                 v->vibrato_cents = 0;
-                v->vibrato_rate = 5500;
+                v->vibrato_rate = ABC_DEFAULT_VIBRATO_RATE;
                 v->glide_ms = 0;
             } else {
                 current_voice = 0;
@@ -728,8 +712,9 @@ unsigned char *abc_generate_pcm(const AbcMusic *music, int *out_len)
                         current_freq[v] = target_freq[v];
                 }
 
-                vibrato_cents = (voice->vibrato_cents * tri_lfo_q15(&vibrato_phase[v], voice->vibrato_rate)) / 32767;
-                f = current_freq[v] * pow(2.0, (double)vibrato_cents / 1200.0);
+                vibrato_cents = (voice->vibrato_cents *
+                                 dsp_tri_lfo_q15(&vibrato_phase[v], voice->vibrato_rate, SAMPLE_RATE_ABC)) / 32767;
+                f = dsp_freq_with_cents(current_freq[v], vibrato_cents);
                 dsp_osc_set_frequency(&oscs[v], f, SAMPLE_RATE_ABC);
 
                 env_q15 = dsp_envelope_next_q15(&envs[v]);
