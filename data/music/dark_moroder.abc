@@ -1,0 +1,26 @@
+X:1
+T:Dark Moroder - Synth Disco
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=126
+K:Dm
+%%swing 56
+%%effect delay time=3 feedback=35 mix=25
+%%effect drive amount=20
+%%effect lowpass amount=30
+%%sidechain amount=40 release=180
+%%staves [bass arp lead]
+V:bass amp=80 wave=pulse duty=35 attack=2 decay=40 sustain=70 release=80 gate=75
+V:arp amp=45 wave=pulse duty=20 attack=0 decay=20 sustain=60 release=40 gate=45 vibrato=5
+V:lead amp=50 wave=triangle attack=80 decay=120 sustain=80 release=300 gate=95
+%
+V:bass
+|: D,,2D,,2 D,,2D,,2 D,,2D,,2 D,,2D,,2 | _B,,2_B,,2 _B,,2_B,,2 A,,2A,,2 A,,2A,,2 |
+A,,2A,,2 A,,2A,,2 A,,2A,,2 A,,2A,,2 | A,,2A,,2 A,,2A,,2 _B,,2_B,,2 D,,2D,,2 :|
+V:arp
+|: DFA=c DFA=c DFA=c DFA=c | _BDF_b _BDF_b ACE=a ACE=a |
+ACE=a ACE=a ACE=a ACE=a | ACE=a ACE=a _BDF_b DFA=c :|
+V:lead
+|: z16 | z8 =c=c2z2 z8 |
+z8 A2z2 z12 | z16 :|

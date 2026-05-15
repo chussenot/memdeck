@@ -281,6 +281,7 @@ typedef struct {
     char title[128];
     int bpm;
     int step_ms;          /* duration of one default-length note in ms */
+    int swing_pct;        /* swing percentage 0..100 (%%swing) */
     int fx_delay_steps;         /* delay time in sequencer steps (%%effect delay time=) */
     int fx_delay_feedback;      /* delay feedback percent 0..100 */
     int fx_delay_mix;           /* delay wet mix percent 0..100 */

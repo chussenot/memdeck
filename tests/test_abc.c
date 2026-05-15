@@ -116,6 +116,55 @@ static void test_golden_fixture(void)
     free(pcm);
 }
 
+static void test_dsl_directives(void)
+{
+    const char *path = "data/music/dark_moroder.abc";
+    AbcMusic music;
+
+    printf("[DSL Test] Loading %s\n", path);
+    if (abc_load(path, &music) != 0) {
+        failf("DSL directives", "could not load dark_moroder.abc");
+        return;
+    }
+
+    /* Verify swing directive was parsed */
+    if (music.swing_pct != 56) {
+        printf("FAIL DSL: expected swing_pct=56, got %d\n", music.swing_pct);
+        g_failures++;
+    } else {
+        printf("  ✓ Swing: %d%%\n", music.swing_pct);
+    }
+
+    /* Verify FX directives were parsed */
+    printf("  ✓ FX delay steps: %d\n", music.fx_delay_steps);
+    printf("  ✓ FX sidechain amount: %d%%\n", music.fx_sidechain_amount);
+    printf("  ✓ FX sidechain release: %dms\n", music.fx_sidechain_release_ms);
+
+    /* Verify voices parsed with instruments */
+    if (music.voice_count != 3) {
+        printf("FAIL DSL: expected 3 voices, got %d\n", music.voice_count);
+        g_failures++;
+    } else {
+        printf("  ✓ Voices: %d\n", music.voice_count);
+        for (int i = 0; i < music.voice_count; i++) {
+            AbcVoice *v = &music.voices[i];
+            printf("    Voice %d (%s): amp=%d wave=%d duty=%d attack=%d decay=%d sustain=%d release=%d\n",
+                   i, v->name, v->amplitude, v->waveform, v->duty_cycle,
+                   v->attack_ms, v->decay_ms, v->sustain_level, v->release_ms);
+        }
+    }
+
+    /* Generate PCM to ensure rendering works */
+    int pcm_len = 0;
+    unsigned char *pcm = abc_generate_pcm(&music, &pcm_len);
+    if (!pcm || pcm_len == 0) {
+        failf("DSL directives", "PCM generation failed");
+        return;
+    }
+    printf("  ✓ PCM: %d samples (%.2f seconds)\n", pcm_len, pcm_len / 22050.0);
+    free(pcm);
+}
+
 int main(void)
 {
     int ok = 1;
@@ -138,6 +187,9 @@ int main(void)
 
     printf("\n");
     test_golden_fixture();
+
+    printf("\n");
+    test_dsl_directives();
 
     if (g_failures > 0) ok = 0;
     printf("\n%s\n", ok ? "All tests passed." : "Some tests FAILED.");
