@@ -37,11 +37,13 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 | `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
 | `Enter` | Render selected demo |
 | `Space` | Start or stop playback |
-| `Esc` | Stop playback / cancel current edit focus |
+| `Esc` | Cancel dialog/rename, return focus, or stop playback |
 | `Tab` | Cycle focus across GUI panels |
 | `D` / `S` / `W` / `P` / `E`/`G` / `I` / `F` | Focus Demo / Stats / Waveform / Arrangement / Pattern Editor / Instrument / FX panels |
+| `Ctrl+N` / `Ctrl+O` | New song / Open song dialog |
+| `Ctrl+D` | Duplicate demo (Browser) or duplicate editable song (Edit/Preview) |
 | `Ctrl+S` / `Ctrl+Shift+S` | Save editable song / Save As |
-| `Ctrl+R` | Render editable preview |
+| `Ctrl+R` | Render selected demo (Browser) or editable preview (Edit/Preview) |
 
 ### GUI Limitations
 
@@ -50,6 +52,8 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 - arrangement integration is block-based only (no advanced timeline editing)
 - the GUI remains a shell over the existing C renderer, not a new DAW engine
 - screenshots and architecture notes live under `docs/gui-*.md` (capture workflow: `docs/gui-screenshot-guide.md`)
+- editable songs default to `~/.local/share/memdeck/music/user/` (`XDG_DATA_HOME` and `MEMDECK_USER_SONG_DIR` supported)
+- full song lifecycle details: `docs/gui-song-workflow.md`
 
 ## Quick Start
 

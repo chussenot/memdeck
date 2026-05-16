@@ -122,6 +122,7 @@ struct BootOptions {
     editable_source: Option<String>,
     mode: Option<EditorMode>,
     apply_pattern_edits: bool,
+    dialog: Option<String>,
 }
 
 struct RuntimeState {
@@ -458,6 +459,14 @@ impl MemDeckGuiApp {
 
         if self.boot_options.apply_pattern_edits {
             self.apply_boot_pattern_edits();
+        }
+
+        if let Some(dialog) = self.boot_options.dialog.as_deref() {
+            match dialog {
+                "open" => self.active_dialog = Some(ActiveDialog::OpenSongPath),
+                "save-as" => self.active_dialog = Some(ActiveDialog::SaveAsPath),
+                _ => {}
+            }
         }
 
         if let Some(mode) = self.boot_options.mode {
@@ -4346,6 +4355,16 @@ impl BootOptions {
                 _ => None,
             },
             apply_pattern_edits: env_flag("MEMDECK_GUI_BOOT_PATTERN_EDITS"),
+            dialog: env::var("MEMDECK_GUI_BOOT_DIALOG")
+                .ok()
+                .and_then(|value| {
+                    let normalized = value.to_lowercase();
+                    if normalized == "open" || normalized == "save-as" {
+                        Some(normalized)
+                    } else {
+                        None
+                    }
+                }),
         }
     }
 }

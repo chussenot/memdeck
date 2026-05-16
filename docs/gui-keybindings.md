@@ -4,12 +4,18 @@
 
 | Key | Action |
 | --- | --- |
+| `Ctrl+N` | New editable song |
+| `Ctrl+O` | Open editable song dialog |
+| `Ctrl+D` | Duplicate demo (Browser) or duplicate editable song (Edit/Preview) |
+| `Ctrl+S` | Save editable song |
+| `Ctrl+Shift+S` | Save editable song as path |
+| `Ctrl+R` | Render (browser demo render or editable preview render) |
 | `Tab` / `Shift+Tab` | Cycle focus panels |
 | `D` `S` `W` `P` `E`/`G` `I` `F` | Direct focus (demo/stats/waveform/arrangement/pattern editor/instrument/fx) |
 | `Up` / `Down` | Demo select when browser focused, otherwise track select |
 | `Enter` | Render selected demo (browser workflow) |
 | `Space` | Start/stop playback |
-| `Esc` | Stop playback / cancel active rename |
+| `Esc` | Cancel active dialog/rename, return focus, or stop playback |
 
 ## Arrangement editor keys (Edit/Preview mode)
 
@@ -24,9 +30,9 @@
 | `D` | Duplicate selected block |
 | `Backspace` / `Delete` | Remove selected block |
 | `R` | Rename selected pattern |
-| `Ctrl+S` | Save ABC |
-| `Ctrl+Shift+S` | Save As |
-| `Ctrl+R` | Render preview through C engine |
+| `Ctrl+S` | Save editable ABC |
+| `Ctrl+Shift+S` | Save As dialog |
+| `Ctrl+R` | Render editable preview through C engine |
 
 ## Inspector editing (Edit/Preview mode)
 

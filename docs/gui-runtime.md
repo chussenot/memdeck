@@ -28,9 +28,11 @@ flowchart LR
 1. The app boots a fixed demo catalog from `data/music/*.abc`.
 2. Browser mode uses overview metadata for read-only inspection.
 3. Edit mode loads/creates an `EditableSong` for arrangement/pattern/inspector edits.
-4. Preview renders editable content through `EditableSong -> ABC DSL -> C engine -> PCM`.
-5. `Space` writes rendered PCM to a temporary WAV and delegates playback to the platform audio command.
-6. The frame loop polls playback to update cursor position and stop/error state.
+4. Editable songs default to user storage under `~/.local/share/memdeck/music/user/` (`XDG_DATA_HOME` + `MEMDECK_USER_SONG_DIR` aware).
+5. Dirty-state guards block destructive transitions (open/new/duplicate/close/quit) until Save/Discard/Cancel is resolved.
+6. Preview renders editable content through `EditableSong -> ABC DSL -> C engine -> PCM`.
+7. `Space` writes rendered PCM to a temporary WAV and delegates playback to the platform audio command.
+8. The frame loop polls playback to update cursor position and stop/error state.
 
 ## Visible runtime states
 
@@ -44,6 +46,7 @@ The status line always exposes:
 - dirty state
 - render readiness
 - playback state
+- current song path
 - last error
 
 ## Stability rules
