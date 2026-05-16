@@ -68,6 +68,10 @@ pub fn serialize_editable_song(song: &EditableSong) -> Result<String, String> {
         ));
     }
 
+    for (track_index, track) in song.tracks.iter().enumerate() {
+        out.push_str(&format_step_directives(track_index, track.steps.as_slice()));
+    }
+
     Ok(out)
 }
 
@@ -151,6 +155,27 @@ fn format_track_steps(steps: &[super::model::EditableStep], blocks: &[EditableAr
         out.push_str(" |\n");
     }
 
+    out
+}
+
+fn format_step_directives(track_index: usize, steps: &[super::model::EditableStep]) -> String {
+    let mut out = String::new();
+    for (step_index, step) in steps.iter().enumerate() {
+        let has_custom_velocity = step.velocity != super::model::EditableStep::DEFAULT_VELOCITY;
+        let has_custom_gate = step.gate_percent != super::model::EditableStep::DEFAULT_GATE_PERCENT;
+        if !has_custom_velocity && !has_custom_gate && !step.accent && !step.fx_trigger {
+            continue;
+        }
+        out.push_str(&format!(
+            "%%mdstep t={} s={} vel={} gate={} accent={} fx={}\n",
+            track_index,
+            step_index,
+            step.velocity.clamp(1, 127),
+            step.gate_percent.clamp(1, 100),
+            if step.accent { 1 } else { 0 },
+            if step.fx_trigger { 1 } else { 0 },
+        ));
+    }
     out
 }
 

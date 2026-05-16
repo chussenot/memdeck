@@ -4,13 +4,25 @@ use std::path::PathBuf;
 pub struct EditableStep {
     pub active: bool,
     pub midi_note: u8,
+    pub velocity: u8,
+    pub gate_percent: u8,
+    pub accent: bool,
+    pub fx_trigger: bool,
 }
 
 impl EditableStep {
+    pub const DEFAULT_VELOCITY: u8 = 88;
+    pub const DEFAULT_GATE_PERCENT: u8 = 90;
+    pub const DEFAULT_MIDI_NOTE: u8 = 60;
+
     pub fn rest() -> Self {
         Self {
             active: false,
             midi_note: 0,
+            velocity: Self::DEFAULT_VELOCITY,
+            gate_percent: Self::DEFAULT_GATE_PERCENT,
+            accent: false,
+            fx_trigger: false,
         }
     }
 
@@ -18,7 +30,29 @@ impl EditableStep {
         Self {
             active: midi_note > 0,
             midi_note,
+            velocity: Self::DEFAULT_VELOCITY,
+            gate_percent: Self::DEFAULT_GATE_PERCENT,
+            accent: false,
+            fx_trigger: false,
         }
+    }
+
+    pub fn toggle_active(&mut self) {
+        if self.active {
+            *self = Self::rest();
+            return;
+        }
+
+        if self.midi_note == 0 {
+            self.midi_note = Self::DEFAULT_MIDI_NOTE;
+        }
+        if self.velocity == 0 {
+            self.velocity = Self::DEFAULT_VELOCITY;
+        }
+        if self.gate_percent == 0 {
+            self.gate_percent = Self::DEFAULT_GATE_PERCENT;
+        }
+        self.active = true;
     }
 }
 

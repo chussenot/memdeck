@@ -57,6 +57,36 @@ pub fn validate_song(song: &EditableSong) -> Result<(), String> {
         if track.name.trim().is_empty() {
             return Err("track name cannot be empty".to_string());
         }
+        for (step_index, step) in track.steps.iter().enumerate() {
+            if !(1..=127).contains(&step.velocity) {
+                return Err(format!(
+                    "track '{}' step {} has invalid velocity {}; expected 1..=127",
+                    track.name,
+                    step_index,
+                    step.velocity
+                ));
+            }
+            if !(1..=100).contains(&step.gate_percent) {
+                return Err(format!(
+                    "track '{}' step {} has invalid gate {}; expected 1..=100",
+                    track.name,
+                    step_index,
+                    step.gate_percent
+                ));
+            }
+            if step.active && step.midi_note == 0 {
+                return Err(format!(
+                    "track '{}' step {} is active but has no note",
+                    track.name, step_index
+                ));
+            }
+            if step.midi_note > 127 {
+                return Err(format!(
+                    "track '{}' step {} has midi note out of range",
+                    track.name, step_index
+                ));
+            }
+        }
     }
 
     Ok(())

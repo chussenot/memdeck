@@ -2,12 +2,13 @@
 
 ## Overview
 
-The GUI now has two concurrent paths:
+The GUI now runs three explicit modes:
 
-- **Browser mode**: existing read-only demo browser/render inspector.
-- **Edit/Preview modes**: editable song model and arrangement editor.
+- **Browser mode**: read-only demo browser + render inspector (default startup behavior).
+- **Edit mode**: editable workflow for arrangement + pattern step editing.
+- **Preview mode**: editable song rendered through the existing C engine for transport preview.
 
-The read-only path is preserved and remains the default startup mode.
+Read-only browser behavior is preserved and can be re-entered at any time.
 
 ## Editor modules
 
@@ -35,6 +36,15 @@ Defines:
 
 `EditableSong` carries `title`, `tempo`, `swing`, `patterns`, `tracks`, `instruments`, `fx_buses`, `arrangement`, `dirty`, and `source_path`.
 
+`EditableStep` carries:
+
+- `active`
+- `midi_note`
+- `velocity`
+- `gate_percent`
+- `accent`
+- `fx_trigger`
+
 ### `state.rs`
 Defines `EditorState`:
 
@@ -52,11 +62,13 @@ Defines `EditorState`:
 - Converts raw frequencies to MIDI steps.
 - Builds arrangement blocks from `%%arrangement` + `%%pattern` metadata.
 - Preserves single-percent comments where practical.
+- Reads optional per-step metadata directives (`%%mdstep`) for velocity/gate/accent/fx flags.
 
 ### `abc_save.rs`
 - Deterministic ABC serialization from `EditableSong`.
 - Emits standard ABC header + MemDeck directives.
 - Emits `%%pattern`, `%%arrangement`, voice declarations, and per-track note bars.
+- Emits optional `%%mdstep` directives for non-default per-step edit metadata.
 - Supports save-to-path and clean dirty/source-path updates.
 
 ### `validation.rs`
@@ -70,6 +82,8 @@ Defines `EditorState`:
 
 - `editor_state: EditorState`
 - `editable_song: Option<EditableSong>`
+- explicit focusable `Pattern Editor` panel
+- step clipboard for copy/cut/paste operations
 
 New top-bar actions:
 
@@ -77,6 +91,16 @@ New top-bar actions:
 - **Duplicate Demo as Editable**
 - **Open Editable Song**
 - **Browser Mode**
+
+Focus areas now include:
+
+- Demo Browser
+- Render Stats
+- Waveform View
+- Pattern Overview (arrangement in edit/preview modes)
+- Pattern Editor
+- Instrument Inspector
+- FX Inspector
 
 ## Preview render path
 
@@ -86,11 +110,22 @@ Editable preview render stays on the existing C engine path:
 
 No second Rust audio engine is introduced.
 
+## Screenshot references
+
+- Browser mode: `docs/screenshots/gui-browser-mode.png`
+- Edit mode + arrangement: `docs/screenshots/gui-edit-mode-arrangement.png`
+- Pattern editor selected cell: `docs/screenshots/gui-pattern-editor-selected-cell.png`
+- Pattern editor after edits: `docs/screenshots/gui-pattern-editor-edited-notes.png`
+- Preview mode: `docs/screenshots/gui-preview-mode.png`
+
 ## Tests
 
 Editor tests cover:
 
+- editable step defaults
+- step toggle + note/octave behavior
 - load simple ABC
 - save simple ABC
 - load/save roundtrip
+- accent/fx step metadata roundtrip
 - invalid ABC returns clean error

@@ -6,12 +6,14 @@ A terminal-first trainer for memorized decks used by card magicians. Practice ca
 
 ## Rust GUI Status
 
-MemDeck also includes a **read-only Rust GUI** in `gui/` for browsing and rendering the showcase synth demos.
+MemDeck also includes a Rust GUI in `gui/` with preserved browser mode plus a lightweight editable workflow.
 
 - Atari/ST-inspired composition workstation presentation
-- demo browser, render stats, waveform view, pattern overview, instrument inspector, FX inspector
-- keyboard-first runtime UX
-- strictly **read-only** — no tracker editing, no piano roll, no arrangement editing, no DAW behavior
+- browser/edit/preview modes
+- demo browser, render stats, waveform view, arrangement editor, pattern editor, instrument inspector, FX inspector
+- keyboard-first workflow
+- editable flow stays on the existing C engine path (`EditableSong -> ABC DSL -> C render -> PCM`)
+- no piano roll, no full DAW behavior
 
 ### Run the GUI
 
@@ -34,14 +36,18 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 | `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
 | `Enter` | Render selected demo |
 | `Space` | Start or stop playback |
-| `Esc` | Stop playback |
+| `Esc` | Stop playback / cancel current edit focus |
 | `Tab` | Cycle focus across GUI panels |
-| `D` / `S` / `W` / `P` / `I` / `F` | Focus Demo Browser / Render Stats / Waveform / Pattern / Instrument / FX panels |
+| `D` / `S` / `W` / `P` / `E`/`G` / `I` / `F` | Focus Demo / Stats / Waveform / Arrangement / Pattern Editor / Instrument / FX panels |
+| `Ctrl+S` / `Ctrl+Shift+S` | Save editable song / Save As |
+| `Ctrl+R` | Render editable preview |
 
 ### GUI Limitations
 
 - playback uses simple rendered-WAV handoff to the host audio command
-- the GUI is a runtime shell over the existing C renderer, not a new editor architecture
+- editable step metadata is intentionally minimal and keyboard-driven
+- arrangement integration is block-based only (no advanced timeline editing)
+- the GUI remains a shell over the existing C renderer, not a new DAW engine
 - screenshots and architecture notes live under `docs/gui-*.md`
 
 ## Quick Start

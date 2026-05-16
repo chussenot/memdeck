@@ -16,6 +16,7 @@ Included:
 - pattern length edits
 - tempo/swing edits
 - preview render through existing C engine
+- open selected arrangement block directly into Pattern Editor
 
 Explicitly out of scope:
 
@@ -30,11 +31,16 @@ Explicitly out of scope:
 1. Enter editable workflow using **New Song**, **Duplicate Demo as Editable**, or **Open Editable Song**.
 2. Focus arrangement panel (`A`).
 3. Edit blocks via keyboard-first commands.
-4. Save to ABC (`Ctrl+S` / `Ctrl+Shift+S`).
-5. Render preview (`Ctrl+R`) and play via existing transport.
+4. Open selected block (`Enter`) to switch focus to Pattern Editor.
+5. Save to ABC (`Ctrl+S` / `Ctrl+Shift+S`).
+6. Render preview (`Ctrl+R`) and play via existing transport.
 
 ## Data flow
 
 `EditableSong -> serialize_editable_song() -> temporary/target .abc -> ffi::render_abc_file() -> PCM`
 
 This keeps one audio engine path and preserves deterministic browser behavior.
+
+## Screenshot
+
+- `docs/screenshots/gui-edit-mode-arrangement.png`

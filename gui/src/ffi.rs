@@ -630,6 +630,7 @@ pub struct RawPatternForEditor {
 pub struct RawVoiceForEditor {
     pub name: String,
     pub instrument_ref: String,
+    pub gate_percent: i32,
     /// Per-step note frequencies in Hz; 0.0 means rest.
     pub note_freqs: Vec<f64>,
 }
@@ -739,6 +740,7 @@ fn extract_raw_abc_music(music: &AbcMusic) -> RawAbcMusicForEditor {
             RawVoiceForEditor {
                 name: c_buf_to_string(&voice.name),
                 instrument_ref: c_buf_to_string(&voice.instrument_ref),
+                gate_percent: voice.gate_percent,
                 note_freqs: voice.freqs[..note_count].iter().map(|&f| f).collect(),
             }
         })
