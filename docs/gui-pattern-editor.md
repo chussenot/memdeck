@@ -14,6 +14,7 @@ Included:
 - accent and FX trigger markers
 - per-step velocity and gate editing
 - keyboard-first step editing with mouse select/toggle support
+- selection clamping across arrangement block changes
 
 Out of scope:
 
@@ -56,6 +57,7 @@ Out of scope:
 3. Save with `Ctrl+S` / `Ctrl+Shift+S` (ABC DSL + `%%mdstep` metadata for non-default step fields).
 4. Render preview with `Ctrl+R` through existing C engine path.
 5. Preview mode updates waveform/stats/pattern panels from rendered editable PCM.
+6. Any edit after preview render invalidates stale preview and returns to Edit mode.
 
 ## Current limitations
 

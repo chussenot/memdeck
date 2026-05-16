@@ -214,23 +214,54 @@ impl MemDeckGuiApp {
         self.selected_demo().overview.as_ref()
     }
 
-    fn selected_track(&self) -> Option<&TrackOverview> {
+    fn selected_browser_track(&self) -> Option<&TrackOverview> {
         let overview = self.selected_overview()?;
         overview.tracks.get(self.clamped_track_index(overview))
     }
 
-    fn selected_fx_bus(&self) -> Option<&FxBusOverview> {
+    fn selected_browser_fx_bus(&self) -> Option<&FxBusOverview> {
         let overview = self.selected_overview()?;
-        let track = self.selected_track()?;
+        let track = self.selected_browser_track()?;
         overview.fx_buses.get(track.fx_bus)
     }
 
+    fn active_track_index(&self) -> usize {
+        if self.editor_state.mode == EditorMode::Browser {
+            self.runtime.selected_track
+        } else {
+            self.editor_state.selected_track
+        }
+    }
+
+    fn set_active_track_index(&mut self, track_index: usize) {
+        self.runtime.selected_track = track_index;
+        self.editor_state.selected_track = track_index;
+    }
+
+    fn selected_editable_track(&self) -> Option<&editor::EditableTrack> {
+        let song = self.editable_song.as_ref()?;
+        song.tracks.get(self.active_track_index())
+    }
+
+    fn selected_editable_instrument_index(&self) -> Option<usize> {
+        let song = self.editable_song.as_ref()?;
+        let track = self.selected_editable_track()?;
+        song.instruments
+            .iter()
+            .position(|instrument| instrument.name == track.instrument_ref)
+            .or_else(|| (!song.instruments.is_empty()).then_some(0))
+    }
+
+    fn selected_editable_fx_bus_index(&self) -> Option<usize> {
+        let song = self.editable_song.as_ref()?;
+        let instrument_index = self.selected_editable_instrument_index()?;
+        song.instruments
+            .get(instrument_index)
+            .map(|instrument| instrument.fx_bus)
+    }
+
     fn current_render(&self) -> Option<&RenderState> {
-        let render = self
-            .runtime
-            .rendered_audio
-            .as_ref()
-            ?;
+        let render = self.runtime.rendered_audio.as_ref()?;
         if self.editor_state.mode != EditorMode::Browser && render.demo_key == "__editable__" {
             return Some(render);
         }
@@ -269,12 +300,31 @@ impl MemDeckGuiApp {
             .min(overview.tracks.len().saturating_sub(1))
     }
 
-    fn sync_selected_track(&mut self) {
-        if let Some(overview) = self.selected_overview() {
-            self.runtime.selected_track = self.clamped_track_index(overview);
-        } else {
-            self.runtime.selected_track = 0;
+    fn sync_track_selection_state(&mut self) {
+        if self.editor_state.mode == EditorMode::Browser {
+            if let Some(overview) = self.selected_overview() {
+                self.runtime.selected_track = self.clamped_track_index(overview);
+            } else {
+                self.runtime.selected_track = 0;
+            }
+            return;
         }
+
+        let Some(song) = self.editable_song.as_ref() else {
+            self.editor_state.selected_track = 0;
+            self.runtime.selected_track = 0;
+            return;
+        };
+        if song.tracks.is_empty() {
+            self.editor_state.selected_track = 0;
+            self.runtime.selected_track = 0;
+            return;
+        }
+        let clamped = self
+            .editor_state
+            .selected_track
+            .min(song.tracks.len().saturating_sub(1));
+        self.set_active_track_index(clamped);
     }
 
     fn set_status(&mut self, tone: StatusTone, message: impl Into<String>) {
@@ -369,35 +419,67 @@ impl MemDeckGuiApp {
     }
 
     fn move_track_selection(&mut self, delta: isize) {
-        let Some((track_count, next, label)) = self.selected_overview().map(|overview| {
-            let track_count = overview.tracks.len();
+        if self.editor_state.mode == EditorMode::Browser {
+            let Some((track_count, next, label)) = self.selected_overview().map(|overview| {
+                let track_count = overview.tracks.len();
+                if track_count == 0 {
+                    return (0, 0, None);
+                }
+
+                let next = (self.clamped_track_index(overview) as isize + delta)
+                    .clamp(0, track_count.saturating_sub(1) as isize)
+                    as usize;
+                let label = overview
+                    .tracks
+                    .get(next)
+                    .map(|track| (track.name.clone(), track.fx_bus));
+                (track_count, next, label)
+            }) else {
+                return;
+            };
             if track_count == 0 {
-                return (0, 0, None);
+                return;
             }
 
-            let next = (self.clamped_track_index(overview) as isize + delta)
+            self.runtime.selected_track = next;
+            if let Some((track_name, fx_bus)) = label {
+                self.set_status(
+                    StatusTone::Normal,
+                    format!(
+                        "TRACK {:02} • {} • BUS {}",
+                        next + 1,
+                        track_name.to_uppercase(),
+                        fx_bus
+                    ),
+                );
+            }
+            return;
+        }
+
+        let Some((track_count, next)) = self.editable_song.as_ref().map(|song| {
+            let track_count = song.tracks.len();
+            if track_count == 0 {
+                return (0, 0);
+            }
+            let next = (self.active_track_index() as isize + delta)
                 .clamp(0, track_count.saturating_sub(1) as isize) as usize;
-            let label = overview
-                .tracks
-                .get(next)
-                .map(|track| (track.name.clone(), track.fx_bus));
-            (track_count, next, label)
+            (track_count, next)
         }) else {
             return;
         };
         if track_count == 0 {
             return;
         }
-
-        self.runtime.selected_track = next;
-        if let Some((track_name, fx_bus)) = label {
+        self.set_active_track_index(next);
+        self.normalize_pattern_cursor();
+        if let Some(track) = self.selected_editable_track() {
             self.set_status(
                 StatusTone::Normal,
                 format!(
                     "TRACK {:02} • {} • BUS {}",
                     next + 1,
-                    track_name.to_uppercase(),
-                    fx_bus
+                    track.name.to_uppercase(),
+                    self.selected_editable_fx_bus_index().unwrap_or(0)
                 ),
             );
         }
@@ -425,7 +507,88 @@ impl MemDeckGuiApp {
     }
 
     fn set_mode(&mut self, mode: EditorMode) {
+        if self.editor_state.mode == mode {
+            return;
+        }
+        if matches!(mode, EditorMode::Browser) {
+            self.stop_playback(false);
+        }
+        if self.editable_song.is_none() && mode != EditorMode::Browser {
+            self.set_status(StatusTone::Warning, "MODE SWITCH FAILED • NO EDITABLE SONG");
+            return;
+        }
+        if self.editor_state.mode == EditorMode::Preview && mode == EditorMode::Edit {
+            self.stop_playback(false);
+        }
         self.editor_state.mode = mode;
+        if mode != EditorMode::Browser {
+            self.sync_arrangement_selection_with_pattern(true);
+        }
+        self.sync_track_selection_state();
+    }
+
+    fn sync_arrangement_selection_with_pattern(&mut self, preserve_step_offset: bool) {
+        let Some(song) = self.editable_song.as_ref() else {
+            self.editor_state.selected_arrangement_block = None;
+            self.editor_state.selected_pattern = None;
+            self.editor_state.selected_step = None;
+            return;
+        };
+
+        if song.arrangement.blocks.is_empty() {
+            self.editor_state.selected_arrangement_block = None;
+            self.editor_state.selected_pattern = None;
+            self.editor_state.selected_step = None;
+            return;
+        }
+
+        let block_index = self
+            .editor_state
+            .selected_arrangement_block
+            .unwrap_or(0)
+            .min(song.arrangement.blocks.len().saturating_sub(1));
+        self.editor_state.selected_arrangement_block = Some(block_index);
+
+        let block = &song.arrangement.blocks[block_index];
+        self.editor_state.selected_pattern = song
+            .patterns
+            .iter()
+            .position(|pattern| pattern.name == block.pattern_name);
+
+        let block_start = song
+            .arrangement
+            .blocks
+            .iter()
+            .take(block_index)
+            .map(|item| item.length)
+            .sum::<usize>();
+        let block_len = block.length.max(1);
+        let next_step = if preserve_step_offset {
+            let relative = self
+                .editor_state
+                .selected_step
+                .unwrap_or(block_start)
+                .saturating_sub(block_start)
+                .min(block_len.saturating_sub(1));
+            block_start + relative
+        } else {
+            block_start
+        };
+        self.editor_state.selected_step = Some(next_step);
+    }
+
+    fn invalidate_editable_preview(&mut self) {
+        if self
+            .runtime
+            .rendered_audio
+            .as_ref()
+            .is_some_and(|render| render.demo_key == "__editable__")
+        {
+            self.runtime.rendered_audio = None;
+        }
+        if self.editor_state.mode == EditorMode::Preview {
+            self.editor_state.mode = EditorMode::Edit;
+        }
     }
 
     fn create_new_song(&mut self) {
@@ -441,6 +604,8 @@ impl MemDeckGuiApp {
             last_saved_path: None,
             last_error: None,
         };
+        self.set_active_track_index(0);
+        self.sync_arrangement_selection_with_pattern(false);
         self.renaming_pattern = false;
         self.pattern_rename_buffer.clear();
         self.set_status(StatusTone::Active, "EDIT MODE • NEW SONG");
@@ -458,9 +623,10 @@ impl MemDeckGuiApp {
                 self.editor_state.selected_arrangement_block = Some(0);
                 self.editor_state.selected_pattern = Some(0);
                 self.editor_state.selected_step = Some(0);
-                self.editor_state.selected_track = 0;
+                self.set_active_track_index(0);
                 self.editor_state.dirty = true;
                 self.editor_state.last_error = None;
+                self.sync_arrangement_selection_with_pattern(false);
                 self.set_status(StatusTone::Active, "EDIT MODE • DEMO DUPLICATED");
             }
             Err(error) => {
@@ -485,10 +651,11 @@ impl MemDeckGuiApp {
                 self.editor_state.selected_arrangement_block = Some(0);
                 self.editor_state.selected_pattern = Some(0);
                 self.editor_state.selected_step = Some(0);
-                self.editor_state.selected_track = 0;
+                self.set_active_track_index(0);
                 self.editor_state.dirty = false;
                 self.editor_state.last_saved_path = Some(path.clone());
                 self.editor_state.last_error = None;
+                self.sync_arrangement_selection_with_pattern(false);
                 self.set_status(
                     StatusTone::Active,
                     format!("EDIT MODE • OPENED {}", path.display()),
@@ -558,10 +725,8 @@ impl MemDeckGuiApp {
             }
         };
 
-        let tmp_path = std::env::temp_dir().join(format!(
-            "memdeck-edit-preview-{}.abc",
-            std::process::id()
-        ));
+        let tmp_path =
+            std::env::temp_dir().join(format!("memdeck-edit-preview-{}.abc", std::process::id()));
         if let Err(error) = std::fs::write(&tmp_path, abc) {
             self.set_status(
                 StatusTone::Warning,
@@ -601,6 +766,7 @@ impl MemDeckGuiApp {
         let current = self.editor_state.selected_arrangement_block.unwrap_or(0);
         let next = (current as isize + delta).clamp(0, block_count.saturating_sub(1) as isize);
         self.editor_state.selected_arrangement_block = Some(next as usize);
+        self.sync_arrangement_selection_with_pattern(true);
     }
 
     fn arrangement_add_block(&mut self) {
@@ -631,6 +797,8 @@ impl MemDeckGuiApp {
         };
         self.editor_state.selected_arrangement_block = new_selected;
         self.editor_state.dirty = true;
+        self.sync_arrangement_selection_with_pattern(false);
+        self.invalidate_editable_preview();
     }
 
     fn arrangement_duplicate_block(&mut self) {
@@ -654,7 +822,9 @@ impl MemDeckGuiApp {
         self.editor_state.selected_arrangement_block = new_selected;
         if changed {
             self.editor_state.dirty = true;
+            self.invalidate_editable_preview();
         }
+        self.sync_arrangement_selection_with_pattern(false);
     }
 
     fn arrangement_remove_block(&mut self) {
@@ -683,7 +853,9 @@ impl MemDeckGuiApp {
         self.editor_state.selected_arrangement_block = new_selected;
         if changed {
             self.editor_state.dirty = true;
+            self.invalidate_editable_preview();
         }
+        self.sync_arrangement_selection_with_pattern(false);
     }
 
     fn arrangement_reorder_selected(&mut self, delta: isize) {
@@ -707,6 +879,8 @@ impl MemDeckGuiApp {
         };
         self.editor_state.selected_arrangement_block = new_selected;
         self.editor_state.dirty = true;
+        self.sync_arrangement_selection_with_pattern(false);
+        self.invalidate_editable_preview();
     }
 
     fn begin_rename_selected_pattern(&mut self) {
@@ -759,6 +933,8 @@ impl MemDeckGuiApp {
         }
         song.mark_dirty();
         self.editor_state.dirty = true;
+        self.sync_arrangement_selection_with_pattern(true);
+        self.invalidate_editable_preview();
         self.renaming_pattern = false;
         self.pattern_rename_buffer.clear();
     }
@@ -770,7 +946,9 @@ impl MemDeckGuiApp {
             self.set_status(StatusTone::Normal, "RENAME CANCELED");
             return;
         }
-        if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+        if self.editor_state.mode != EditorMode::Browser
+            && self.runtime.focus == FocusArea::PatternEditor
+        {
             self.focus_panel(FocusArea::PatternOverview);
             return;
         }
@@ -778,28 +956,16 @@ impl MemDeckGuiApp {
     }
 
     fn open_selected_pattern(&mut self) {
-        let Some(block_index) = self.editor_state.selected_arrangement_block else {
-            return;
-        };
-        let Some((block_name, selected_pattern, block_start)) = self.editable_song.as_ref().and_then(|song| {
-            let block = song.arrangement.blocks.get(block_index)?;
-            let selected_pattern = song
-                .patterns
-                .iter()
-                .position(|pattern| pattern.name == block.pattern_name);
-            let block_start = song
-                .arrangement
+        let Some(block_name) = self.editable_song.as_ref().and_then(|song| {
+            let block_index = self.editor_state.selected_arrangement_block?;
+            song.arrangement
                 .blocks
-                .iter()
-                .take(block_index)
-                .map(|b| b.length)
-                .sum::<usize>();
-            Some((block.pattern_name.clone(), selected_pattern, block_start))
+                .get(block_index)
+                .map(|block| block.pattern_name.clone())
         }) else {
             return;
         };
-        self.editor_state.selected_pattern = selected_pattern;
-        self.editor_state.selected_step = Some(block_start);
+        self.sync_arrangement_selection_with_pattern(false);
         self.focus_panel(FocusArea::PatternEditor);
         self.set_status(
             StatusTone::Normal,
@@ -858,9 +1024,9 @@ impl MemDeckGuiApp {
             return;
         };
         let track_max = song.tracks.len().saturating_sub(1) as isize;
-        let next_track = (self.editor_state.selected_track as isize + delta_track).clamp(0, track_max);
-        self.editor_state.selected_track = next_track as usize;
-        self.runtime.selected_track = self.editor_state.selected_track;
+        let next_track =
+            (self.editor_state.selected_track as isize + delta_track).clamp(0, track_max);
+        self.set_active_track_index(next_track as usize);
 
         let relative = self
             .editor_state
@@ -882,8 +1048,7 @@ impl MemDeckGuiApp {
         if song.tracks.is_empty() {
             return;
         }
-        self.editor_state.selected_track = track_index.min(song.tracks.len().saturating_sub(1));
-        self.runtime.selected_track = self.editor_state.selected_track;
+        self.set_active_track_index(track_index.min(song.tracks.len().saturating_sub(1)));
         self.editor_state.selected_step =
             Some(block_start + relative_step.min(block_len.saturating_sub(1)));
     }
@@ -891,14 +1056,14 @@ impl MemDeckGuiApp {
     fn mark_editor_dirty(&mut self) {
         if let Some(song) = self.editable_song.as_mut() {
             song.mark_dirty();
+            self.editor_state.dirty = song.dirty;
+        } else {
+            self.editor_state.dirty = true;
         }
-        self.editor_state.dirty = true;
+        self.invalidate_editable_preview();
     }
 
-    fn with_selected_step_mut(
-        &mut self,
-        mutate: impl FnOnce(&mut editor::EditableStep),
-    ) -> bool {
+    fn with_selected_step_mut(&mut self, mutate: impl FnOnce(&mut editor::EditableStep)) -> bool {
         self.normalize_pattern_cursor();
         let Some(song) = self.editable_song.as_mut() else {
             return false;
@@ -997,6 +1162,7 @@ impl MemDeckGuiApp {
                 *step_mut = editor::EditableStep::rest();
                 song.mark_dirty();
                 self.editor_state.dirty = true;
+                self.invalidate_editable_preview();
             }
         }
     }
@@ -1016,8 +1182,9 @@ impl MemDeckGuiApp {
         }
         self.editor_state.mode = EditorMode::Edit;
         self.editor_state.selected_arrangement_block = Some(0);
-        self.editor_state.selected_track = 0;
+        self.set_active_track_index(0);
         self.editor_state.selected_step = Some(0);
+        self.sync_arrangement_selection_with_pattern(false);
         self.toggle_selected_step();
         self.adjust_selected_step_octave(12);
         self.toggle_selected_step_accent();
@@ -1035,7 +1202,7 @@ impl MemDeckGuiApp {
                 let sample_count = render.samples.len();
                 let stats = render.stats;
                 self.runtime.rendered_audio = Some(render);
-                self.sync_selected_track();
+                self.sync_track_selection_state();
                 self.set_status(
                     StatusTone::Active,
                     if let Some(stats) = stats {
@@ -1132,7 +1299,8 @@ impl MemDeckGuiApp {
             if input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::S) {
                 self.save_editable_song(true);
             }
-            if input.modifiers.command && input.key_pressed(egui::Key::S) && !input.modifiers.shift {
+            if input.modifiers.command && input.key_pressed(egui::Key::S) && !input.modifiers.shift
+            {
                 self.save_editable_song(false);
             }
             if input.modifiers.command && input.key_pressed(egui::Key::R) {
@@ -1171,7 +1339,11 @@ impl MemDeckGuiApp {
                 egui::Key::F,
             ] {
                 if input.key_pressed(key) {
-                    self.handle_key_press_with_modifiers(key, input.modifiers.shift, input.modifiers.command);
+                    self.handle_key_press_with_modifiers(
+                        key,
+                        input.modifiers.shift,
+                        input.modifiers.command,
+                    );
                 }
             }
         });
@@ -1181,16 +1353,13 @@ impl MemDeckGuiApp {
         self.handle_key_press_with_modifiers(key, shift, false);
     }
 
-    fn handle_key_press_with_modifiers(
-        &mut self,
-        key: egui::Key,
-        shift: bool,
-        command: bool,
-    ) {
+    fn handle_key_press_with_modifiers(&mut self, key: egui::Key, shift: bool, command: bool) {
         match key {
             egui::Key::Tab => self.cycle_focus(shift),
             egui::Key::ArrowLeft => {
-                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
                     self.move_pattern_cursor(0, -1);
                 } else if self.editor_state.mode != EditorMode::Browser
                     && self.runtime.focus == FocusArea::PatternOverview
@@ -1203,7 +1372,9 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::ArrowRight => {
-                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
                     self.move_pattern_cursor(0, 1);
                 } else if self.editor_state.mode != EditorMode::Browser
                     && self.runtime.focus == FocusArea::PatternOverview
@@ -1216,23 +1387,25 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::ArrowUp => {
-                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
                     self.move_pattern_cursor(-1, 0);
                 } else if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(-1);
                 } else {
                     self.move_track_selection(-1);
-                    self.editor_state.selected_track = self.runtime.selected_track;
                 }
             }
             egui::Key::ArrowDown => {
-                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
                     self.move_pattern_cursor(1, 0);
                 } else if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(1);
                 } else {
                     self.move_track_selection(1);
-                    self.editor_state.selected_track = self.runtime.selected_track;
                 }
             }
             egui::Key::Enter => {
@@ -1617,7 +1790,7 @@ impl MemDeckGuiApp {
                         .size(12.0)
                         .color(TEXT_DIM),
                     );
-                    if let Some(track) = self.selected_track() {
+                    if let Some(track) = self.selected_browser_track() {
                         ui.label(
                             RichText::new(format!(
                                 "TRACK {:02} • {} • BUS {}",
@@ -1748,14 +1921,22 @@ impl MemDeckGuiApp {
             return;
         };
         let Some((block_index, block_start, block_len)) = self.current_pattern_bounds() else {
-            ui.label(RichText::new("NO PATTERN BLOCK SELECTED.").monospace().color(WARNING));
+            ui.label(
+                RichText::new("NO PATTERN BLOCK SELECTED.")
+                    .monospace()
+                    .color(WARNING),
+            );
             return;
         };
         let Some(block) = song.arrangement.blocks.get(block_index) else {
             return;
         };
         if song.tracks.is_empty() {
-            ui.label(RichText::new("NO TRACKS AVAILABLE.").monospace().color(WARNING));
+            ui.label(
+                RichText::new("NO TRACKS AVAILABLE.")
+                    .monospace()
+                    .color(WARNING),
+            );
             return;
         }
 
@@ -1818,7 +1999,11 @@ impl MemDeckGuiApp {
                             RichText::new(format!("{:02} {}", track_index + 1, track.name))
                                 .monospace()
                                 .size(11.0)
-                                .color(if track_index == selected_track { ACCENT } else { TEXT }),
+                                .color(if track_index == selected_track {
+                                    ACCENT
+                                } else {
+                                    TEXT
+                                }),
                         ),
                     );
                     for rel_step in 0..block_len {
@@ -1909,17 +2094,35 @@ impl MemDeckGuiApp {
                     .strong(),
             );
             ui.separator();
-            ui.label(RichText::new("TEMPO").monospace().size(12.0).color(TEXT_DIM));
+            ui.label(
+                RichText::new("TEMPO")
+                    .monospace()
+                    .size(12.0)
+                    .color(TEXT_DIM),
+            );
             if ui
-                .add(egui::DragValue::new(&mut song.tempo).range(20..=300).speed(1))
+                .add(
+                    egui::DragValue::new(&mut song.tempo)
+                        .range(20..=300)
+                        .speed(1),
+                )
                 .changed()
             {
                 marked_dirty = true;
             }
             ui.separator();
-            ui.label(RichText::new("SWING").monospace().size(12.0).color(TEXT_DIM));
+            ui.label(
+                RichText::new("SWING")
+                    .monospace()
+                    .size(12.0)
+                    .color(TEXT_DIM),
+            );
             if ui
-                .add(egui::DragValue::new(&mut song.swing).range(0..=100).speed(1))
+                .add(
+                    egui::DragValue::new(&mut song.swing)
+                        .range(0..=100)
+                        .speed(1),
+                )
                 .changed()
             {
                 marked_dirty = true;
@@ -1944,7 +2147,9 @@ impl MemDeckGuiApp {
             );
             let block_index = selected_block.min(song.arrangement.blocks.len().saturating_sub(1));
             ui.separator();
-            if ui.button(RichText::new("-LEN").monospace().size(11.0)).clicked()
+            if ui
+                .button(RichText::new("-LEN").monospace().size(11.0))
+                .clicked()
                 && song.arrangement.blocks[block_index].length > 1
             {
                 song.arrangement.blocks[block_index].length -= 1;
@@ -1958,7 +2163,10 @@ impl MemDeckGuiApp {
                 }
                 marked_dirty = true;
             }
-            if ui.button(RichText::new("+LEN").monospace().size(11.0)).clicked() {
+            if ui
+                .button(RichText::new("+LEN").monospace().size(11.0))
+                .clicked()
+            {
                 song.arrangement.blocks[block_index].length += 1;
                 let pattern_name = song.arrangement.blocks[block_index].pattern_name.clone();
                 if let Some(pattern) = song
@@ -1975,7 +2183,12 @@ impl MemDeckGuiApp {
         if self.renaming_pattern {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("RENAME").monospace().size(12.0).color(TEXT_DIM));
+                ui.label(
+                    RichText::new("RENAME")
+                        .monospace()
+                        .size(12.0)
+                        .color(TEXT_DIM),
+                );
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.pattern_rename_buffer)
                         .font(TextStyle::Monospace)
@@ -1984,7 +2197,10 @@ impl MemDeckGuiApp {
                 if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
                     self.apply_pattern_rename();
                 }
-                if ui.button(RichText::new("OK").monospace().size(11.0)).clicked() {
+                if ui
+                    .button(RichText::new("OK").monospace().size(11.0))
+                    .clicked()
+                {
                     self.apply_pattern_rename();
                 }
                 if ui
@@ -2019,7 +2235,8 @@ impl MemDeckGuiApp {
             for (track_index, track) in tracks.iter().enumerate() {
                 ui.horizontal(|ui| {
                     let track_selected = track_index == selected_track;
-                    let track_label = format!("{:02} {}", track_index + 1, track.name.to_uppercase());
+                    let track_label =
+                        format!("{:02} {}", track_index + 1, track.name.to_uppercase());
                     let track_response = ui.add(
                         egui::Button::new(
                             RichText::new(track_label)
@@ -2028,7 +2245,10 @@ impl MemDeckGuiApp {
                                 .color(if track_selected { BASE_BG } else { TEXT }),
                         )
                         .fill(if track_selected { ACCENT } else { PANEL_DIM_BG })
-                        .stroke(Stroke::new(1.0, if track_selected { ACCENT } else { BORDER_DIM }))
+                        .stroke(Stroke::new(
+                            1.0,
+                            if track_selected { ACCENT } else { BORDER_DIM },
+                        ))
                         .min_size(Vec2::new(132.0, 20.0)),
                     );
                     if track_response.clicked() {
@@ -2061,7 +2281,10 @@ impl MemDeckGuiApp {
                             } else {
                                 PANEL_DIM_BG
                             })
-                            .stroke(Stroke::new(1.0, if is_selected { ACCENT } else { BORDER_DIM }))
+                            .stroke(Stroke::new(
+                                1.0,
+                                if is_selected { ACCENT } else { BORDER_DIM },
+                            ))
                             .min_size(Vec2::new(78.0, 20.0)),
                         );
                         if response.clicked() {
@@ -2079,11 +2302,11 @@ impl MemDeckGuiApp {
         });
 
         if let Some(track_index) = clicked_track {
-            self.editor_state.selected_track = track_index;
-            self.runtime.selected_track = track_index;
+            self.set_active_track_index(track_index);
         }
         if let Some(block_index) = clicked_block {
             self.editor_state.selected_arrangement_block = Some(block_index);
+            self.sync_arrangement_selection_with_pattern(true);
         }
         if double_clicked {
             self.open_selected_pattern();
@@ -2095,7 +2318,11 @@ impl MemDeckGuiApp {
                 "STEPS {} • BLOCKS {} • DIRTY {}",
                 total_steps,
                 blocks.len(),
-                if self.editor_state.dirty || song_dirty { "YES" } else { "NO" }
+                if self.editor_state.dirty || song_dirty {
+                    "YES"
+                } else {
+                    "NO"
+                }
             ))
             .monospace()
             .size(12.0)
@@ -2107,183 +2334,581 @@ impl MemDeckGuiApp {
                 song.mark_dirty();
             }
             self.editor_state.dirty = true;
+            self.invalidate_editable_preview();
         }
     }
 
-    fn draw_instrument_inspector(&self, ui: &mut egui::Ui) {
+    fn ensure_editable_fx_bus_exists(&mut self, bus_index: usize) -> bool {
+        let Some(song) = self.editable_song.as_mut() else {
+            return false;
+        };
+        let original_len = song.fx_buses.len();
+        while song.fx_buses.len() <= bus_index {
+            let next_index = song.fx_buses.len();
+            song.fx_buses
+                .push(editor::EditableFxBus::default_for_index(next_index));
+        }
+        song.fx_buses.len() != original_len
+    }
+
+    fn waveform_label_from_id(id: i32) -> &'static str {
+        match id {
+            1 => "pulse",
+            2 => "triangle",
+            3 => "noise",
+            _ => "square",
+        }
+    }
+
+    fn draw_instrument_inspector(&mut self, ui: &mut egui::Ui) {
+        let in_edit_mode =
+            self.editor_state.mode != EditorMode::Browser && self.editable_song.is_some();
         Self::retro_panel(
             ui,
             FocusArea::InstrumentInspector.title(),
             self.runtime.focus == FocusArea::InstrumentInspector,
-            Some("READ-ONLY VOICE / ADSR VIEW"),
+            Some(if in_edit_mode {
+                "EDITABLE TRACK VOICE VIEW"
+            } else {
+                "READ-ONLY VOICE / ADSR VIEW"
+            }),
             |ui| {
-                let Some(track) = self.selected_track() else {
+                if !in_edit_mode {
+                    let Some(track) = self.selected_browser_track() else {
+                        ui.label(
+                            RichText::new("NO TRACK METADATA AVAILABLE.")
+                                .monospace()
+                                .color(WARNING),
+                        );
+                        return;
+                    };
+
                     ui.label(
-                        RichText::new("NO TRACK METADATA AVAILABLE.")
-                            .monospace()
-                            .color(WARNING),
+                        RichText::new(format!(
+                            "TRACK • {} / {}",
+                            track.name.to_uppercase(),
+                            track.instrument.to_uppercase()
+                        ))
+                        .monospace()
+                        .strong(),
+                    );
+                    if !track.preset.is_empty() {
+                        ui.label(
+                            RichText::new(format!("PRESET • {}", track.preset.to_uppercase()))
+                                .monospace()
+                                .size(12.0)
+                                .color(TEXT_DIM),
+                        );
+                    }
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        Self::draw_waveform_glyph(ui, &track.waveform, track.duty_cycle);
+                        ui.add_space(10.0);
+                        ui.vertical(|ui| {
+                            Self::draw_meter_row(
+                                ui,
+                                "AMP",
+                                track.amplitude as f32 / 127.0,
+                                format!("{}", track.amplitude),
+                                ACCENT,
+                            );
+                            Self::draw_meter_row(
+                                ui,
+                                "DUTY",
+                                track.duty_cycle as f32 / 100.0,
+                                format!("{}%", track.duty_cycle),
+                                ACCENT,
+                            );
+                            Self::draw_meter_row(
+                                ui,
+                                "GATE",
+                                track.gate_percent as f32 / 100.0,
+                                format!("{}%", track.gate_percent),
+                                ACCENT,
+                            );
+                        });
+                    });
+                    ui.add_space(8.0);
+                    Self::draw_adsr_scope(ui, track);
+                    ui.add_space(8.0);
+                    Self::draw_meter_row(
+                        ui,
+                        "GLIDE",
+                        (track.glide_ms as f32 / 500.0).clamp(0.0, 1.0),
+                        format!("{} ms", track.glide_ms),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "VIBRATO",
+                        (track.vibrato_cents as f32 / 32.0).clamp(0.0, 1.0),
+                        format!("{} c / {} hz", track.vibrato_cents, track.vibrato_rate),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "DETUNE",
+                        (track.detune_cents as f32 / 32.0).clamp(0.0, 1.0),
+                        format!("{} c", track.detune_cents),
+                        TEXT_DIM,
                     );
                     return;
+                }
+
+                let mut changed = false;
+                let active_track_index = self.active_track_index();
+
+                let (
+                    track_name,
+                    instrument_label,
+                    waveform,
+                    duty_cycle,
+                    amp,
+                    gate,
+                    attack,
+                    decay,
+                    sustain,
+                    release,
+                    glide,
+                    vibrato,
+                ) = {
+                    let Some(song) = self.editable_song.as_mut() else {
+                        return;
+                    };
+                    if song.tracks.is_empty() || song.instruments.is_empty() {
+                        ui.label(
+                            RichText::new("NO EDITABLE INSTRUMENT DATA AVAILABLE.")
+                                .monospace()
+                                .color(WARNING),
+                        );
+                        return;
+                    }
+
+                    let track_index = active_track_index.min(song.tracks.len().saturating_sub(1));
+                    let instrument_names: Vec<String> = song
+                        .instruments
+                        .iter()
+                        .map(|instrument| instrument.name.clone())
+                        .collect();
+                    let track_name = song.tracks[track_index].name.clone();
+
+                    let mut selected_instrument = song.tracks[track_index].instrument_ref.clone();
+                    egui::ComboBox::from_label("TRACK INSTRUMENT")
+                        .selected_text(selected_instrument.as_str())
+                        .show_ui(ui, |ui| {
+                            for name in &instrument_names {
+                                ui.selectable_value(
+                                    &mut selected_instrument,
+                                    name.clone(),
+                                    name.as_str(),
+                                );
+                            }
+                        });
+                    if selected_instrument != song.tracks[track_index].instrument_ref {
+                        song.tracks[track_index].instrument_ref = selected_instrument.clone();
+                        changed = true;
+                    }
+
+                    let instrument_index = song
+                        .instruments
+                        .iter()
+                        .position(|instrument| instrument.name == selected_instrument)
+                        .unwrap_or(0);
+                    let instrument = &mut song.instruments[instrument_index];
+                    let instrument_label = instrument.name.clone();
+                    let waveform = Self::waveform_label_from_id(instrument.waveform);
+                    let duty_cycle = instrument.duty_cycle;
+                    let amp = instrument.amplitude;
+                    let gate = instrument.gate_percent;
+                    let attack = instrument.attack_ms;
+                    let decay = instrument.decay_ms;
+                    let sustain = instrument.sustain_level;
+                    let release = instrument.release_ms;
+                    let glide = instrument.glide_ms;
+                    let vibrato = instrument.vibrato_cents;
+
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("WAVE").monospace().size(12.0).color(TEXT_DIM));
+                        egui::ComboBox::from_id_salt("instrument_waveform")
+                            .selected_text(waveform.to_uppercase())
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(&mut instrument.waveform, 0, "SQUARE");
+                                ui.selectable_value(&mut instrument.waveform, 1, "PULSE");
+                                ui.selectable_value(&mut instrument.waveform, 2, "TRIANGLE");
+                                ui.selectable_value(&mut instrument.waveform, 3, "NOISE");
+                            });
+                    });
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.amplitude, 1..=127).text("AMP"))
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.duty_cycle, 1..=100).text("DUTY"))
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.gate_percent, 1..=100).text("GATE"))
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.attack_ms, 0..=500).text("ATTACK"))
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.decay_ms, 0..=500).text("DECAY"))
+                        .changed();
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut instrument.sustain_level, 0..=100)
+                                .text("SUSTAIN"),
+                        )
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.release_ms, 0..=600).text("RELEASE"))
+                        .changed();
+                    changed |= ui
+                        .add(egui::Slider::new(&mut instrument.glide_ms, 0..=600).text("GLIDE"))
+                        .changed();
+                    changed |= ui
+                        .add(
+                            egui::Slider::new(&mut instrument.vibrato_cents, 0..=64)
+                                .text("VIBRATO"),
+                        )
+                        .changed();
+                    (
+                        track_name,
+                        instrument_label,
+                        waveform,
+                        duty_cycle,
+                        amp,
+                        gate,
+                        attack,
+                        decay,
+                        sustain,
+                        release,
+                        glide,
+                        vibrato,
+                    )
                 };
 
+                ui.add_space(6.0);
                 ui.label(
                     RichText::new(format!(
                         "TRACK • {} / {}",
-                        track.name.to_uppercase(),
-                        track.instrument.to_uppercase()
+                        track_name.to_uppercase(),
+                        instrument_label.to_uppercase()
                     ))
                     .monospace()
                     .strong(),
                 );
-                if !track.preset.is_empty() {
-                    ui.label(
-                        RichText::new(format!("PRESET • {}", track.preset.to_uppercase()))
-                            .monospace()
-                            .size(12.0)
-                            .color(TEXT_DIM),
-                    );
-                }
-                ui.add_space(6.0);
                 ui.horizontal(|ui| {
-                    Self::draw_waveform_glyph(ui, &track.waveform, track.duty_cycle);
+                    Self::draw_waveform_glyph(ui, waveform, duty_cycle);
                     ui.add_space(10.0);
                     ui.vertical(|ui| {
                         Self::draw_meter_row(
                             ui,
                             "AMP",
-                            track.amplitude as f32 / 127.0,
-                            format!("{}", track.amplitude),
+                            amp as f32 / 127.0,
+                            format!("{amp}"),
                             ACCENT,
                         );
                         Self::draw_meter_row(
                             ui,
                             "DUTY",
-                            track.duty_cycle as f32 / 100.0,
-                            format!("{}%", track.duty_cycle),
+                            duty_cycle as f32 / 100.0,
+                            format!("{duty_cycle}%"),
                             ACCENT,
                         );
                         Self::draw_meter_row(
                             ui,
                             "GATE",
-                            track.gate_percent as f32 / 100.0,
-                            format!("{}%", track.gate_percent),
+                            gate as f32 / 100.0,
+                            format!("{gate}%"),
                             ACCENT,
                         );
                     });
                 });
-                ui.add_space(8.0);
-                Self::draw_adsr_scope(ui, track);
-                ui.add_space(8.0);
+                Self::draw_meter_row(
+                    ui,
+                    "ADSR",
+                    (attack + decay + release) as f32 / 1500.0,
+                    format!("A{attack} D{decay} S{sustain}% R{release}"),
+                    ACCENT,
+                );
                 Self::draw_meter_row(
                     ui,
                     "GLIDE",
-                    (track.glide_ms as f32 / 500.0).clamp(0.0, 1.0),
-                    format!("{} ms", track.glide_ms),
+                    glide as f32 / 600.0,
+                    format!("{glide} ms"),
                     ACCENT,
                 );
                 Self::draw_meter_row(
                     ui,
                     "VIBRATO",
-                    (track.vibrato_cents as f32 / 32.0).clamp(0.0, 1.0),
-                    format!("{} c / {} hz", track.vibrato_cents, track.vibrato_rate),
+                    vibrato as f32 / 64.0,
+                    format!("{vibrato} c"),
                     ACCENT,
                 );
-                Self::draw_meter_row(
-                    ui,
-                    "DETUNE",
-                    (track.detune_cents as f32 / 32.0).clamp(0.0, 1.0),
-                    format!("{} c", track.detune_cents),
-                    TEXT_DIM,
-                );
+
+                if changed {
+                    self.mark_editor_dirty();
+                }
             },
         );
     }
 
-    fn draw_fx_inspector(&self, ui: &mut egui::Ui) {
+    fn draw_fx_inspector(&mut self, ui: &mut egui::Ui) {
+        let in_edit_mode =
+            self.editor_state.mode != EditorMode::Browser && self.editable_song.is_some();
         Self::retro_panel(
             ui,
             FocusArea::FxInspector.title(),
             self.runtime.focus == FocusArea::FxInspector,
-            Some("READ-ONLY BUS / FX LANE VIEW"),
+            Some(if in_edit_mode {
+                "EDITABLE BUS / ROUTING VIEW"
+            } else {
+                "READ-ONLY BUS / FX LANE VIEW"
+            }),
             |ui| {
-                let Some(track) = self.selected_track() else {
-                    ui.label(
-                        RichText::new("NO FX ROUTING AVAILABLE.")
-                            .monospace()
-                            .color(WARNING),
+                if !in_edit_mode {
+                    let Some(track) = self.selected_browser_track() else {
+                        ui.label(
+                            RichText::new("NO FX ROUTING AVAILABLE.")
+                                .monospace()
+                                .color(WARNING),
+                        );
+                        return;
+                    };
+                    let Some(bus) = self.selected_browser_fx_bus() else {
+                        ui.label(
+                            RichText::new(format!("TRACK ROUTES TO MISSING BUS {}.", track.fx_bus))
+                                .monospace()
+                                .color(WARNING),
+                        );
+                        return;
+                    };
+
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            RichText::new(format!("BUS {}", bus.bus_index))
+                                .monospace()
+                                .strong(),
+                        );
+                        ui.separator();
+                        ui.label(
+                            RichText::new(format!("TRACK {}", track.name.to_uppercase()))
+                                .monospace()
+                                .color(TEXT_DIM),
+                        );
+                        ui.separator();
+                        ui.label(
+                            RichText::new(if bus.enabled { "ACTIVE" } else { "BYPASS" })
+                                .monospace()
+                                .color(if bus.enabled { ACCENT } else { TEXT_DIM }),
+                        );
+                    });
+                    ui.add_space(8.0);
+                    Self::draw_meter_row(
+                        ui,
+                        "DELAY",
+                        (bus.delay_mix as f32 / 100.0).clamp(0.0, 1.0),
+                        format!(
+                            "{} stp / fb {} / mix {}%",
+                            bus.delay_steps, bus.delay_feedback, bus.delay_mix
+                        ),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "DRIVE",
+                        (bus.drive_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus.drive_amount),
+                        WARNING,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "LOW-PASS",
+                        (bus.lowpass_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus.lowpass_amount),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "SIDECHAIN",
+                        (bus.sidechain_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!(
+                            "{}% / {} ms",
+                            bus.sidechain_amount, bus.sidechain_release_ms
+                        ),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "BUS MIX",
+                        (bus.mix_percent as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus.mix_percent),
+                        ACCENT,
                     );
                     return;
-                };
-                let Some(bus) = self.selected_fx_bus() else {
-                    ui.label(
-                        RichText::new(format!("TRACK ROUTES TO MISSING BUS {}.", track.fx_bus))
-                            .monospace()
-                            .color(WARNING),
-                    );
-                    return;
-                };
+                }
 
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(
-                        RichText::new(format!("BUS {}", bus.bus_index))
-                            .monospace()
-                            .strong(),
-                    );
-                    ui.separator();
-                    ui.label(
-                        RichText::new(format!("TRACK {}", track.name.to_uppercase()))
-                            .monospace()
-                            .color(TEXT_DIM),
-                    );
-                    ui.separator();
-                    ui.label(
-                        RichText::new(if bus.enabled { "ACTIVE" } else { "BYPASS" })
-                            .monospace()
-                            .color(if bus.enabled { ACCENT } else { TEXT_DIM }),
-                    );
+                    ui.label(RichText::new("EDIT TRACK BUS ROUTING").monospace().strong());
                 });
-                ui.add_space(8.0);
-                Self::draw_meter_row(
-                    ui,
-                    "DELAY",
-                    (bus.delay_mix as f32 / 100.0).clamp(0.0, 1.0),
-                    format!(
-                        "{} stp / fb {} / mix {}%",
-                        bus.delay_steps, bus.delay_feedback, bus.delay_mix
-                    ),
-                    ACCENT,
+
+                let mut changed = false;
+                let active_track_index = self.active_track_index();
+
+                let (track_name, bus_index_value, bus_values, needs_missing_bus_repair) = {
+                    let Some(song) = self.editable_song.as_mut() else {
+                        return;
+                    };
+                    if song.tracks.is_empty() || song.instruments.is_empty() {
+                        ui.label(
+                            RichText::new("NO EDITABLE FX DATA AVAILABLE.")
+                                .monospace()
+                                .color(WARNING),
+                        );
+                        return;
+                    }
+                    let track_index = active_track_index.min(song.tracks.len().saturating_sub(1));
+                    let track_name = song.tracks[track_index].name.clone();
+                    let instrument_index = song
+                        .instruments
+                        .iter()
+                        .position(|instrument| {
+                            instrument.name == song.tracks[track_index].instrument_ref
+                        })
+                        .unwrap_or(0);
+                    let instrument = &mut song.instruments[instrument_index];
+
+                    let mut bus_index_edit = instrument.fx_bus as i32;
+                    if ui
+                        .add(egui::Slider::new(&mut bus_index_edit, 0..=31).text("ROUTED BUS"))
+                        .changed()
+                    {
+                        instrument.fx_bus = bus_index_edit.max(0) as usize;
+                        changed = true;
+                    }
+                    let bus_index_value = instrument.fx_bus;
+
+                    if let Some(bus) = song.fx_buses.get_mut(bus_index_value) {
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut bus.delay_steps, 0..=64).text("DELAY STEPS"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut bus.delay_feedback, 0..=100)
+                                    .text("DELAY FEEDBACK"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(egui::Slider::new(&mut bus.delay_mix, 0..=100).text("DELAY MIX"))
+                            .changed();
+                        changed |= ui
+                            .add(egui::Slider::new(&mut bus.drive_amount, 0..=100).text("DRIVE"))
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut bus.lowpass_amount, 0..=100).text("LOWPASS"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut bus.sidechain_amount, 0..=100)
+                                    .text("SIDECHAIN"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::Slider::new(&mut bus.sidechain_release_ms, 20..=800)
+                                    .text("SC RELEASE"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(egui::Slider::new(&mut bus.mix_percent, 0..=100).text("BUS MIX"))
+                            .changed();
+                        (track_name, bus_index_value, bus.clone(), false)
+                    } else {
+                        (
+                            track_name,
+                            bus_index_value,
+                            editor::EditableFxBus::default_for_index(bus_index_value),
+                            true,
+                        )
+                    }
+                };
+
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(format!(
+                        "TRACK {} • BUS {}",
+                        track_name.to_uppercase(),
+                        bus_index_value
+                    ))
+                    .monospace()
+                    .size(12.0)
+                    .color(ACCENT),
                 );
-                Self::draw_meter_row(
-                    ui,
-                    "DRIVE",
-                    (bus.drive_amount as f32 / 100.0).clamp(0.0, 1.0),
-                    format!("{}%", bus.drive_amount),
-                    WARNING,
-                );
-                Self::draw_meter_row(
-                    ui,
-                    "LOW-PASS",
-                    (bus.lowpass_amount as f32 / 100.0).clamp(0.0, 1.0),
-                    format!("{}%", bus.lowpass_amount),
-                    ACCENT,
-                );
-                Self::draw_meter_row(
-                    ui,
-                    "SIDECHAIN",
-                    (bus.sidechain_amount as f32 / 100.0).clamp(0.0, 1.0),
-                    format!(
-                        "{}% / {} ms",
-                        bus.sidechain_amount, bus.sidechain_release_ms
-                    ),
-                    ACCENT,
-                );
-                Self::draw_meter_row(
-                    ui,
-                    "BUS MIX",
-                    (bus.mix_percent as f32 / 100.0).clamp(0.0, 1.0),
-                    format!("{}%", bus.mix_percent),
-                    ACCENT,
-                );
+
+                if needs_missing_bus_repair {
+                    ui.label(
+                        RichText::new(format!("TRACK ROUTES TO MISSING BUS {}.", bus_index_value))
+                            .monospace()
+                            .color(WARNING),
+                    );
+                    if ui
+                        .button(RichText::new("CREATE MISSING BUS").monospace().size(11.0))
+                        .clicked()
+                        && self.ensure_editable_fx_bus_exists(bus_index_value)
+                    {
+                        changed = true;
+                    }
+                } else {
+                    Self::draw_meter_row(
+                        ui,
+                        "DELAY",
+                        (bus_values.delay_mix as f32 / 100.0).clamp(0.0, 1.0),
+                        format!(
+                            "{} stp / fb {} / mix {}%",
+                            bus_values.delay_steps, bus_values.delay_feedback, bus_values.delay_mix
+                        ),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "DRIVE",
+                        (bus_values.drive_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus_values.drive_amount),
+                        WARNING,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "LOW-PASS",
+                        (bus_values.lowpass_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus_values.lowpass_amount),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "SIDECHAIN",
+                        (bus_values.sidechain_amount as f32 / 100.0).clamp(0.0, 1.0),
+                        format!(
+                            "{}% / {} ms",
+                            bus_values.sidechain_amount, bus_values.sidechain_release_ms
+                        ),
+                        ACCENT,
+                    );
+                    Self::draw_meter_row(
+                        ui,
+                        "BUS MIX",
+                        (bus_values.mix_percent as f32 / 100.0).clamp(0.0, 1.0),
+                        format!("{}%", bus_values.mix_percent),
+                        ACCENT,
+                    );
+                }
+
+                if changed {
+                    self.mark_editor_dirty();
+                }
             },
         );
     }
@@ -2299,10 +2924,52 @@ impl MemDeckGuiApp {
             PlaybackState::Stopped => ("STOPPED", TEXT_DIM),
             PlaybackState::Error(_) => ("ERROR", WARNING),
         };
-        let track_label = self
-            .selected_track()
-            .map(|track| track.name.to_uppercase())
-            .unwrap_or_else(|| "--".to_string());
+        let selected_song = if self.editor_state.mode == EditorMode::Browser {
+            self.selected_demo().key.to_uppercase()
+        } else {
+            self.editable_song
+                .as_ref()
+                .map(|song| song.title.to_uppercase())
+                .unwrap_or_else(|| "--".to_string())
+        };
+        let selected_pattern = if self.editor_state.mode == EditorMode::Browser {
+            "--".to_string()
+        } else {
+            self.editable_song
+                .as_ref()
+                .and_then(|song| {
+                    self.editor_state
+                        .selected_arrangement_block
+                        .and_then(|index| song.arrangement.blocks.get(index))
+                        .map(|block| block.pattern_name.to_uppercase())
+                })
+                .unwrap_or_else(|| "--".to_string())
+        };
+        let track_label = if self.editor_state.mode == EditorMode::Browser {
+            self.selected_browser_track()
+                .map(|track| track.name.to_uppercase())
+                .unwrap_or_else(|| "--".to_string())
+        } else {
+            self.selected_editable_track()
+                .map(|track| track.name.to_uppercase())
+                .unwrap_or_else(|| "--".to_string())
+        };
+        let dirty_label = if self.editor_state.mode == EditorMode::Browser {
+            "NO"
+        } else if self.editor_state.dirty
+            || self.editable_song.as_ref().is_some_and(|song| song.dirty)
+        {
+            "YES"
+        } else {
+            "NO"
+        };
+        let last_error = self
+            .editor_state
+            .last_error
+            .as_deref()
+            .or(self.runtime.last_error.as_deref())
+            .unwrap_or("NONE");
+        let has_error = self.editor_state.last_error.is_some() || self.runtime.last_error.is_some();
 
         Self::retro_panel(
             ui,
@@ -2324,8 +2991,9 @@ impl MemDeckGuiApp {
                 ui.horizontal_wrapped(|ui| {
                     ui.label(
                         RichText::new(format!(
-                            "DEMO {} • TRACK {} • FOCUS {}",
-                            self.selected_demo().key.to_uppercase(),
+                            "SONG {} • PATTERN {} • TRACK {} • FOCUS {}",
+                            selected_song,
+                            selected_pattern,
                             track_label,
                             self.focus_label()
                         ))
@@ -2357,6 +3025,17 @@ impl MemDeckGuiApp {
                     );
                     ui.separator();
                     ui.label(
+                        RichText::new(format!("DIRTY {dirty_label}"))
+                            .monospace()
+                            .size(12.0)
+                            .color(if dirty_label == "YES" {
+                                WARNING
+                            } else {
+                                TEXT_DIM
+                            }),
+                    );
+                    ui.separator();
+                    ui.label(
                         RichText::new(format!("PLAYBACK {playback_state}"))
                             .monospace()
                             .size(12.0)
@@ -2364,17 +3043,10 @@ impl MemDeckGuiApp {
                     );
                     ui.separator();
                     ui.label(
-                        RichText::new(format!(
-                            "LAST ERROR {}",
-                            self.runtime.last_error.as_deref().unwrap_or("NONE")
-                        ))
-                        .monospace()
-                        .size(12.0)
-                        .color(if self.runtime.last_error.is_some() {
-                            WARNING
-                        } else {
-                            TEXT_DIM
-                        }),
+                        RichText::new(format!("LAST ERROR {}", last_error))
+                            .monospace()
+                            .size(12.0)
+                            .color(if has_error { WARNING } else { TEXT_DIM }),
                     );
                 });
                 ui.add_space(6.0);
@@ -2927,7 +3599,7 @@ impl eframe::App for MemDeckGuiApp {
         self.poll_playback();
         self.apply_boot_options();
         self.handle_keyboard(ctx);
-        self.sync_selected_track();
+        self.sync_track_selection_state();
 
         if self.playback.is_playing() {
             ctx.request_repaint_after(Duration::from_millis(60));
@@ -2948,22 +3620,34 @@ impl eframe::App for MemDeckGuiApp {
                 });
                 ui.separator();
                 ui.horizontal_wrapped(|ui| {
+                    let header_song = if self.editor_state.mode == EditorMode::Browser {
+                        self.selected_demo().key.to_uppercase()
+                    } else {
+                        self.editable_song
+                            .as_ref()
+                            .map(|song| song.title.to_uppercase())
+                            .unwrap_or_else(|| self.selected_demo().key.to_uppercase())
+                    };
                     ui.label(
-                        RichText::new(format!(
-                            "DEMO • {}",
-                            self.selected_demo().key.to_uppercase()
-                        ))
-                        .monospace()
-                        .size(12.0)
-                        .color(TEXT_DIM),
+                        RichText::new(format!("SONG • {header_song}"))
+                            .monospace()
+                            .size(12.0)
+                            .color(TEXT_DIM),
                     );
-                    if let Some(track) = self.selected_track() {
+                    let header_track = if self.editor_state.mode == EditorMode::Browser {
+                        self.selected_browser_track()
+                            .map(|track| track.name.to_uppercase())
+                    } else {
+                        self.selected_editable_track()
+                            .map(|track| track.name.to_uppercase())
+                    };
+                    if let Some(track_name) = header_track {
                         ui.separator();
                         ui.label(
-                            RichText::new(format!("TRACK • {}", track.name.to_uppercase()))
+                            RichText::new(format!("TRACK • {track_name}"))
                                 .monospace()
                                 .size(12.0)
-                            .color(TEXT_DIM),
+                                .color(TEXT_DIM),
                         );
                     }
                     ui.separator();
@@ -2973,13 +3657,15 @@ impl eframe::App for MemDeckGuiApp {
                         } else {
                             "EDITABLE"
                         })
-                            .monospace()
-                            .size(12.0)
-                            .color(if self.editor_state.mode == EditorMode::Browser {
+                        .monospace()
+                        .size(12.0)
+                        .color(
+                            if self.editor_state.mode == EditorMode::Browser {
                                 BORDER
                             } else {
                                 ACCENT
-                            }),
+                            },
+                        ),
                     );
                 });
                 ui.add_space(4.0);
@@ -3012,6 +3698,20 @@ impl eframe::App for MemDeckGuiApp {
                             .clicked()
                     {
                         self.set_mode(EditorMode::Browser);
+                    }
+                    if self.editor_state.mode == EditorMode::Preview
+                        && ui
+                            .button(RichText::new("EDIT MODE").monospace().size(12.0))
+                            .clicked()
+                    {
+                        self.set_mode(EditorMode::Edit);
+                    }
+                    if self.editor_state.mode == EditorMode::Edit
+                        && ui
+                            .button(RichText::new("PREVIEW").monospace().size(12.0))
+                            .clicked()
+                    {
+                        self.render_editable_preview();
                     }
                     ui.add(
                         egui::TextEdit::singleline(&mut self.editor_open_path)
@@ -3062,14 +3762,16 @@ impl BootOptions {
                 Some("fx") => Some(FocusArea::FxInspector),
                 _ => None,
             },
-            editable_source: env::var("MEMDECK_GUI_BOOT_EDITABLE").ok().and_then(|value| {
-                let normalized = value.to_lowercase();
-                if normalized == "new" || normalized == "duplicate" {
-                    Some(normalized)
-                } else {
-                    None
-                }
-            }),
+            editable_source: env::var("MEMDECK_GUI_BOOT_EDITABLE")
+                .ok()
+                .and_then(|value| {
+                    let normalized = value.to_lowercase();
+                    if normalized == "new" || normalized == "duplicate" {
+                        Some(normalized)
+                    } else {
+                        None
+                    }
+                }),
             mode: match env::var("MEMDECK_GUI_BOOT_MODE").ok().as_deref() {
                 Some("browser") => Some(EditorMode::Browser),
                 Some("edit") => Some(EditorMode::Edit),
@@ -3108,7 +3810,7 @@ mod tests {
         app.select_demo(demo_index);
 
         app.runtime.selected_track = usize::MAX;
-        app.sync_selected_track();
+        app.sync_track_selection_state();
 
         let track_count = app
             .selected_overview()
@@ -3207,7 +3909,10 @@ mod tests {
     fn arrow_navigation_routes_between_demos_and_tracks() {
         let mut app = MemDeckGuiApp::default();
         let demo_count = app.demos.len();
-        assert!(demo_count >= 2, "expected at least two demos for navigation");
+        assert!(
+            demo_count >= 2,
+            "expected at least two demos for navigation"
+        );
 
         app.runtime.focus = FocusArea::DemoBrowser;
         app.runtime.selected_demo = 0;
@@ -3260,6 +3965,76 @@ mod tests {
                 .as_ref()
                 .is_some_and(|state| state.demo_key == "__editable__"),
             "preview render should use editable render key"
+        );
+    }
+
+    #[test]
+    fn mode_transitions_preserve_edit_selection() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        app.arrangement_add_block();
+        app.editor_state.selected_arrangement_block = Some(1);
+        app.sync_arrangement_selection_with_pattern(false);
+        app.set_active_track_index(0);
+        app.editor_state.selected_step = Some(16);
+        app.toggle_selected_step();
+
+        app.render_editable_preview();
+        assert_eq!(app.editor_state.mode, EditorMode::Preview);
+        app.set_mode(EditorMode::Edit);
+        assert_eq!(app.editor_state.mode, EditorMode::Edit);
+        assert_eq!(app.editor_state.selected_arrangement_block, Some(1));
+        assert_eq!(app.editor_state.selected_step, Some(16));
+
+        app.set_mode(EditorMode::Browser);
+        assert_eq!(app.editor_state.mode, EditorMode::Browser);
+        app.set_mode(EditorMode::Edit);
+        assert_eq!(app.editor_state.selected_arrangement_block, Some(1));
+        assert_eq!(app.editor_state.selected_step, Some(16));
+    }
+
+    #[test]
+    fn arrangement_selection_updates_pattern_target() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+
+        app.arrangement_add_block();
+        assert_eq!(app.editor_state.selected_arrangement_block, Some(1));
+        assert_eq!(app.editor_state.selected_pattern, Some(1));
+
+        app.arrangement_move_cursor(-1);
+        assert_eq!(app.editor_state.selected_arrangement_block, Some(0));
+        assert_eq!(app.editor_state.selected_pattern, Some(0));
+    }
+
+    #[test]
+    fn editing_while_previewing_invalidates_render_and_returns_edit_mode() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        app.toggle_selected_step();
+        app.render_editable_preview();
+        assert_eq!(app.editor_state.mode, EditorMode::Preview);
+        assert!(app.current_render().is_some());
+
+        app.toggle_selected_step();
+        assert_eq!(app.editor_state.mode, EditorMode::Edit);
+        assert!(app.current_render().is_none());
+    }
+
+    #[test]
+    fn invalid_serialization_sets_visible_error() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        if let Some(song) = app.editable_song.as_mut() {
+            song.patterns.clear();
+            song.arrangement.blocks.clear();
+        }
+
+        app.render_editable_preview();
+        assert_eq!(app.editor_state.mode, EditorMode::Edit);
+        assert!(
+            app.editor_state.last_error.is_some(),
+            "render failure should expose serialization error"
         );
     }
 }

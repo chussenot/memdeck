@@ -1,6 +1,6 @@
 # MemDeck GUI Inspector
 
-The inspector surface is split into two dedicated read-only panels driven by the selected track.
+The inspector surface is split into two panels driven by the selected track.
 
 ## Track selection
 
@@ -10,39 +10,56 @@ The inspector surface is split into two dedicated read-only panels driven by the
 
 ## Instrument Inspector
 
-The instrument panel shows selected-track voice metadata from `TrackOverview`:
+### Browser mode
+
+Read-only metadata from `TrackOverview`:
 
 - waveform glyph + waveform name
-- amplitude meter
-- duty meter
-- gate meter
+- amplitude/duty/gate meters
 - ADSR scope
-- glide meter
-- vibrato depth/rate meter
-- detune meter
+- glide/vibrato/detune meters
 - preset label when present
 
-All visuals are non-interactive. They are diagnostic only.
+### Edit/Preview modes
+
+Editable controls for the selected track's instrument:
+
+- track instrument assignment
+- waveform selection (square/pulse/triangle/noise)
+- amplitude/duty/gate
+- ADSR sliders
+- glide and vibrato amount
+
+Edits update `EditableSong`, mark dirty state, and invalidate stale preview render state.
 
 ## FX Inspector
 
-The FX panel shows the selected track's routed bus from `FxBusOverview`:
+### Browser mode
+
+Read-only routed bus metadata from `FxBusOverview`:
 
 - bus index
 - active / bypass state
-- delay meter with steps / feedback / mix
-- drive meter
-- low-pass meter
-- sidechain meter with release
-- bus mix meter
+- delay/drive/low-pass/sidechain/bus-mix meters
+
+### Edit/Preview modes
+
+Editable routing and bus controls:
+
+- selected track bus routing (`ROUTED BUS`)
+- delay steps/feedback/mix
+- drive, low-pass
+- sidechain amount/release
+- bus mix
+- missing-bus recovery (`CREATE MISSING BUS`)
 
 ## Data source
 
-`gui/src/ffi.rs` extracts track and bus detail from `AbcMusic` and normalizes it into GUI-facing structs. The GUI does not mutate any of this data.
+- Browser mode: `gui/src/ffi.rs` overview structs (`TrackOverview`, `FxBusOverview`)
+- Edit/Preview: `EditableSong` instrument/fx structures in `gui/src/editor/model.rs`
 
 ## Explicit non-goals
 
-- no knobs, sliders, or editable fields
-- no oscilloscope editing surface
-- no tracker instrument editor
-- no DAW mixer behavior
+- no piano roll
+- no DAW mixer/timeline behavior
+- no plugin architecture
