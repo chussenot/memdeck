@@ -28,6 +28,13 @@
 | `Ctrl+Shift+S` | Save As |
 | `Ctrl+R` | Render preview through C engine |
 
+## Inspector editing (Edit/Preview mode)
+
+| Panel | Behavior |
+| --- | --- |
+| Instrument Inspector | Edit selected track instrument assignment + synthesis controls |
+| FX Inspector | Edit selected track bus routing + selected bus FX values |
+
 ## Pattern editor keys (Edit/Preview mode)
 
 | Key | Action |
@@ -51,4 +58,5 @@
 - double click block: open pattern editor
 - click pattern cell: select step
 - double click pattern cell: toggle step
+- inspector sliders/combos edit instrument/FX values in Edit/Preview mode
 - no drag-and-drop in current implementation

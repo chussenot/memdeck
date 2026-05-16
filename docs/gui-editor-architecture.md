@@ -83,6 +83,7 @@ Defines `EditorState`:
 - `editor_state: EditorState`
 - `editable_song: Option<EditableSong>`
 - explicit focusable `Pattern Editor` panel
+- editable Instrument/FX inspectors in Edit/Preview mode
 - step clipboard for copy/cut/paste operations
 
 New top-bar actions:
@@ -116,7 +117,10 @@ No second Rust audio engine is introduced.
 - Edit mode + arrangement: `docs/screenshots/gui-edit-mode-arrangement.png`
 - Pattern editor selected cell: `docs/screenshots/gui-pattern-editor-selected-cell.png`
 - Pattern editor after edits: `docs/screenshots/gui-pattern-editor-edited-notes.png`
+- Instrument inspector focused: `docs/screenshots/gui-edit-mode-instrument.png`
+- FX inspector focused: `docs/screenshots/gui-edit-mode-fx.png`
 - Preview mode: `docs/screenshots/gui-preview-mode.png`
+- Deterministic capture process: `docs/gui-screenshot-guide.md`
 
 ## Tests
 

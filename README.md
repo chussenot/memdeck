@@ -11,6 +11,7 @@ MemDeck also includes a Rust GUI in `gui/` with preserved browser mode plus a li
 - Atari/ST-inspired composition workstation presentation
 - browser/edit/preview modes
 - demo browser, render stats, waveform view, arrangement editor, pattern editor, instrument inspector, FX inspector
+- instrument and FX inspectors are editable in Edit/Preview mode
 - keyboard-first workflow
 - editable flow stays on the existing C engine path (`EditableSong -> ABC DSL -> C render -> PCM`)
 - no piano roll, no full DAW behavior
@@ -48,7 +49,7 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 - editable step metadata is intentionally minimal and keyboard-driven
 - arrangement integration is block-based only (no advanced timeline editing)
 - the GUI remains a shell over the existing C renderer, not a new DAW engine
-- screenshots and architecture notes live under `docs/gui-*.md`
+- screenshots and architecture notes live under `docs/gui-*.md` (capture workflow: `docs/gui-screenshot-guide.md`)
 
 ## Quick Start
 

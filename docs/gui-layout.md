@@ -4,8 +4,8 @@ The GUI remains a compact Atari/ST-style workstation with keyboard-first interac
 
 ## Runtime modes
 
-- **Browser**: read-only demo browsing and inspection (unchanged behavior).
-- **Edit**: editable arrangement workflow.
+- **Browser**: read-only demo browsing and inspection.
+- **Edit**: editable arrangement/pattern/inspector workflow.
 - **Preview**: editable song rendered through existing C engine for preview playback.
 
 ## Primary screen
@@ -20,6 +20,8 @@ The GUI remains a compact Atari/ST-style workstation with keyboard-first interac
 | WAVEFORM                                                                   |
 +----------------------------------------------------------------------------+
 | PATTERN OVERVIEW (Browser mode) / ARRANGEMENT EDITOR (Edit/Preview modes) |
++----------------------------------------------------------------------------+
+| PATTERN EDITOR (Edit/Preview modes, keyboard-first step grid)             |
 +-----------------------------------+----------------------------------------+
 | INSTRUMENT INSPECTOR              | FX INSPECTOR                           |
 +----------------------------------------------------------------------------+
@@ -36,6 +38,12 @@ The GUI remains a compact Atari/ST-style workstation with keyboard-first interac
 - tempo/swing controls
 - block length controls (`-LEN`, `+LEN`)
 - optional rename row when rename is active
+
+## Inspector panels (Edit/Preview)
+
+- Instrument Inspector is editable (instrument assignment, waveform, ADSR, amp/duty/gate, glide/vibrato)
+- FX Inspector is editable (bus routing + FX bus parameters)
+- Browser mode keeps read-only inspector behavior
 
 ## Design rules
 

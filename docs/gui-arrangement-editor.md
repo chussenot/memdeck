@@ -17,6 +17,7 @@ Included:
 - tempo/swing edits
 - preview render through existing C engine
 - open selected arrangement block directly into Pattern Editor
+- synchronized arrangement selection -> pattern selection/step cursor normalization
 
 Explicitly out of scope:
 
