@@ -565,51 +565,52 @@ impl MemDeckGuiApp {
 
     fn arrangement_add_block(&mut self) {
         let current_index = self.editor_state.selected_arrangement_block.unwrap_or(0);
-        let new_selected;
-        let Some(song) = self.editable_song.as_mut() else {
-            return;
+        let new_selected = {
+            let Some(song) = self.editable_song.as_mut() else {
+                return;
+            };
+            let next_pattern_name = format!("P{}", song.patterns.len() + 1);
+            song.patterns.push(EditablePattern {
+                name: next_pattern_name.clone(),
+                length: 16,
+            });
+            let insert_at = current_index + 1;
+            let block = EditableArrangementBlock {
+                pattern_name: next_pattern_name,
+                length: 16,
+            };
+            let selected = if insert_at >= song.arrangement.blocks.len() {
+                song.arrangement.blocks.push(block);
+                Some(song.arrangement.blocks.len().saturating_sub(1))
+            } else {
+                song.arrangement.blocks.insert(insert_at, block);
+                Some(insert_at)
+            };
+            song.mark_dirty();
+            selected
         };
-        let next_pattern_name = format!("P{}", song.patterns.len() + 1);
-        song.patterns.push(EditablePattern {
-            name: next_pattern_name.clone(),
-            length: 16,
-        });
-        let insert_at = current_index + 1;
-        let block = EditableArrangementBlock {
-            pattern_name: next_pattern_name,
-            length: 16,
-        };
-        if insert_at >= song.arrangement.blocks.len() {
-            song.arrangement.blocks.push(block);
-            new_selected = Some(song.arrangement.blocks.len().saturating_sub(1));
-        } else {
-            song.arrangement.blocks.insert(insert_at, block);
-            new_selected = Some(insert_at);
-        }
-        song.mark_dirty();
-        let _ = song;
         self.editor_state.selected_arrangement_block = new_selected;
         self.editor_state.dirty = true;
     }
 
     fn arrangement_duplicate_block(&mut self) {
         let selected = self.editor_state.selected_arrangement_block;
-        let mut new_selected = selected;
-        let mut changed = false;
-        let Some(song) = self.editable_song.as_mut() else {
-            return;
+        let (new_selected, changed) = {
+            let Some(song) = self.editable_song.as_mut() else {
+                return;
+            };
+            let Some(index) = selected else {
+                return;
+            };
+            if let Some(block) = song.arrangement.blocks.get(index).cloned() {
+                let insert_at = index + 1;
+                song.arrangement.blocks.insert(insert_at, block);
+                song.mark_dirty();
+                (Some(insert_at), true)
+            } else {
+                (selected, false)
+            }
         };
-        let Some(index) = selected else {
-            return;
-        };
-        if let Some(block) = song.arrangement.blocks.get(index).cloned() {
-            let insert_at = index + 1;
-            song.arrangement.blocks.insert(insert_at, block);
-            song.mark_dirty();
-            new_selected = Some(insert_at);
-            changed = true;
-        }
-        let _ = song;
         self.editor_state.selected_arrangement_block = new_selected;
         if changed {
             self.editor_state.dirty = true;
@@ -618,24 +619,27 @@ impl MemDeckGuiApp {
 
     fn arrangement_remove_block(&mut self) {
         let selected = self.editor_state.selected_arrangement_block;
-        let mut new_selected = selected;
-        let mut changed = false;
-        let Some(song) = self.editable_song.as_mut() else {
-            return;
+        let (new_selected, changed) = {
+            let Some(song) = self.editable_song.as_mut() else {
+                return;
+            };
+            if song.arrangement.blocks.len() <= 1 {
+                return;
+            }
+            let Some(index) = selected else {
+                return;
+            };
+            if index < song.arrangement.blocks.len() {
+                song.arrangement.blocks.remove(index);
+                song.mark_dirty();
+                (
+                    Some(index.min(song.arrangement.blocks.len().saturating_sub(1))),
+                    true,
+                )
+            } else {
+                (selected, false)
+            }
         };
-        if song.arrangement.blocks.len() <= 1 {
-            return;
-        }
-        let Some(index) = selected else {
-            return;
-        };
-        if index < song.arrangement.blocks.len() {
-            song.arrangement.blocks.remove(index);
-            song.mark_dirty();
-            new_selected = Some(index.min(song.arrangement.blocks.len().saturating_sub(1)));
-            changed = true;
-        }
-        let _ = song;
         self.editor_state.selected_arrangement_block = new_selected;
         if changed {
             self.editor_state.dirty = true;
@@ -644,23 +648,23 @@ impl MemDeckGuiApp {
 
     fn arrangement_reorder_selected(&mut self, delta: isize) {
         let selected = self.editor_state.selected_arrangement_block;
-        let new_selected;
-        let Some(song) = self.editable_song.as_mut() else {
-            return;
-        };
-        let Some(index) = selected else {
-            return;
-        };
-        let target =
-            (index as isize + delta).clamp(0, song.arrangement.blocks.len().saturating_sub(1) as isize)
+        let new_selected = {
+            let Some(song) = self.editable_song.as_mut() else {
+                return;
+            };
+            let Some(index) = selected else {
+                return;
+            };
+            let target = (index as isize + delta)
+                .clamp(0, song.arrangement.blocks.len().saturating_sub(1) as isize)
                 as usize;
-        if index == target {
-            return;
-        }
-        song.arrangement.blocks.swap(index, target);
-        song.mark_dirty();
-        new_selected = Some(target);
-        let _ = song;
+            if index == target {
+                return;
+            }
+            song.arrangement.blocks.swap(index, target);
+            song.mark_dirty();
+            Some(target)
+        };
         self.editor_state.selected_arrangement_block = new_selected;
         self.editor_state.dirty = true;
     }
@@ -964,6 +968,8 @@ impl MemDeckGuiApp {
             egui::Key::A => self.focus_panel(FocusArea::PatternOverview),
             egui::Key::D => {
                 if command {
+                    // Keep Cmd/Ctrl+D available to the host platform and avoid conflicting
+                    // with arrangement duplicate semantics.
                     return;
                 }
                 if self.editor_state.mode != EditorMode::Browser

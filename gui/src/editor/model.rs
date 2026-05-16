@@ -69,7 +69,7 @@ impl Default for EditableInstrument {
             name: String::new(),
             preset: String::new(),
             waveform: 0,
-            amplitude: 64,
+            amplitude: 40,
             duty_cycle: 25,
             attack_ms: 0,
             decay_ms: 0,
