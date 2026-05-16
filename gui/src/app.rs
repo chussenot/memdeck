@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use eframe::egui::{self, Align2, Color32, FontId, RichText, Sense, Stroke, TextStyle, Vec2};
@@ -7,7 +8,10 @@ use crate::audio_engine::{
     AudioRenderStats, DemoEntry, DemoOverview, FxBusOverview, GuiAudioEngine, PatternBlock,
     RenderState, TrackOverview,
 };
-use crate::editor::EditorMode;
+use crate::editor::{
+    self, EditableArrangementBlock, EditablePattern, EditableSong, EditorMode, EditorState,
+};
+use crate::ffi;
 use crate::playback::{PlaybackController, PlaybackState};
 
 const DEFAULT_STATUS_LINE: &str = "READY • SELECT A DEMO • ENTER RENDERS • SPACE PLAYS.";
@@ -102,8 +106,11 @@ pub struct MemDeckGuiApp {
     status: StatusMessage,
     boot_options: BootOptions,
     boot_applied: bool,
-    /// Current editor mode; `Browser` leaves the read-only GUI unchanged.
-    editor_mode: EditorMode,
+    editor_state: EditorState,
+    editable_song: Option<EditableSong>,
+    editor_open_path: String,
+    renaming_pattern: bool,
+    pattern_rename_buffer: String,
 }
 
 impl Default for MemDeckGuiApp {
@@ -142,7 +149,11 @@ impl Default for MemDeckGuiApp {
             status,
             boot_options,
             boot_applied: false,
-            editor_mode: EditorMode::Browser,
+            editor_state: EditorState::default(),
+            editable_song: None,
+            editor_open_path: String::new(),
+            renaming_pattern: false,
+            pattern_rename_buffer: String::new(),
         }
     }
 }
@@ -205,10 +216,18 @@ impl MemDeckGuiApp {
     }
 
     fn current_render(&self) -> Option<&RenderState> {
-        self.runtime
+        let render = self
+            .runtime
             .rendered_audio
             .as_ref()
-            .filter(|render| render.demo_key == self.selected_demo().key)
+            ?;
+        if self.editor_state.mode != EditorMode::Browser && render.demo_key == "__editable__" {
+            return Some(render);
+        }
+        if render.demo_key == self.selected_demo().key {
+            return Some(render);
+        }
+        None
     }
 
     fn current_stats(&self) -> Option<AudioRenderStats> {
@@ -365,6 +384,369 @@ impl MemDeckGuiApp {
         self.set_status(StatusTone::Normal, format!("FOCUS • {}", focus.title()));
     }
 
+    fn set_mode(&mut self, mode: EditorMode) {
+        self.editor_state.mode = mode;
+    }
+
+    fn create_new_song(&mut self) {
+        self.stop_playback(false);
+        self.editable_song = Some(EditableSong::new_song());
+        self.editor_state = EditorState {
+            mode: EditorMode::Edit,
+            selected_pattern: Some(0),
+            selected_track: 0,
+            selected_step: Some(0),
+            selected_arrangement_block: Some(0),
+            dirty: false,
+            last_saved_path: None,
+            last_error: None,
+        };
+        self.renaming_pattern = false;
+        self.pattern_rename_buffer.clear();
+        self.set_status(StatusTone::Active, "EDIT MODE • NEW SONG");
+    }
+
+    fn duplicate_demo_as_editable(&mut self) {
+        let path = self.selected_demo().path.clone();
+        match editor::load_editable_song_from_path(&path) {
+            Ok(mut song) => {
+                song.source_path = None;
+                song.dirty = true;
+                self.stop_playback(false);
+                self.editable_song = Some(song);
+                self.editor_state.mode = EditorMode::Edit;
+                self.editor_state.selected_arrangement_block = Some(0);
+                self.editor_state.selected_pattern = Some(0);
+                self.editor_state.selected_step = Some(0);
+                self.editor_state.selected_track = 0;
+                self.editor_state.dirty = true;
+                self.editor_state.last_error = None;
+                self.set_status(StatusTone::Active, "EDIT MODE • DEMO DUPLICATED");
+            }
+            Err(error) => {
+                self.editor_state.set_error(error.clone());
+                self.set_status(StatusTone::Warning, format!("DUPLICATE FAILED • {error}"));
+            }
+        }
+    }
+
+    fn open_editable_song_from_path(&mut self) {
+        let path = PathBuf::from(self.editor_open_path.trim());
+        if self.editor_open_path.trim().is_empty() {
+            self.set_status(StatusTone::Warning, "OPEN FAILED • ENTER A FILE PATH");
+            return;
+        }
+
+        match editor::load_editable_song_from_path(&path) {
+            Ok(song) => {
+                self.stop_playback(false);
+                self.editable_song = Some(song);
+                self.editor_state.mode = EditorMode::Edit;
+                self.editor_state.selected_arrangement_block = Some(0);
+                self.editor_state.selected_pattern = Some(0);
+                self.editor_state.selected_step = Some(0);
+                self.editor_state.selected_track = 0;
+                self.editor_state.dirty = false;
+                self.editor_state.last_saved_path = Some(path.clone());
+                self.editor_state.last_error = None;
+                self.set_status(
+                    StatusTone::Active,
+                    format!("EDIT MODE • OPENED {}", path.display()),
+                );
+            }
+            Err(error) => {
+                self.editor_state.set_error(error.clone());
+                self.set_status(StatusTone::Warning, format!("OPEN FAILED • {error}"));
+            }
+        }
+    }
+
+    fn save_editable_song(&mut self, save_as: bool) {
+        let Some(song) = self.editable_song.as_mut() else {
+            self.set_status(StatusTone::Warning, "SAVE FAILED • NO EDITABLE SONG");
+            return;
+        };
+
+        let target_path = if save_as {
+            let input = self.editor_open_path.trim();
+            if input.is_empty() {
+                self.set_status(StatusTone::Warning, "SAVE AS FAILED • ENTER A FILE PATH");
+                return;
+            }
+            PathBuf::from(input)
+        } else {
+            song.source_path
+                .clone()
+                .or_else(|| self.editor_state.last_saved_path.clone())
+                .unwrap_or_else(|| PathBuf::from(self.editor_open_path.trim()))
+        };
+
+        if target_path.as_os_str().is_empty() {
+            self.set_status(StatusTone::Warning, "SAVE FAILED • NO TARGET FILE");
+            return;
+        }
+
+        match editor::save_editable_song_to_path(song, &target_path) {
+            Ok(()) => {
+                self.editor_state.dirty = false;
+                self.editor_state.last_saved_path = Some(target_path.clone());
+                self.editor_state.clear_error();
+                self.set_status(
+                    StatusTone::Active,
+                    format!("SAVED • {}", target_path.display()),
+                );
+            }
+            Err(error) => {
+                self.editor_state.set_error(error.clone());
+                self.set_status(StatusTone::Warning, format!("SAVE FAILED • {error}"));
+            }
+        }
+    }
+
+    fn render_editable_preview(&mut self) {
+        let Some(song) = self.editable_song.as_ref() else {
+            self.set_status(StatusTone::Warning, "PREVIEW FAILED • NO EDITABLE SONG");
+            return;
+        };
+
+        let abc = match editor::serialize_editable_song(song) {
+            Ok(abc) => abc,
+            Err(error) => {
+                self.editor_state.set_error(error.clone());
+                self.set_status(StatusTone::Warning, format!("PREVIEW FAILED • {error}"));
+                return;
+            }
+        };
+
+        let tmp_path = std::env::temp_dir().join(format!(
+            "memdeck-edit-preview-{}.abc",
+            std::process::id()
+        ));
+        if let Err(error) = std::fs::write(&tmp_path, abc) {
+            self.set_status(
+                StatusTone::Warning,
+                format!("PREVIEW FAILED • WRITE ERROR • {error}"),
+            );
+            return;
+        }
+
+        match ffi::render_abc_file(&tmp_path) {
+            Ok(samples) => {
+                self.runtime.rendered_audio = Some(RenderState {
+                    demo_key: "__editable__".to_string(),
+                    samples: std::sync::Arc::<[u8]>::from(samples),
+                    stats: ffi::get_render_stats(),
+                });
+                self.set_mode(EditorMode::Preview);
+                self.set_status(StatusTone::Active, "PREVIEW RENDERED");
+            }
+            Err(error) => {
+                self.editor_state.set_error(error.clone());
+                self.set_status(StatusTone::Warning, format!("PREVIEW FAILED • {error}"));
+            }
+        }
+
+        let _ = std::fs::remove_file(tmp_path);
+    }
+
+    fn arrangement_move_cursor(&mut self, delta: isize) {
+        let Some(song) = self.editable_song.as_ref() else {
+            return;
+        };
+        let block_count = song.arrangement.blocks.len();
+        if block_count == 0 {
+            self.editor_state.selected_arrangement_block = None;
+            return;
+        }
+        let current = self.editor_state.selected_arrangement_block.unwrap_or(0);
+        let next = (current as isize + delta).clamp(0, block_count.saturating_sub(1) as isize);
+        self.editor_state.selected_arrangement_block = Some(next as usize);
+    }
+
+    fn arrangement_add_block(&mut self) {
+        let current_index = self.editor_state.selected_arrangement_block.unwrap_or(0);
+        let new_selected;
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        let next_pattern_name = format!("P{}", song.patterns.len() + 1);
+        song.patterns.push(EditablePattern {
+            name: next_pattern_name.clone(),
+            length: 16,
+        });
+        let insert_at = current_index + 1;
+        let block = EditableArrangementBlock {
+            pattern_name: next_pattern_name,
+            length: 16,
+        };
+        if insert_at >= song.arrangement.blocks.len() {
+            song.arrangement.blocks.push(block);
+            new_selected = Some(song.arrangement.blocks.len().saturating_sub(1));
+        } else {
+            song.arrangement.blocks.insert(insert_at, block);
+            new_selected = Some(insert_at);
+        }
+        song.mark_dirty();
+        let _ = song;
+        self.editor_state.selected_arrangement_block = new_selected;
+        self.editor_state.dirty = true;
+    }
+
+    fn arrangement_duplicate_block(&mut self) {
+        let selected = self.editor_state.selected_arrangement_block;
+        let mut new_selected = selected;
+        let mut changed = false;
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        let Some(index) = selected else {
+            return;
+        };
+        if let Some(block) = song.arrangement.blocks.get(index).cloned() {
+            let insert_at = index + 1;
+            song.arrangement.blocks.insert(insert_at, block);
+            song.mark_dirty();
+            new_selected = Some(insert_at);
+            changed = true;
+        }
+        let _ = song;
+        self.editor_state.selected_arrangement_block = new_selected;
+        if changed {
+            self.editor_state.dirty = true;
+        }
+    }
+
+    fn arrangement_remove_block(&mut self) {
+        let selected = self.editor_state.selected_arrangement_block;
+        let mut new_selected = selected;
+        let mut changed = false;
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        if song.arrangement.blocks.len() <= 1 {
+            return;
+        }
+        let Some(index) = selected else {
+            return;
+        };
+        if index < song.arrangement.blocks.len() {
+            song.arrangement.blocks.remove(index);
+            song.mark_dirty();
+            new_selected = Some(index.min(song.arrangement.blocks.len().saturating_sub(1)));
+            changed = true;
+        }
+        let _ = song;
+        self.editor_state.selected_arrangement_block = new_selected;
+        if changed {
+            self.editor_state.dirty = true;
+        }
+    }
+
+    fn arrangement_reorder_selected(&mut self, delta: isize) {
+        let selected = self.editor_state.selected_arrangement_block;
+        let new_selected;
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        let Some(index) = selected else {
+            return;
+        };
+        let target =
+            (index as isize + delta).clamp(0, song.arrangement.blocks.len().saturating_sub(1) as isize)
+                as usize;
+        if index == target {
+            return;
+        }
+        song.arrangement.blocks.swap(index, target);
+        song.mark_dirty();
+        new_selected = Some(target);
+        let _ = song;
+        self.editor_state.selected_arrangement_block = new_selected;
+        self.editor_state.dirty = true;
+    }
+
+    fn begin_rename_selected_pattern(&mut self) {
+        let Some(song) = self.editable_song.as_ref() else {
+            return;
+        };
+        let Some(index) = self.editor_state.selected_arrangement_block else {
+            return;
+        };
+        let Some(block) = song.arrangement.blocks.get(index) else {
+            return;
+        };
+        self.renaming_pattern = true;
+        self.pattern_rename_buffer = block.pattern_name.clone();
+    }
+
+    fn apply_pattern_rename(&mut self) {
+        let new_name = self.pattern_rename_buffer.trim().to_string();
+        if new_name.is_empty() {
+            self.renaming_pattern = false;
+            self.pattern_rename_buffer.clear();
+            return;
+        }
+
+        let selected = self.editor_state.selected_arrangement_block;
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        let Some(index) = selected else {
+            return;
+        };
+        let Some(previous_name) = song
+            .arrangement
+            .blocks
+            .get(index)
+            .map(|block| block.pattern_name.clone())
+        else {
+            return;
+        };
+
+        for pattern in &mut song.patterns {
+            if pattern.name == previous_name {
+                pattern.name = new_name.clone();
+            }
+        }
+        for block in &mut song.arrangement.blocks {
+            if block.pattern_name == previous_name {
+                block.pattern_name = new_name.clone();
+            }
+        }
+        song.mark_dirty();
+        self.editor_state.dirty = true;
+        self.renaming_pattern = false;
+        self.pattern_rename_buffer.clear();
+    }
+
+    fn cancel_current_edit(&mut self) {
+        if self.renaming_pattern {
+            self.renaming_pattern = false;
+            self.pattern_rename_buffer.clear();
+            self.set_status(StatusTone::Normal, "RENAME CANCELED");
+            return;
+        }
+        self.stop_playback(true);
+    }
+
+    fn open_selected_pattern(&mut self) {
+        let Some(song) = self.editable_song.as_ref() else {
+            return;
+        };
+        let Some(block_index) = self.editor_state.selected_arrangement_block else {
+            return;
+        };
+        let Some(block) = song.arrangement.blocks.get(block_index) else {
+            return;
+        };
+        self.editor_state.selected_pattern =
+            song.patterns.iter().position(|pattern| pattern.name == block.pattern_name);
+        self.set_status(
+            StatusTone::Normal,
+            format!("PATTERN OPEN • {}", block.pattern_name.to_uppercase()),
+        );
+    }
+
     fn render_selected_demo(&mut self) -> Result<(), String> {
         self.stop_playback(false);
         let demo = self.selected_demo().clone();
@@ -468,17 +850,34 @@ impl MemDeckGuiApp {
 
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
+            if input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::S) {
+                self.save_editable_song(true);
+            }
+            if input.modifiers.command && input.key_pressed(egui::Key::S) && !input.modifiers.shift {
+                self.save_editable_song(false);
+            }
+            if input.modifiers.command && input.key_pressed(egui::Key::R) {
+                self.render_editable_preview();
+            }
+
             if input.key_pressed(egui::Key::Tab) {
                 self.handle_key_press(egui::Key::Tab, input.modifiers.shift);
             }
 
             for key in [
+                egui::Key::ArrowLeft,
+                egui::Key::ArrowRight,
                 egui::Key::ArrowUp,
                 egui::Key::ArrowDown,
                 egui::Key::Enter,
                 egui::Key::Space,
                 egui::Key::Escape,
+                egui::Key::Delete,
+                egui::Key::Backspace,
+                egui::Key::A,
                 egui::Key::D,
+                egui::Key::N,
+                egui::Key::R,
                 egui::Key::S,
                 egui::Key::W,
                 egui::Key::P,
@@ -486,20 +885,52 @@ impl MemDeckGuiApp {
                 egui::Key::F,
             ] {
                 if input.key_pressed(key) {
-                    self.handle_key_press(key, false);
+                    self.handle_key_press_with_modifiers(key, input.modifiers.shift, input.modifiers.command);
                 }
             }
         });
     }
 
     fn handle_key_press(&mut self, key: egui::Key, shift: bool) {
+        self.handle_key_press_with_modifiers(key, shift, false);
+    }
+
+    fn handle_key_press_with_modifiers(
+        &mut self,
+        key: egui::Key,
+        shift: bool,
+        command: bool,
+    ) {
         match key {
             egui::Key::Tab => self.cycle_focus(shift),
+            egui::Key::ArrowLeft => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    if command {
+                        self.arrangement_reorder_selected(-1);
+                    } else {
+                        self.arrangement_move_cursor(-1);
+                    }
+                }
+            }
+            egui::Key::ArrowRight => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    if command {
+                        self.arrangement_reorder_selected(1);
+                    } else {
+                        self.arrangement_move_cursor(1);
+                    }
+                }
+            }
             egui::Key::ArrowUp => {
                 if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(-1);
                 } else {
                     self.move_track_selection(-1);
+                    self.editor_state.selected_track = self.runtime.selected_track;
                 }
             }
             egui::Key::ArrowDown => {
@@ -507,19 +938,82 @@ impl MemDeckGuiApp {
                     self.move_demo_selection(1);
                 } else {
                     self.move_track_selection(1);
+                    self.editor_state.selected_track = self.runtime.selected_track;
                 }
             }
             egui::Key::Enter => {
-                let _ = self.render_selected_demo();
+                if self.renaming_pattern {
+                    self.apply_pattern_rename();
+                } else if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    self.open_selected_pattern();
+                } else {
+                    let _ = self.render_selected_demo();
+                }
             }
             egui::Key::Space => self.toggle_playback(),
-            egui::Key::Escape => self.stop_playback(true),
-            egui::Key::D => self.focus_panel(FocusArea::DemoBrowser),
-            egui::Key::S => self.focus_panel(FocusArea::RenderStats),
-            egui::Key::W => self.focus_panel(FocusArea::WaveformView),
-            egui::Key::P => self.focus_panel(FocusArea::PatternOverview),
-            egui::Key::I => self.focus_panel(FocusArea::InstrumentInspector),
-            egui::Key::F => self.focus_panel(FocusArea::FxInspector),
+            egui::Key::Escape => self.cancel_current_edit(),
+            egui::Key::Delete | egui::Key::Backspace => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    self.arrangement_remove_block();
+                }
+            }
+            egui::Key::A => self.focus_panel(FocusArea::PatternOverview),
+            egui::Key::D => {
+                if command {
+                    return;
+                }
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    self.arrangement_duplicate_block();
+                } else {
+                    self.focus_panel(FocusArea::DemoBrowser);
+                }
+            }
+            egui::Key::N => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                {
+                    self.arrangement_add_block();
+                }
+            }
+            egui::Key::R => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternOverview
+                    && !command
+                {
+                    self.begin_rename_selected_pattern();
+                }
+            }
+            egui::Key::S => {
+                if !command {
+                    self.focus_panel(FocusArea::RenderStats)
+                }
+            }
+            egui::Key::W => {
+                if !command {
+                    self.focus_panel(FocusArea::WaveformView)
+                }
+            }
+            egui::Key::P => {
+                if !command {
+                    self.focus_panel(FocusArea::PatternOverview)
+                }
+            }
+            egui::Key::I => {
+                if !command {
+                    self.focus_panel(FocusArea::InstrumentInspector)
+                }
+            }
+            egui::Key::F => {
+                if !command {
+                    self.focus_panel(FocusArea::FxInspector)
+                }
+            }
             _ => {}
         }
     }
@@ -818,21 +1312,275 @@ impl MemDeckGuiApp {
         );
     }
 
-    fn draw_pattern_panel(&self, ui: &mut egui::Ui) {
+    fn draw_pattern_panel(&mut self, ui: &mut egui::Ui) {
+        let in_edit_mode = self.editor_state.mode != EditorMode::Browser;
         Self::retro_panel(
             ui,
-            FocusArea::PatternOverview.title(),
+            if in_edit_mode {
+                "ARRANGEMENT EDITOR"
+            } else {
+                FocusArea::PatternOverview.title()
+            },
             self.runtime.focus == FocusArea::PatternOverview,
-            Some("UP / DOWN SELECTS TRACKS"),
+            Some(if in_edit_mode {
+                "A FOCUSES • N NEW • D DUPLICATE • DEL REMOVE • R RENAME • CTRL+S SAVE"
+            } else {
+                "UP / DOWN SELECTS TRACKS"
+            }),
             |ui| {
-                Self::draw_pattern_visualization(
-                    ui,
-                    self.selected_overview(),
-                    self.runtime.selected_track,
-                    self.playback_progress(),
-                );
+                if in_edit_mode {
+                    self.draw_arrangement_editor(ui);
+                } else {
+                    Self::draw_pattern_visualization(
+                        ui,
+                        self.selected_overview(),
+                        self.runtime.selected_track,
+                        self.playback_progress(),
+                    );
+                }
             },
         );
+    }
+
+    fn draw_arrangement_editor(&mut self, ui: &mut egui::Ui) {
+        if self.editable_song.is_none() {
+            ui.label(
+                RichText::new("NO EDITABLE SONG. USE NEW SONG / DUPLICATE / OPEN.")
+                    .monospace()
+                    .color(WARNING),
+            );
+            return;
+        }
+
+        {
+            let song = self
+                .editable_song
+                .as_mut()
+                .expect("checked editable song presence");
+            if song.arrangement.blocks.is_empty() {
+                song.arrangement.blocks.push(EditableArrangementBlock {
+                    pattern_name: "A".to_string(),
+                    length: 16,
+                });
+                song.mark_dirty();
+                self.editor_state.dirty = true;
+            }
+        }
+
+        let mut marked_dirty = false;
+        let selected_block = self.editor_state.selected_arrangement_block.unwrap_or(0);
+        let selected_track = self.editor_state.selected_track;
+
+        ui.horizontal_wrapped(|ui| {
+            let song = self
+                .editable_song
+                .as_mut()
+                .expect("editable song should still be available");
+            ui.label(
+                RichText::new(format!("SONG {}", song.title.to_uppercase()))
+                    .monospace()
+                    .strong(),
+            );
+            ui.separator();
+            ui.label(RichText::new("TEMPO").monospace().size(12.0).color(TEXT_DIM));
+            if ui
+                .add(egui::DragValue::new(&mut song.tempo).range(20..=300).speed(1))
+                .changed()
+            {
+                marked_dirty = true;
+            }
+            ui.separator();
+            ui.label(RichText::new("SWING").monospace().size(12.0).color(TEXT_DIM));
+            if ui
+                .add(egui::DragValue::new(&mut song.swing).range(0..=100).speed(1))
+                .changed()
+            {
+                marked_dirty = true;
+            }
+            ui.separator();
+            ui.label(
+                RichText::new(format!(
+                    "CURSOR {} / {}",
+                    self.editor_state.selected_arrangement_block.unwrap_or(0) + 1,
+                    song.arrangement.blocks.len()
+                ))
+                .monospace()
+                .size(12.0)
+                .color(ACCENT),
+            );
+            ui.separator();
+            ui.label(
+                RichText::new(format!("TRACK {}", selected_track + 1))
+                    .monospace()
+                    .size(12.0)
+                    .color(ACCENT),
+            );
+            let block_index = selected_block.min(song.arrangement.blocks.len().saturating_sub(1));
+            ui.separator();
+            if ui.button(RichText::new("-LEN").monospace().size(11.0)).clicked()
+                && song.arrangement.blocks[block_index].length > 1
+            {
+                song.arrangement.blocks[block_index].length -= 1;
+                let pattern_name = song.arrangement.blocks[block_index].pattern_name.clone();
+                if let Some(pattern) = song
+                    .patterns
+                    .iter_mut()
+                    .find(|pattern| pattern.name == pattern_name)
+                {
+                    pattern.length = song.arrangement.blocks[block_index].length;
+                }
+                marked_dirty = true;
+            }
+            if ui.button(RichText::new("+LEN").monospace().size(11.0)).clicked() {
+                song.arrangement.blocks[block_index].length += 1;
+                let pattern_name = song.arrangement.blocks[block_index].pattern_name.clone();
+                if let Some(pattern) = song
+                    .patterns
+                    .iter_mut()
+                    .find(|pattern| pattern.name == pattern_name)
+                {
+                    pattern.length = song.arrangement.blocks[block_index].length;
+                }
+                marked_dirty = true;
+            }
+        });
+
+        if self.renaming_pattern {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("RENAME").monospace().size(12.0).color(TEXT_DIM));
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut self.pattern_rename_buffer)
+                        .font(TextStyle::Monospace)
+                        .desired_width(180.0),
+                );
+                if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                    self.apply_pattern_rename();
+                }
+                if ui.button(RichText::new("OK").monospace().size(11.0)).clicked() {
+                    self.apply_pattern_rename();
+                }
+                if ui
+                    .button(RichText::new("CANCEL").monospace().size(11.0))
+                    .clicked()
+                {
+                    self.cancel_current_edit();
+                }
+            });
+        }
+
+        let (blocks, tracks, total_steps, song_dirty) = {
+            let song = self
+                .editable_song
+                .as_ref()
+                .expect("editable song should still be available");
+            (
+                song.arrangement.blocks.clone(),
+                song.tracks.clone(),
+                song.total_steps(),
+                song.dirty,
+            )
+        };
+        let selected_block = selected_block.min(blocks.len().saturating_sub(1));
+        let selected_track = selected_track.min(tracks.len().saturating_sub(1));
+        let mut clicked_block: Option<usize> = None;
+        let mut double_clicked = false;
+        let mut clicked_track: Option<usize> = None;
+
+        ui.add_space(6.0);
+        egui::ScrollArea::both().max_height(220.0).show(ui, |ui| {
+            for (track_index, track) in tracks.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    let track_selected = track_index == selected_track;
+                    let track_label = format!("{:02} {}", track_index + 1, track.name.to_uppercase());
+                    let track_response = ui.add(
+                        egui::Button::new(
+                            RichText::new(track_label)
+                                .monospace()
+                                .size(11.0)
+                                .color(if track_selected { BASE_BG } else { TEXT }),
+                        )
+                        .fill(if track_selected { ACCENT } else { PANEL_DIM_BG })
+                        .stroke(Stroke::new(1.0, if track_selected { ACCENT } else { BORDER_DIM }))
+                        .min_size(Vec2::new(132.0, 20.0)),
+                    );
+                    if track_response.clicked() {
+                        clicked_track = Some(track_index);
+                    }
+
+                    let mut cursor = 0usize;
+                    for (block_index, block) in blocks.iter().enumerate() {
+                        let end = (cursor + block.length).min(track.steps.len());
+                        let activity = track
+                            .steps
+                            .iter()
+                            .skip(cursor)
+                            .take(end.saturating_sub(cursor))
+                            .any(|step| step.active);
+                        cursor += block.length;
+                        let is_selected = block_index == selected_block;
+                        let text = format!("{} {:02}", block.pattern_name, block.length);
+                        let response = ui.add(
+                            egui::Button::new(
+                                RichText::new(text)
+                                    .monospace()
+                                    .size(11.0)
+                                    .color(if is_selected { BASE_BG } else { TEXT }),
+                            )
+                            .fill(if is_selected {
+                                ACCENT
+                            } else if activity {
+                                ACCENT_SOFT
+                            } else {
+                                PANEL_DIM_BG
+                            })
+                            .stroke(Stroke::new(1.0, if is_selected { ACCENT } else { BORDER_DIM }))
+                            .min_size(Vec2::new(78.0, 20.0)),
+                        );
+                        if response.clicked() {
+                            clicked_block = Some(block_index);
+                            clicked_track = Some(track_index);
+                        }
+                        if response.double_clicked() {
+                            clicked_block = Some(block_index);
+                            clicked_track = Some(track_index);
+                            double_clicked = true;
+                        }
+                    }
+                });
+            }
+        });
+
+        if let Some(track_index) = clicked_track {
+            self.editor_state.selected_track = track_index;
+            self.runtime.selected_track = track_index;
+        }
+        if let Some(block_index) = clicked_block {
+            self.editor_state.selected_arrangement_block = Some(block_index);
+        }
+        if double_clicked {
+            self.open_selected_pattern();
+        }
+
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(format!(
+                "STEPS {} • BLOCKS {} • DIRTY {}",
+                total_steps,
+                blocks.len(),
+                if self.editor_state.dirty || song_dirty { "YES" } else { "NO" }
+            ))
+            .monospace()
+            .size(12.0)
+            .color(TEXT_DIM),
+        );
+
+        if marked_dirty {
+            if let Some(song) = self.editable_song.as_mut() {
+                song.mark_dirty();
+            }
+            self.editor_state.dirty = true;
+        }
     }
 
     fn draw_instrument_inspector(&self, ui: &mut egui::Ui) {
@@ -1060,13 +1808,13 @@ impl MemDeckGuiApp {
                     );
                     ui.separator();
                     ui.label(
-                        RichText::new(format!("MODE {}", self.editor_mode.label()))
+                        RichText::new(format!("MODE {}", self.editor_state.mode.label()))
                             .monospace()
                             .size(12.0)
-                            .color(match self.editor_mode {
+                            .color(match self.editor_state.mode {
                                 EditorMode::Browser => TEXT_DIM,
                                 EditorMode::Edit => ACCENT,
-                                EditorMode::PreviewRender => WARNING,
+                                EditorMode::Preview => WARNING,
                             }),
                     );
                     ui.separator();
@@ -1106,9 +1854,13 @@ impl MemDeckGuiApp {
                 ui.horizontal_wrapped(|ui| {
                     for hint in [
                         "[UP/DOWN] DEMO OR TRACK",
+                        "[A] ARRANGEMENT FOCUS",
                         "[ENTER] RENDER",
                         "[SPACE] PLAY / STOP",
                         "[ESC] STOP",
+                        "[N/D/DEL/R] ARRANGE EDIT",
+                        "[CTRL+S] SAVE • [CTRL+SHIFT+S] SAVE AS",
+                        "[CTRL+R] PREVIEW RENDER",
                         "[TAB] NEXT PANEL",
                         "[D/S/W/P/I/F] DIRECT FOCUS",
                     ] {
@@ -1651,15 +2403,60 @@ impl eframe::App for MemDeckGuiApp {
                             RichText::new(format!("TRACK • {}", track.name.to_uppercase()))
                                 .monospace()
                                 .size(12.0)
-                                .color(TEXT_DIM),
+                            .color(TEXT_DIM),
                         );
                     }
                     ui.separator();
                     ui.label(
-                        RichText::new("READ-ONLY")
+                        RichText::new(if self.editor_state.mode == EditorMode::Browser {
+                            "READ-ONLY"
+                        } else {
+                            "EDITABLE"
+                        })
                             .monospace()
                             .size(12.0)
-                            .color(BORDER),
+                            .color(if self.editor_state.mode == EditorMode::Browser {
+                                BORDER
+                            } else {
+                                ACCENT
+                            }),
+                    );
+                });
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(RichText::new("NEW SONG").monospace().size(12.0))
+                        .clicked()
+                    {
+                        self.create_new_song();
+                    }
+                    if ui
+                        .button(
+                            RichText::new("DUPLICATE DEMO AS EDITABLE")
+                                .monospace()
+                                .size(12.0),
+                        )
+                        .clicked()
+                    {
+                        self.duplicate_demo_as_editable();
+                    }
+                    if ui
+                        .button(RichText::new("OPEN EDITABLE SONG").monospace().size(12.0))
+                        .clicked()
+                    {
+                        self.open_editable_song_from_path();
+                    }
+                    if self.editor_state.mode != EditorMode::Browser
+                        && ui
+                            .button(RichText::new("BROWSER MODE").monospace().size(12.0))
+                            .clicked()
+                    {
+                        self.set_mode(EditorMode::Browser);
+                    }
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.editor_open_path)
+                            .hint_text("PATH TO .ABC")
+                            .font(TextStyle::Monospace),
                     );
                 });
             });
