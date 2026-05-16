@@ -31,6 +31,7 @@ const WAVEFORM: Color32 = Color32::from_rgb(194, 222, 194);
 const GRID: Color32 = Color32::from_rgb(34, 44, 34);
 const PATTERN_EDITOR_GATE_STEPS: [u8; 5] = [25, 50, 75, 90, 100];
 const PATTERN_EDITOR_VELOCITY_STEPS: [u8; 5] = [32, 64, 88, 110, 127];
+const RECENT_SONGS_LIMIT: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FocusArea {
@@ -88,6 +89,31 @@ impl Default for StatusMessage {
     }
 }
 
+#[derive(Clone, Debug)]
+struct RecentSongEntry {
+    path: PathBuf,
+    source_label: String,
+}
+
+#[derive(Clone, Debug)]
+enum DeferredAction {
+    NewSong,
+    DuplicateFromBrowserDemo,
+    DuplicateCurrentEditable,
+    CloseSong,
+    SwitchMode(EditorMode),
+    OpenSongDialog,
+    OpenSongPath(PathBuf),
+    QuitApplication,
+}
+
+#[derive(Clone, Debug)]
+enum ActiveDialog {
+    OpenSongPath,
+    SaveAsPath,
+    UnsavedChanges { action: DeferredAction },
+}
+
 #[derive(Default)]
 struct BootOptions {
     demo_key: Option<String>,
@@ -117,6 +143,10 @@ pub struct MemDeckGuiApp {
     editor_state: EditorState,
     editable_song: Option<EditableSong>,
     editor_open_path: String,
+    user_song_root: PathBuf,
+    recent_songs: Vec<RecentSongEntry>,
+    active_dialog: Option<ActiveDialog>,
+    request_quit: bool,
     renaming_pattern: bool,
     pattern_rename_buffer: String,
     step_clipboard: Option<editor::EditableStep>,
@@ -161,6 +191,10 @@ impl Default for MemDeckGuiApp {
             editor_state: EditorState::default(),
             editable_song: None,
             editor_open_path: String::new(),
+            user_song_root: Self::default_user_song_root(),
+            recent_songs: Vec::new(),
+            active_dialog: None,
+            request_quit: false,
             renaming_pattern: false,
             pattern_rename_buffer: String::new(),
             step_clipboard: None,
@@ -204,6 +238,79 @@ impl MemDeckGuiApp {
         ]
         .into();
         ctx.set_style(style);
+    }
+
+    fn default_user_song_root() -> PathBuf {
+        if let Some(path) = env::var_os("MEMDECK_USER_SONG_DIR") {
+            return PathBuf::from(path);
+        }
+        if let Some(path) = env::var_os("XDG_DATA_HOME") {
+            return PathBuf::from(path).join("memdeck").join("music").join("user");
+        }
+        if let Some(home) = env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("memdeck")
+                .join("music")
+                .join("user");
+        }
+        PathBuf::from("data").join("music").join("user")
+    }
+
+    fn ensure_user_song_root(&self) -> Result<(), String> {
+        std::fs::create_dir_all(&self.user_song_root)
+            .map_err(|error| format!("FAILED TO PREPARE USER SONG FOLDER • {error}"))
+    }
+
+    fn sanitize_song_file_stem(title: &str) -> String {
+        let mut normalized = title
+            .trim()
+            .to_lowercase()
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+            .collect::<String>();
+        while normalized.contains("__") {
+            normalized = normalized.replace("__", "_");
+        }
+        let trimmed = normalized.trim_matches('_');
+        if trimmed.is_empty() {
+            "untitled".to_string()
+        } else {
+            trimmed.to_string()
+        }
+    }
+
+    fn suggest_user_song_path(&self, title: &str) -> PathBuf {
+        let stem = Self::sanitize_song_file_stem(title);
+        let mut index = 1usize;
+        loop {
+            let file_name = if index == 1 {
+                format!("{stem}.abc")
+            } else {
+                format!("{stem}_{index:02}.abc")
+            };
+            let candidate = self.user_song_root.join(file_name);
+            if !candidate.exists() {
+                return candidate;
+            }
+            index += 1;
+        }
+    }
+
+    fn effective_song_dirty(&self) -> bool {
+        self.editor_state.dirty || self.editable_song.as_ref().is_some_and(|song| song.dirty)
+    }
+
+    fn is_bundled_demo_path(&self, path: &std::path::Path) -> bool {
+        self.demos.iter().any(|demo| demo.path == path)
+    }
+
+    fn remember_recent_song(&mut self, path: PathBuf, source_label: String) {
+        self.recent_songs.retain(|entry| entry.path != path);
+        self.recent_songs
+            .insert(0, RecentSongEntry { path, source_label });
+        self.recent_songs.truncate(RECENT_SONGS_LIMIT);
     }
 
     fn selected_demo(&self) -> &DemoEntry {
@@ -506,6 +613,51 @@ impl MemDeckGuiApp {
         self.set_status(StatusTone::Normal, format!("FOCUS • {}", focus.title()));
     }
 
+    fn open_unsaved_changes_dialog(&mut self, action: DeferredAction) {
+        self.active_dialog = Some(ActiveDialog::UnsavedChanges { action });
+    }
+
+    fn request_action(&mut self, action: DeferredAction) {
+        if self.editor_state.mode != EditorMode::Browser && self.effective_song_dirty() {
+            self.open_unsaved_changes_dialog(action);
+            return;
+        }
+        self.execute_action(action);
+    }
+
+    fn execute_action(&mut self, action: DeferredAction) {
+        match action {
+            DeferredAction::NewSong => self.create_new_song(),
+            DeferredAction::DuplicateFromBrowserDemo => self.duplicate_demo_as_editable(),
+            DeferredAction::DuplicateCurrentEditable => self.duplicate_current_editable_song(),
+            DeferredAction::CloseSong => self.close_current_song(),
+            DeferredAction::SwitchMode(mode) => self.set_mode(mode),
+            DeferredAction::OpenSongDialog => {
+                if self.editor_open_path.trim().is_empty() {
+                    self.editor_open_path = self.user_song_root.to_string_lossy().to_string();
+                }
+                self.active_dialog = Some(ActiveDialog::OpenSongPath);
+            }
+            DeferredAction::OpenSongPath(path) => self.open_editable_song_from_path(path),
+            DeferredAction::QuitApplication => {
+                self.request_quit = true;
+            }
+        }
+    }
+
+    fn resolve_unsaved_action(&mut self, save_before: bool, discard: bool) {
+        let Some(ActiveDialog::UnsavedChanges { action }) = self.active_dialog.clone() else {
+            return;
+        };
+        if save_before && !self.save_editable_song(false) {
+            return;
+        }
+        if discard || save_before {
+            self.active_dialog = None;
+            self.execute_action(action);
+        }
+    }
+
     fn set_mode(&mut self, mode: EditorMode) {
         if self.editor_state.mode == mode {
             return;
@@ -593,7 +745,12 @@ impl MemDeckGuiApp {
 
     fn create_new_song(&mut self) {
         self.stop_playback(false);
-        self.editable_song = Some(EditableSong::new_song());
+        let song = EditableSong::new_song();
+        self.editor_open_path = self
+            .suggest_user_song_path(&song.title)
+            .to_string_lossy()
+            .to_string();
+        self.editable_song = Some(song);
         self.editor_state = EditorState {
             mode: EditorMode::Edit,
             selected_pattern: Some(0),
@@ -612,11 +769,20 @@ impl MemDeckGuiApp {
     }
 
     fn duplicate_demo_as_editable(&mut self) {
+        let demo_key = self.selected_demo().key.clone();
         let path = self.selected_demo().path.clone();
         match editor::load_editable_song_from_path(&path) {
             Ok(mut song) => {
                 song.source_path = None;
                 song.dirty = true;
+                self.editor_open_path = self
+                    .suggest_user_song_path(&song.title)
+                    .to_string_lossy()
+                    .to_string();
+                self.remember_recent_song(
+                    PathBuf::from(&self.editor_open_path),
+                    format!("DUPLICATED DEMO • {}", demo_key.to_uppercase()),
+                );
                 self.stop_playback(false);
                 self.editable_song = Some(song);
                 self.editor_state.mode = EditorMode::Edit;
@@ -625,6 +791,7 @@ impl MemDeckGuiApp {
                 self.editor_state.selected_step = Some(0);
                 self.set_active_track_index(0);
                 self.editor_state.dirty = true;
+                self.editor_state.last_saved_path = None;
                 self.editor_state.last_error = None;
                 self.sync_arrangement_selection_with_pattern(false);
                 self.set_status(StatusTone::Active, "EDIT MODE • DEMO DUPLICATED");
@@ -636,9 +803,38 @@ impl MemDeckGuiApp {
         }
     }
 
-    fn open_editable_song_from_path(&mut self) {
-        let path = PathBuf::from(self.editor_open_path.trim());
-        if self.editor_open_path.trim().is_empty() {
+    fn duplicate_current_editable_song(&mut self) {
+        let Some(song) = self.editable_song.clone() else {
+            self.set_status(StatusTone::Warning, "DUPLICATE FAILED • NO EDITABLE SONG");
+            return;
+        };
+        let mut duplicated = song;
+        duplicated.source_path = None;
+        duplicated.dirty = true;
+        self.editor_open_path = self
+            .suggest_user_song_path(&duplicated.title)
+            .to_string_lossy()
+            .to_string();
+        self.stop_playback(false);
+        self.editable_song = Some(duplicated);
+        self.editor_state.mode = EditorMode::Edit;
+        self.editor_state.selected_arrangement_block = Some(0);
+        self.editor_state.selected_pattern = Some(0);
+        self.editor_state.selected_step = Some(0);
+        self.set_active_track_index(0);
+        self.editor_state.dirty = true;
+        self.editor_state.last_saved_path = None;
+        self.editor_state.last_error = None;
+        self.sync_arrangement_selection_with_pattern(false);
+        self.remember_recent_song(
+            PathBuf::from(&self.editor_open_path),
+            "DUPLICATED EDITABLE SONG".to_string(),
+        );
+        self.set_status(StatusTone::Active, "EDIT MODE • SONG DUPLICATED");
+    }
+
+    fn open_editable_song_from_path(&mut self, path: PathBuf) {
+        if path.as_os_str().is_empty() {
             self.set_status(StatusTone::Warning, "OPEN FAILED • ENTER A FILE PATH");
             return;
         }
@@ -655,6 +851,8 @@ impl MemDeckGuiApp {
                 self.editor_state.dirty = false;
                 self.editor_state.last_saved_path = Some(path.clone());
                 self.editor_state.last_error = None;
+                self.editor_open_path = path.to_string_lossy().to_string();
+                self.remember_recent_song(path.clone(), "OPENED EDITABLE SONG".to_string());
                 self.sync_arrangement_selection_with_pattern(false);
                 self.set_status(
                     StatusTone::Active,
@@ -668,46 +866,91 @@ impl MemDeckGuiApp {
         }
     }
 
-    fn save_editable_song(&mut self, save_as: bool) {
-        let Some(song) = self.editable_song.as_mut() else {
+    fn save_editable_song(&mut self, save_as: bool) -> bool {
+        let Some(song_view) = self.editable_song.as_ref() else {
             self.set_status(StatusTone::Warning, "SAVE FAILED • NO EDITABLE SONG");
-            return;
+            return false;
         };
+        let song_title = song_view.title.clone();
+        let song_source_path = song_view.source_path.clone();
 
         let target_path = if save_as {
             let input = self.editor_open_path.trim();
             if input.is_empty() {
                 self.set_status(StatusTone::Warning, "SAVE AS FAILED • ENTER A FILE PATH");
-                return;
+                return false;
             }
             PathBuf::from(input)
         } else {
-            song.source_path
+            let requested = song_source_path
                 .clone()
                 .or_else(|| self.editor_state.last_saved_path.clone())
-                .unwrap_or_else(|| PathBuf::from(self.editor_open_path.trim()))
+                .unwrap_or_else(|| PathBuf::from(self.editor_open_path.trim()));
+            if requested.as_os_str().is_empty() || self.is_bundled_demo_path(&requested) {
+                self.suggest_user_song_path(&song_title)
+            } else {
+                requested
+            }
         };
 
         if target_path.as_os_str().is_empty() {
             self.set_status(StatusTone::Warning, "SAVE FAILED • NO TARGET FILE");
-            return;
+            return false;
         }
+
+        if !save_as && self.is_bundled_demo_path(&target_path) {
+            self.set_status(
+                StatusTone::Warning,
+                "SAVE BLOCKED • BUNDLED DEMO PATH REQUIRES EXPLICIT SAVE AS",
+            );
+            return false;
+        }
+
+        if let Err(error) = self.ensure_user_song_root() {
+            self.editor_state.set_error(error.clone());
+            self.set_status(StatusTone::Warning, error);
+            return false;
+        }
+
+        let Some(song) = self.editable_song.as_mut() else {
+            self.set_status(StatusTone::Warning, "SAVE FAILED • NO EDITABLE SONG");
+            return false;
+        };
 
         match editor::save_editable_song_to_path(song, &target_path) {
             Ok(()) => {
                 self.editor_state.dirty = false;
                 self.editor_state.last_saved_path = Some(target_path.clone());
                 self.editor_state.clear_error();
+                self.editor_open_path = target_path.to_string_lossy().to_string();
+                self.remember_recent_song(target_path.clone(), "SAVED EDITABLE SONG".to_string());
                 self.set_status(
                     StatusTone::Active,
                     format!("SAVED • {}", target_path.display()),
                 );
+                true
             }
             Err(error) => {
                 self.editor_state.set_error(error.clone());
                 self.set_status(StatusTone::Warning, format!("SAVE FAILED • {error}"));
+                false
             }
         }
+    }
+
+    fn close_current_song(&mut self) {
+        self.stop_playback(false);
+        self.invalidate_editable_preview();
+        self.editable_song = None;
+        self.editor_state.mode = EditorMode::Browser;
+        self.editor_state.selected_pattern = None;
+        self.editor_state.selected_arrangement_block = None;
+        self.editor_state.selected_step = None;
+        self.editor_state.dirty = false;
+        self.editor_state.last_saved_path = None;
+        self.editor_state.last_error = None;
+        self.editor_open_path.clear();
+        self.set_status(StatusTone::Normal, "BROWSER MODE • SONG CLOSED");
     }
 
     fn render_editable_preview(&mut self) {
@@ -1296,15 +1539,54 @@ impl MemDeckGuiApp {
 
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
+            if let Some(dialog) = self.active_dialog.clone() {
+                if input.key_pressed(egui::Key::Escape) {
+                    self.active_dialog = None;
+                    return;
+                }
+                if let ActiveDialog::UnsavedChanges { .. } = dialog {
+                    if input.key_pressed(egui::Key::S) {
+                        self.resolve_unsaved_action(true, false);
+                        return;
+                    }
+                    if input.key_pressed(egui::Key::D) {
+                        self.resolve_unsaved_action(false, true);
+                        return;
+                    }
+                }
+                return;
+            }
+
+            if input.modifiers.command && input.key_pressed(egui::Key::N) {
+                self.request_action(DeferredAction::NewSong);
+            }
+            if input.modifiers.command && input.key_pressed(egui::Key::O) {
+                self.request_action(DeferredAction::OpenSongDialog);
+            }
+            if input.modifiers.command && input.key_pressed(egui::Key::D) {
+                if self.editor_state.mode == EditorMode::Browser {
+                    self.request_action(DeferredAction::DuplicateFromBrowserDemo);
+                } else {
+                    self.request_action(DeferredAction::DuplicateCurrentEditable);
+                }
+            }
             if input.modifiers.command && input.modifiers.shift && input.key_pressed(egui::Key::S) {
-                self.save_editable_song(true);
+                if self.editor_state.mode != EditorMode::Browser {
+                    self.active_dialog = Some(ActiveDialog::SaveAsPath);
+                }
             }
             if input.modifiers.command && input.key_pressed(egui::Key::S) && !input.modifiers.shift
             {
-                self.save_editable_song(false);
+                if self.editor_state.mode != EditorMode::Browser {
+                    let _ = self.save_editable_song(false);
+                }
             }
             if input.modifiers.command && input.key_pressed(egui::Key::R) {
-                self.render_editable_preview();
+                if self.editor_state.mode == EditorMode::Browser {
+                    let _ = self.render_selected_demo();
+                } else {
+                    self.render_editable_preview();
+                }
             }
 
             if input.key_pressed(egui::Key::Tab) {
@@ -1331,6 +1613,7 @@ impl MemDeckGuiApp {
                 egui::Key::N,
                 egui::Key::R,
                 egui::Key::S,
+                egui::Key::O,
                 egui::Key::V,
                 egui::Key::W,
                 egui::Key::X,
@@ -1472,8 +1755,6 @@ impl MemDeckGuiApp {
             }
             egui::Key::D => {
                 if command {
-                    // Keep Cmd/Ctrl+D available to the host platform and avoid conflicting
-                    // with arrangement duplicate semantics.
                     return;
                 }
                 if self.editor_state.mode != EditorMode::Browser
@@ -1512,6 +1793,11 @@ impl MemDeckGuiApp {
             egui::Key::S => {
                 if !command {
                     self.focus_panel(FocusArea::RenderStats)
+                }
+            }
+            egui::Key::O => {
+                if command {
+                    self.request_action(DeferredAction::OpenSongDialog);
                 }
             }
             egui::Key::W => {
@@ -1640,6 +1926,38 @@ impl MemDeckGuiApp {
                             .size(12.0)
                             .color(TEXT_DIM),
                         );
+                    }
+                }
+                if !self.recent_songs.is_empty() {
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("RECENT SONGS")
+                            .monospace()
+                            .size(12.0)
+                            .color(TEXT_DIM),
+                    );
+                    for entry in self.recent_songs.iter().take(4) {
+                        let response = ui.add(
+                            egui::Button::new(
+                                RichText::new(format!(
+                                    "{} • {}",
+                                    entry.source_label,
+                                    entry.path.display()
+                                ))
+                                .monospace()
+                                .size(11.0)
+                                .color(TEXT),
+                            )
+                            .fill(PANEL_DIM_BG)
+                            .stroke(Stroke::new(1.0, BORDER_DIM))
+                            .min_size(Vec2::new(ui.available_width(), 20.0)),
+                        );
+                        if response.clicked() {
+                            self.editor_open_path = entry.path.to_string_lossy().to_string();
+                            self.active_dialog = Some(ActiveDialog::OpenSongPath);
+                        }
                     }
                 }
             },
@@ -2970,6 +3288,13 @@ impl MemDeckGuiApp {
             .or(self.runtime.last_error.as_deref())
             .unwrap_or("NONE");
         let has_error = self.editor_state.last_error.is_some() || self.runtime.last_error.is_some();
+        let current_path = self
+            .editable_song
+            .as_ref()
+            .and_then(|song| song.source_path.as_ref())
+            .or(self.editor_state.last_saved_path.as_ref())
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "--".to_string());
 
         Self::retro_panel(
             ui,
@@ -3048,6 +3373,13 @@ impl MemDeckGuiApp {
                             .size(12.0)
                             .color(if has_error { WARNING } else { TEXT_DIM }),
                     );
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("PATH {}", current_path))
+                            .monospace()
+                            .size(12.0)
+                            .color(TEXT_DIM),
+                    );
                 });
                 ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
@@ -3062,7 +3394,7 @@ impl MemDeckGuiApp {
                         "[ARROWS/ENTER] STEP EDIT",
                         "[+/-] OCTAVE • [A/F] ACCENT+FX • [G/V] GATE+VEL",
                         "[C/X/P] COPY/CUT/PASTE STEP",
-                        "[CTRL+S] SAVE • [CTRL+SHIFT+S] SAVE AS",
+                        "[CTRL+N/O/S/SHIFT+S/D] SONG FLOW",
                         "[CTRL+R] PREVIEW RENDER",
                         "[TAB] NEXT PANEL",
                         "[D/S/W/P/E/G/I/F] DIRECT FOCUS",
@@ -3073,6 +3405,201 @@ impl MemDeckGuiApp {
                 });
             },
         );
+    }
+
+    fn draw_active_dialog(&mut self, ctx: &egui::Context) {
+        let Some(dialog) = self.active_dialog.clone() else {
+            return;
+        };
+        match dialog {
+            ActiveDialog::OpenSongPath => {
+                let mut close_dialog = false;
+                egui::Window::new("OPEN SONG")
+                    .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(
+                            RichText::new("OPEN AN EDITABLE .ABC SONG")
+                                .monospace()
+                                .size(12.0),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "USER SONG FOLDER • {}",
+                                self.user_song_root.display()
+                            ))
+                            .monospace()
+                            .size(11.0)
+                            .color(TEXT_DIM),
+                        );
+                        ui.add_space(4.0);
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.editor_open_path)
+                                .hint_text("ABSOLUTE PATH TO SONG .ABC")
+                                .font(TextStyle::Monospace)
+                                .desired_width(540.0),
+                        );
+                        if response.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
+                            let path = PathBuf::from(self.editor_open_path.trim());
+                            self.request_action(DeferredAction::OpenSongPath(path));
+                            close_dialog = true;
+                        }
+                        if !self.recent_songs.is_empty() {
+                            ui.add_space(4.0);
+                            ui.separator();
+                            ui.label(RichText::new("RECENT").monospace().size(11.0).color(TEXT_DIM));
+                            for entry in self.recent_songs.iter().take(5) {
+                                if ui
+                                    .button(
+                                        RichText::new(format!(
+                                            "{} • {}",
+                                            entry.source_label,
+                                            entry.path.display()
+                                        ))
+                                        .monospace()
+                                        .size(11.0),
+                                    )
+                                    .clicked()
+                                {
+                                    self.editor_open_path = entry.path.to_string_lossy().to_string();
+                                }
+                            }
+                        }
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(RichText::new("OPEN").monospace().size(11.0)).clicked() {
+                                let path = PathBuf::from(self.editor_open_path.trim());
+                                self.request_action(DeferredAction::OpenSongPath(path));
+                                close_dialog = true;
+                            }
+                            if ui.button(RichText::new("CANCEL (ESC)").monospace().size(11.0)).clicked()
+                            {
+                                close_dialog = true;
+                            }
+                        });
+                    });
+                if close_dialog && matches!(self.active_dialog, Some(ActiveDialog::OpenSongPath)) {
+                    self.active_dialog = None;
+                }
+            }
+            ActiveDialog::SaveAsPath => {
+                let mut close_dialog = false;
+                egui::Window::new("SAVE SONG AS")
+                    .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(
+                            RichText::new("SAVE EDITABLE SONG TO .ABC")
+                                .monospace()
+                                .size(12.0),
+                        );
+                        ui.label(
+                            RichText::new(format!(
+                                "DEFAULT USER FOLDER • {}",
+                                self.user_song_root.display()
+                            ))
+                            .monospace()
+                            .size(11.0)
+                            .color(TEXT_DIM),
+                        );
+                        ui.add_space(4.0);
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut self.editor_open_path)
+                                .hint_text("ABSOLUTE PATH TO SAVE .ABC")
+                                .font(TextStyle::Monospace)
+                                .desired_width(540.0),
+                        );
+                        if response.lost_focus()
+                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                            && self.save_editable_song(true)
+                        {
+                            close_dialog = true;
+                        }
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(RichText::new("SAVE").monospace().size(11.0)).clicked()
+                                && self.save_editable_song(true)
+                            {
+                                close_dialog = true;
+                            }
+                            if ui.button(RichText::new("CANCEL (ESC)").monospace().size(11.0)).clicked()
+                            {
+                                close_dialog = true;
+                            }
+                        });
+                    });
+                if close_dialog && matches!(self.active_dialog, Some(ActiveDialog::SaveAsPath)) {
+                    self.active_dialog = None;
+                }
+            }
+            ActiveDialog::UnsavedChanges { .. } => {
+                let mut cancel = false;
+                egui::Window::new("UNSAVED CHANGES")
+                    .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ctx, |ui| {
+                        ui.label(
+                            RichText::new("YOU HAVE UNSAVED SONG CHANGES.")
+                                .monospace()
+                                .size(12.0)
+                                .color(WARNING),
+                        );
+                        ui.label(
+                            RichText::new("SAVE / DISCARD / CANCEL")
+                                .monospace()
+                                .size(11.0)
+                                .color(TEXT_DIM),
+                        );
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(RichText::new("SAVE (S)").monospace().size(11.0)).clicked() {
+                                self.resolve_unsaved_action(true, false);
+                            }
+                            if ui
+                                .button(RichText::new("DISCARD (D)").monospace().size(11.0))
+                                .clicked()
+                            {
+                                self.resolve_unsaved_action(false, true);
+                            }
+                            if ui
+                                .button(RichText::new("CANCEL (ESC)").monospace().size(11.0))
+                                .clicked()
+                            {
+                                cancel = true;
+                            }
+                        });
+                    });
+                if cancel {
+                    self.active_dialog = None;
+                }
+            }
+        }
+    }
+
+    fn update_window_title(&self, ctx: &egui::Context) {
+        let song_label = if self.editor_state.mode == EditorMode::Browser {
+            self.selected_demo().key.to_uppercase()
+        } else {
+            self.editable_song
+                .as_ref()
+                .map(|song| song.title.to_uppercase())
+                .unwrap_or_else(|| "UNTITLED".to_string())
+        };
+        let dirty_prefix = if self.editor_state.mode != EditorMode::Browser && self.effective_song_dirty()
+        {
+            "* "
+        } else {
+            ""
+        };
+        let title = format!(
+            "{dirty_prefix}MEMDECK SOUND MACHINE • {} • {}",
+            self.editor_state.mode.label(),
+            song_label
+        );
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
     }
 
     fn draw_state_chip(ui: &mut egui::Ui, label: &str, value: &str, color: Color32) {
@@ -3596,8 +4123,19 @@ impl Drop for MemDeckGuiApp {
 
 impl eframe::App for MemDeckGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let close_requested = ctx.input(|input| input.viewport().close_requested());
+        if close_requested && self.active_dialog.is_none() {
+            if self.editor_state.mode != EditorMode::Browser && self.effective_song_dirty() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.open_unsaved_changes_dialog(DeferredAction::QuitApplication);
+            } else {
+                self.request_quit = true;
+            }
+        }
+
         self.poll_playback();
         self.apply_boot_options();
+        self.update_window_title(ctx);
         self.handle_keyboard(ctx);
         self.sync_track_selection_state();
 
@@ -3674,7 +4212,7 @@ impl eframe::App for MemDeckGuiApp {
                         .button(RichText::new("NEW SONG").monospace().size(12.0))
                         .clicked()
                     {
-                        self.create_new_song();
+                        self.request_action(DeferredAction::NewSong);
                     }
                     if ui
                         .button(
@@ -3684,20 +4222,41 @@ impl eframe::App for MemDeckGuiApp {
                         )
                         .clicked()
                     {
-                        self.duplicate_demo_as_editable();
+                        self.request_action(DeferredAction::DuplicateFromBrowserDemo);
                     }
                     if ui
-                        .button(RichText::new("OPEN EDITABLE SONG").monospace().size(12.0))
+                        .button(RichText::new("OPEN SONG").monospace().size(12.0))
                         .clicked()
                     {
-                        self.open_editable_song_from_path();
+                        self.request_action(DeferredAction::OpenSongDialog);
+                    }
+                    if self.editor_state.mode != EditorMode::Browser
+                        && ui
+                            .button(RichText::new("SAVE").monospace().size(12.0))
+                            .clicked()
+                    {
+                        let _ = self.save_editable_song(false);
+                    }
+                    if self.editor_state.mode != EditorMode::Browser
+                        && ui
+                            .button(RichText::new("SAVE AS").monospace().size(12.0))
+                            .clicked()
+                    {
+                        self.active_dialog = Some(ActiveDialog::SaveAsPath);
+                    }
+                    if self.editor_state.mode != EditorMode::Browser
+                        && ui
+                            .button(RichText::new("CLOSE SONG").monospace().size(12.0))
+                            .clicked()
+                    {
+                        self.request_action(DeferredAction::CloseSong);
                     }
                     if self.editor_state.mode != EditorMode::Browser
                         && ui
                             .button(RichText::new("BROWSER MODE").monospace().size(12.0))
                             .clicked()
                     {
-                        self.set_mode(EditorMode::Browser);
+                        self.request_action(DeferredAction::SwitchMode(EditorMode::Browser));
                     }
                     if self.editor_state.mode == EditorMode::Preview
                         && ui
@@ -3713,11 +4272,14 @@ impl eframe::App for MemDeckGuiApp {
                     {
                         self.render_editable_preview();
                     }
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.editor_open_path)
-                            .hint_text("PATH TO .ABC")
-                            .font(TextStyle::Monospace),
-                    );
+                    if !self.editor_open_path.trim().is_empty() {
+                        ui.label(
+                            RichText::new(format!("PATH • {}", self.editor_open_path))
+                                .monospace()
+                                .size(11.0)
+                                .color(TEXT_DIM),
+                        );
+                    }
                 });
             });
 
@@ -3744,6 +4306,11 @@ impl eframe::App for MemDeckGuiApp {
                 });
             });
         });
+        self.draw_active_dialog(ctx);
+        if self.request_quit {
+            self.request_quit = false;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
     }
 }
 
@@ -3790,7 +4357,9 @@ fn env_flag(name: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
+    mod tests {
+    use std::fs;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use super::*;
@@ -4035,6 +4604,114 @@ mod tests {
         assert!(
             app.editor_state.last_error.is_some(),
             "render failure should expose serialization error"
+        );
+    }
+
+    fn temp_song_path(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("memdeck-gui-{label}-{}.abc", std::process::id()))
+    }
+
+    #[test]
+    fn new_song_initializes_editable_lifecycle_state() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        assert_eq!(app.editor_state.mode, EditorMode::Edit);
+        assert!(app.editable_song.is_some());
+        assert!(!app.effective_song_dirty());
+        assert!(!app.editor_open_path.trim().is_empty());
+    }
+
+    #[test]
+    fn save_after_edit_clears_dirty_state() {
+        let mut app = MemDeckGuiApp::default();
+        app.user_song_root = std::env::temp_dir().join("memdeck-gui-save-after-edit");
+        app.create_new_song();
+        app.toggle_selected_step();
+        assert!(app.effective_song_dirty());
+
+        let saved = app.save_editable_song(false);
+        assert!(saved, "save should succeed");
+        assert!(!app.effective_song_dirty(), "save should clear dirty state");
+    }
+
+    #[test]
+    fn open_song_roundtrip_from_saved_file() {
+        let mut app = MemDeckGuiApp::default();
+        app.user_song_root = std::env::temp_dir().join("memdeck-gui-roundtrip");
+        app.create_new_song();
+        if let Some(song) = app.editable_song.as_mut() {
+            song.title = "Roundtrip".to_string();
+        }
+        let path = temp_song_path("open-roundtrip");
+        app.editor_open_path = path.to_string_lossy().to_string();
+        assert!(app.save_editable_song(true));
+
+        app.close_current_song();
+        app.open_editable_song_from_path(path.clone());
+        assert_eq!(app.editor_state.mode, EditorMode::Edit);
+        assert_eq!(
+            app.editable_song.as_ref().map(|song| song.title.as_str()),
+            Some("Roundtrip")
+        );
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn invalid_save_path_surfaces_error() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        app.editor_open_path = "/dev/null/memdeck-invalid.abc".to_string();
+        let saved = app.save_editable_song(true);
+        assert!(!saved, "save should fail for invalid path");
+        assert!(app.editor_state.last_error.is_some());
+    }
+
+    #[test]
+    fn recent_songs_tracks_open_and_duplicate_entries() {
+        let mut app = MemDeckGuiApp::default();
+        app.duplicate_demo_as_editable();
+        assert!(
+            !app.recent_songs.is_empty(),
+            "duplicate demo should appear in recents"
+        );
+
+        let path = temp_song_path("recent-open");
+        let content = [
+            "X:1",
+            "T:Recent",
+            "M:4/4",
+            "L:1/16",
+            "Q:1/4=120",
+            "K:C",
+            "%%instrument lead wave=square amp=64 duty=25 attack=0 decay=0 sustain=100 release=0 gate=90 fx=0",
+            "%%effect 0 delay_steps=0 delay_feedback=0 delay_mix=0 drive=0 lowpass=0 sidechain=0 sidechain_release=180 mix=100",
+            "%%pattern A length=16",
+            "%%arrangement A",
+            "V:lead instrument=lead",
+            "V:lead",
+            "| czzzczzzczzzczzz |",
+        ]
+        .join("\n");
+        fs::write(&path, content).expect("fixture should write");
+        app.open_editable_song_from_path(path.clone());
+        assert!(
+            app.recent_songs
+                .iter()
+                .any(|entry| entry.path == path && entry.source_label.contains("OPENED")),
+            "opened song should be tracked in recents"
+        );
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn unsaved_changes_dialog_blocks_navigation_until_resolved() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        app.toggle_selected_step();
+        app.request_action(DeferredAction::CloseSong);
+        assert!(
+            matches!(app.active_dialog, Some(ActiveDialog::UnsavedChanges { .. })),
+            "dirty close request should trigger unsaved dialog"
         );
     }
 }
