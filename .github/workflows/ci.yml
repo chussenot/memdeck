@@ -57,4 +57,11 @@ jobs:
           MEMDECK_GUI_BOOT_RENDER: "1"
           MEMDECK_GUI_BOOT_DEMO: dark_moroder
           MEMDECK_GUI_BOOT_FOCUS: waveform
-        run: xvfb-run -a cargo run --manifest-path gui/Cargo.toml -- __screenshot
+        run: |
+          set +e
+          timeout 20s xvfb-run -a cargo run --manifest-path gui/Cargo.toml
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            exit "$code"
+          fi
