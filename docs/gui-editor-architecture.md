@@ -82,6 +82,8 @@ Defines `EditorState`:
 
 - `editor_state: EditorState`
 - `editable_song: Option<EditableSong>`
+- `active_dialog` for keyboard-first open/save/unsaved confirmation
+- user-song root path resolution + recent-song tracking
 - explicit focusable `Pattern Editor` panel
 - editable Instrument/FX inspectors in Edit/Preview mode
 - step clipboard for copy/cut/paste operations
@@ -90,7 +92,10 @@ New top-bar actions:
 
 - **New Song**
 - **Duplicate Demo as Editable**
-- **Open Editable Song**
+- **Open Song**
+- **Save**
+- **Save As**
+- **Close Song**
 - **Browser Mode**
 
 Focus areas now include:
@@ -124,7 +129,7 @@ No second Rust audio engine is introduced.
 
 ## Tests
 
-Editor tests cover:
+Editor + app tests cover:
 
 - editable step defaults
 - step toggle + note/octave behavior
@@ -133,3 +138,8 @@ Editor tests cover:
 - load/save roundtrip
 - accent/fx step metadata roundtrip
 - invalid ABC returns clean error
+- new-song lifecycle defaults
+- save-after-edit dirty transition
+- open/save roundtrip via GUI workflow
+- invalid save path visibility
+- recent-song tracking and unsaved-change guard dialog

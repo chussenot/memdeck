@@ -10,6 +10,18 @@ This guide focuses on authored retro-synth composition with the MemDeck ABC DSL.
 4. Reserve lead/motif entries for section transitions.
 5. Structure the file with section markers and patterns.
 
+## GUI editor workflow companion
+
+When composing from the Rust GUI:
+
+- start with **New Song** or **Duplicate Demo as Editable**
+- iterate in Arrangement + Pattern Editor + Instrument/FX inspectors
+- render spot checks with `Ctrl+R`
+- save often with `Ctrl+S` (or `Ctrl+Shift+S` for explicit path changes)
+- keep demos as references; publish new work to user-song storage rather than overwriting bundled demos
+
+Song lifecycle and persistence details are documented in `docs/gui-song-workflow.md`.
+
 ### Recommended section markers
 
 - `% section intro`

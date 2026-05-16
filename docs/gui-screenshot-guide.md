@@ -64,6 +64,38 @@ EFRAME_SCREENSHOT_TO=<target.png> xvfb-run -a cargo run --manifest-path gui/Carg
   - `MEMDECK_GUI_BOOT_MODE=preview`
   - `MEMDECK_GUI_BOOT_FOCUS=waveform`
 
+### 7) Dirty-state visible (Edit mode)
+- File: `docs/screenshots/gui-dirty-state.png`
+- Env:
+  - `MEMDECK_GUI_BOOT_DEMO=dark_moroder`
+  - `MEMDECK_GUI_BOOT_EDITABLE=duplicate`
+  - `MEMDECK_GUI_BOOT_MODE=edit`
+  - `MEMDECK_GUI_BOOT_PATTERN_EDITS=1`
+
+### 8) Save dialog
+- File: `docs/screenshots/gui-save-dialog.png`
+- Env:
+  - `MEMDECK_GUI_BOOT_DEMO=dark_moroder`
+  - `MEMDECK_GUI_BOOT_EDITABLE=duplicate`
+  - `MEMDECK_GUI_BOOT_MODE=edit`
+  - `MEMDECK_GUI_BOOT_DIALOG=save-as`
+
+### 9) Open dialog + recent songs
+- File: `docs/screenshots/gui-open-dialog-recent.png`
+- Env:
+  - `MEMDECK_GUI_BOOT_DEMO=dark_moroder`
+  - `MEMDECK_GUI_BOOT_EDITABLE=duplicate`
+  - `MEMDECK_GUI_BOOT_MODE=edit`
+  - `MEMDECK_GUI_BOOT_DIALOG=open`
+
+### 10) Duplicated demo workflow
+- File: `docs/screenshots/gui-duplicated-demo-workflow.png`
+- Env:
+  - `MEMDECK_GUI_BOOT_DEMO=dark_moroder`
+  - `MEMDECK_GUI_BOOT_EDITABLE=duplicate`
+  - `MEMDECK_GUI_BOOT_MODE=edit`
+  - `MEMDECK_GUI_BOOT_FOCUS=demos`
+
 ## Optional edited-pattern snapshot
 
 - File: `docs/screenshots/gui-pattern-editor-edited-notes.png`
