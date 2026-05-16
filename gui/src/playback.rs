@@ -55,9 +55,6 @@ impl PlaybackController {
             return Err(message);
         }
 
-        self.stop()
-            .map_err(|err| format!("could not reset playback: {err}"))?;
-
         let path = playback_temp_path();
         write_wav_u8_mono(&path, samples, SAMPLE_RATE_ABC as u32)
             .map_err(|err| format!("could not write playback buffer: {err}"))?;
@@ -65,12 +62,19 @@ impl PlaybackController {
         self.expected_duration = Some(Duration::from_secs_f32(
             samples.len() as f32 / SAMPLE_RATE_ABC as f32,
         ));
-        self.start_wav(&path)?;
-        self.temp_path = Some(path);
+        self.temp_path = Some(path.clone());
+        if let Err(err) = self.start_wav(&path) {
+            self.cleanup_runtime_state();
+            self.state = PlaybackState::Error(err.clone());
+            return Err(err);
+        }
         Ok(())
     }
 
     pub fn start_wav(&mut self, path: &Path) -> Result<(), String> {
+        self.stop()
+            .map_err(|err| format!("could not reset playback: {err}"))?;
+
         let mut command = playback_command(path)?;
         let child = command.spawn().map_err(|err| {
             let message = format!("could not start playback command: {err}");
@@ -216,6 +220,8 @@ fn write_wav_u8_mono(path: &Path, pcm: &[u8], sample_rate: u32) -> io::Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn default_state_is_stopped() {
@@ -259,5 +265,27 @@ mod tests {
     fn progress_requires_active_timing() {
         let playback = PlaybackController::default();
         assert_eq!(playback.progress(), None);
+    }
+
+    #[test]
+    fn stop_cleans_up_temp_file() {
+        let mut playback = PlaybackController::default();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let temp_path = std::env::temp_dir().join(format!(
+            "memdeck-playback-test-{unique}-{}.wav",
+            std::process::id()
+        ));
+        fs::write(&temp_path, [0_u8, 1, 2]).expect("should write temp wav fixture");
+        playback.temp_path = Some(temp_path.clone());
+
+        let stopped = playback.stop().expect("stop should succeed");
+        assert!(!stopped, "stop should report false with no child process");
+        assert!(
+            !temp_path.exists(),
+            "stop should always remove owned temporary wav files"
+        );
     }
 }
