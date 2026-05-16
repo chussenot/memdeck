@@ -1,61 +1,35 @@
 # MemDeck GUI Keybindings
 
-## Required runtime keys
+## Global/browser keys
 
 | Key | Action |
 | --- | --- |
-| `Up` / `Down` | Browse demos when Demo Browser is focused; otherwise change selected track |
-| `Enter` | Render selected demo |
-| `Space` | Start or stop playback |
-| `Tab` | Cycle focus forward across all panels |
-| `Shift+Tab` | Cycle focus backward across all panels |
-| `Esc` | Stop playback |
+| `Tab` / `Shift+Tab` | Cycle focus panels |
+| `D` `S` `W` `P` `I` `F` | Direct focus (demo/stats/waveform/pattern/inspector/fx) |
+| `Up` / `Down` | Demo select when browser focused, otherwise track select |
+| `Enter` | Render selected demo (browser workflow) |
+| `Space` | Start/stop playback |
+| `Esc` | Stop playback / cancel active rename |
 
-## Direct panel focus
+## Arrangement editor keys (Edit/Preview mode)
 
-| Key | Panel |
+| Key | Action |
 | --- | --- |
-| `D` | Demo Browser |
-| `S` | Render Stats |
-| `W` | Waveform |
-| `P` | Pattern Overview |
-| `I` | Instrument Inspector |
-| `F` | FX Inspector |
+| `A` | Focus Arrangement Editor panel |
+| `Left` / `Right` | Move arrangement cursor |
+| `Ctrl+Left` / `Ctrl+Right` | Reorder selected block |
+| `Up` / `Down` | Select track |
+| `Enter` | Open selected pattern |
+| `N` | Add pattern block |
+| `D` | Duplicate selected block |
+| `Backspace` / `Delete` | Remove selected block |
+| `R` | Rename selected pattern |
+| `Ctrl+S` | Save ABC |
+| `Ctrl+Shift+S` | Save As |
+| `Ctrl+R` | Render preview through C engine |
 
-## Interaction model
+## Mouse (minimal)
 
-```mermaid
-stateDiagram-v2
-    [*] --> DemoBrowser
-    DemoBrowser --> RenderStats: Tab
-    RenderStats --> WaveformView: Tab
-    WaveformView --> PatternOverview: Tab
-    PatternOverview --> InstrumentInspector: Tab
-    InstrumentInspector --> FxInspector: Tab
-    FxInspector --> DemoBrowser: Tab
-
-    DemoBrowser --> DemoBrowser: Up / Down
-    RenderStats --> RenderStats: Up / Down (track select)
-    WaveformView --> WaveformView: Up / Down (track select)
-    PatternOverview --> PatternOverview: Up / Down (track select)
-    InstrumentInspector --> InstrumentInspector: Up / Down (track select)
-    FxInspector --> FxInspector: Up / Down (track select)
-
-    DemoBrowser --> Rendered: Enter
-    RenderStats --> Rendered: Enter
-    WaveformView --> Rendered: Enter
-    PatternOverview --> Rendered: Enter
-    InstrumentInspector --> Rendered: Enter
-    FxInspector --> Rendered: Enter
-
-    Rendered --> Playing: Space
-    Playing --> Rendered: Space
-    Playing --> Rendered: Esc
-```
-
-## Intent
-
-- keyboard-first
-- low cognitive load
-- explicit status reporting
-- read-only transport only
+- click block: select block
+- double click block: open pattern
+- no drag-and-drop in current implementation

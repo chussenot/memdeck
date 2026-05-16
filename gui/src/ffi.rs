@@ -8,7 +8,6 @@ use std::slice;
 use std::sync::{LazyLock, Mutex};
 
 use crate::audio_engine::{DemoOverview, FxBusOverview, PatternBlock, StepState, TrackOverview};
-use crate::editor::{self, EditableSong};
 
 pub const SAMPLE_RATE_ABC: c_int = 22_050;
 const ABC_DEFAULT_VIBRATO_RATE: c_int = 5_200;
@@ -636,7 +635,7 @@ pub struct RawVoiceForEditor {
 }
 
 /// Full song data extracted from `AbcMusic`, consumed by
-/// [`editor::build_editable_song_from_ffi`].
+/// the Rust editor module.
 pub struct RawAbcMusicForEditor {
     pub title: String,
     pub bpm: i32,
@@ -648,9 +647,9 @@ pub struct RawAbcMusicForEditor {
     pub voices: Vec<RawVoiceForEditor>,
 }
 
-/// Load an [`EditableSong`] from an ABC file, preserving per-step note
+/// Load raw editor song data from an ABC file, preserving per-step note
 /// frequencies so the editor model can reconstruct MIDI pitches.
-pub fn load_editor_song(path: &Path) -> Result<EditableSong, String> {
+pub fn load_raw_abc_music_for_editor(path: &Path) -> Result<RawAbcMusicForEditor, String> {
     let path_str = normalized_demo_path(path)?;
     let c_path = CString::new(path_str)
         .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
@@ -667,8 +666,7 @@ pub fn load_editor_song(path: &Path) -> Result<EditableSong, String> {
         ));
     }
 
-    let raw = extract_raw_abc_music(&music);
-    Ok(editor::build_editable_song_from_ffi(raw))
+    Ok(extract_raw_abc_music(&music))
 }
 
 fn extract_raw_abc_music(music: &AbcMusic) -> RawAbcMusicForEditor {
