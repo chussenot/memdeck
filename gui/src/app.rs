@@ -4376,8 +4376,9 @@ fn env_flag(name: &str) -> bool {
 }
 
 #[cfg(test)]
-    mod tests {
+mod tests {
     use std::fs;
+    use std::path::Path;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -4626,8 +4627,25 @@ fn env_flag(name: &str) -> bool {
         );
     }
 
-    fn temp_song_path(label: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("memdeck-gui-{label}-{}.abc", std::process::id()))
+    struct TempSongFile(PathBuf);
+
+    impl TempSongFile {
+        fn new(label: &str) -> Self {
+            Self(std::env::temp_dir().join(format!(
+                "memdeck-gui-{label}-{}.abc",
+                std::process::id()
+            )))
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempSongFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
     }
 
     #[test]
@@ -4661,18 +4679,17 @@ fn env_flag(name: &str) -> bool {
         if let Some(song) = app.editable_song.as_mut() {
             song.title = "Roundtrip".to_string();
         }
-        let path = temp_song_path("open-roundtrip");
-        app.editor_open_path = path.to_string_lossy().to_string();
+        let path = TempSongFile::new("open-roundtrip");
+        app.editor_open_path = path.path().to_string_lossy().to_string();
         assert!(app.save_editable_song(true));
 
         app.close_current_song();
-        app.open_editable_song_from_path(path.clone());
+        app.open_editable_song_from_path(path.path().to_path_buf());
         assert_eq!(app.editor_state.mode, EditorMode::Edit);
         assert_eq!(
             app.editable_song.as_ref().map(|song| song.title.as_str()),
             Some("Roundtrip")
         );
-        let _ = fs::remove_file(path);
     }
 
     #[test]
@@ -4694,7 +4711,7 @@ fn env_flag(name: &str) -> bool {
             "duplicate demo should appear in recents"
         );
 
-        let path = temp_song_path("recent-open");
+        let path = TempSongFile::new("recent-open");
         let content = [
             "X:1",
             "T:Recent",
@@ -4711,15 +4728,16 @@ fn env_flag(name: &str) -> bool {
             "| czzzczzzczzzczzz |",
         ]
         .join("\n");
-        fs::write(&path, content).expect("fixture should write");
-        app.open_editable_song_from_path(path.clone());
+        fs::write(path.path(), content).expect("fixture should write");
+        app.open_editable_song_from_path(path.path().to_path_buf());
         assert!(
             app.recent_songs
                 .iter()
-                .any(|entry| entry.path == path && entry.source_label.contains("OPENED")),
+                .any(|entry| {
+                    entry.path.as_path() == path.path() && entry.source_label.contains("OPENED")
+                }),
             "opened song should be tracked in recents"
         );
-        let _ = fs::remove_file(path);
     }
 
     #[test]
