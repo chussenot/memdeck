@@ -29,6 +29,8 @@ const ACCENT_DIM: Color32 = Color32::from_rgb(52, 80, 56);
 const WARNING: Color32 = Color32::from_rgb(234, 122, 106);
 const WAVEFORM: Color32 = Color32::from_rgb(194, 222, 194);
 const GRID: Color32 = Color32::from_rgb(34, 44, 34);
+const PATTERN_EDITOR_GATE_STEPS: [u8; 5] = [25, 50, 75, 90, 100];
+const PATTERN_EDITOR_VELOCITY_STEPS: [u8; 5] = [32, 64, 88, 110, 127];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FocusArea {
@@ -950,26 +952,26 @@ impl MemDeckGuiApp {
     }
 
     fn cycle_selected_step_gate(&mut self) {
-        const GATE_STEPS: [u8; 5] = [25, 50, 75, 90, 100];
         if self.with_selected_step_mut(|step| {
-            let pos = GATE_STEPS
+            let pos = PATTERN_EDITOR_GATE_STEPS
                 .iter()
                 .position(|value| *value == step.gate_percent)
                 .unwrap_or(0);
-            step.gate_percent = GATE_STEPS[(pos + 1) % GATE_STEPS.len()];
+            step.gate_percent =
+                PATTERN_EDITOR_GATE_STEPS[(pos + 1) % PATTERN_EDITOR_GATE_STEPS.len()];
         }) {
             self.mark_editor_dirty();
         }
     }
 
     fn cycle_selected_step_velocity(&mut self) {
-        const VELOCITY_STEPS: [u8; 5] = [32, 64, 88, 110, 127];
         if self.with_selected_step_mut(|step| {
-            let pos = VELOCITY_STEPS
+            let pos = PATTERN_EDITOR_VELOCITY_STEPS
                 .iter()
                 .position(|value| *value == step.velocity)
                 .unwrap_or(2);
-            step.velocity = VELOCITY_STEPS[(pos + 1) % VELOCITY_STEPS.len()];
+            step.velocity =
+                PATTERN_EDITOR_VELOCITY_STEPS[(pos + 1) % PATTERN_EDITOR_VELOCITY_STEPS.len()];
         }) {
             self.mark_editor_dirty();
         }
