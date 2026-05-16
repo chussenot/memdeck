@@ -47,6 +47,30 @@ mod tests {
     }
 
     #[test]
+    fn editable_step_defaults_are_tracker_ready() {
+        let step = EditableStep::rest();
+        assert!(!step.active);
+        assert_eq!(step.midi_note, 0);
+        assert_eq!(step.velocity, EditableStep::DEFAULT_VELOCITY);
+        assert_eq!(step.gate_percent, EditableStep::DEFAULT_GATE_PERCENT);
+        assert!(!step.accent);
+        assert!(!step.fx_trigger);
+    }
+
+    #[test]
+    fn step_toggle_and_note_octave_editing_behave() {
+        let mut step = EditableStep::rest();
+        step.toggle_active();
+        assert!(step.active);
+        assert_eq!(step.midi_note, EditableStep::DEFAULT_MIDI_NOTE);
+        step.midi_note = step.midi_note.saturating_add(12);
+        assert_eq!(step.midi_note, EditableStep::DEFAULT_MIDI_NOTE + 12);
+        step.toggle_active();
+        assert!(!step.active);
+        assert_eq!(step.midi_note, 0);
+    }
+
+    #[test]
     fn load_simple_abc() {
         let path = temp_abc_path("load-simple");
         fs::write(&path, simple_abc()).expect("fixture write should succeed");
@@ -65,6 +89,8 @@ mod tests {
         let mut song = EditableSong::new_song();
         song.title = "Save Test".to_string();
         song.tracks[0].steps[0] = EditableStep::note(60);
+        song.tracks[0].steps[0].accent = true;
+        song.tracks[0].steps[0].fx_trigger = true;
 
         let path = temp_abc_path("save-simple");
         save_editable_song_to_path(&mut song, &path).expect("save should succeed");
@@ -73,6 +99,7 @@ mod tests {
 
         assert!(saved.contains("T:Save Test"));
         assert!(saved.contains("%%arrangement A"));
+        assert!(saved.contains("%%mdstep t=0 s=0"));
     }
 
     #[test]
@@ -94,6 +121,28 @@ mod tests {
         assert_eq!(reloaded.tempo, 132);
         assert_eq!(reloaded.swing, song.swing);
         assert_eq!(reloaded.arrangement.blocks.len(), song.arrangement.blocks.len());
+    }
+
+    #[test]
+    fn accent_fx_and_step_meta_roundtrip() {
+        let mut song = EditableSong::new_song();
+        song.tracks[0].steps[0] = EditableStep::note(64);
+        song.tracks[0].steps[0].velocity = 110;
+        song.tracks[0].steps[0].gate_percent = 75;
+        song.tracks[0].steps[0].accent = true;
+        song.tracks[0].steps[0].fx_trigger = true;
+
+        let path = temp_abc_path("step-meta-roundtrip");
+        save_editable_song_to_path(&mut song, &path).expect("save should succeed");
+        let reloaded = load_editable_song_from_path(&path).expect("load should succeed");
+        let _ = fs::remove_file(path);
+
+        let step = &reloaded.tracks[0].steps[0];
+        assert!(step.active);
+        assert_eq!(step.velocity, 110);
+        assert_eq!(step.gate_percent, 75);
+        assert!(step.accent);
+        assert!(step.fx_trigger);
     }
 
     #[test]

@@ -36,16 +36,18 @@ enum FocusArea {
     RenderStats,
     WaveformView,
     PatternOverview,
+    PatternEditor,
     InstrumentInspector,
     FxInspector,
 }
 
 impl FocusArea {
-    const ALL: [FocusArea; 6] = [
+    const ALL: [FocusArea; 7] = [
         FocusArea::DemoBrowser,
         FocusArea::RenderStats,
         FocusArea::WaveformView,
         FocusArea::PatternOverview,
+        FocusArea::PatternEditor,
         FocusArea::InstrumentInspector,
         FocusArea::FxInspector,
     ];
@@ -56,6 +58,7 @@ impl FocusArea {
             FocusArea::RenderStats => "RENDER STATS",
             FocusArea::WaveformView => "WAVEFORM",
             FocusArea::PatternOverview => "PATTERN OVERVIEW",
+            FocusArea::PatternEditor => "PATTERN EDITOR",
             FocusArea::InstrumentInspector => "INSTRUMENT INSPECTOR",
             FocusArea::FxInspector => "FX INSPECTOR",
         }
@@ -88,6 +91,9 @@ struct BootOptions {
     demo_key: Option<String>,
     auto_render: bool,
     focus: Option<FocusArea>,
+    editable_source: Option<String>,
+    mode: Option<EditorMode>,
+    apply_pattern_edits: bool,
 }
 
 struct RuntimeState {
@@ -111,6 +117,7 @@ pub struct MemDeckGuiApp {
     editor_open_path: String,
     renaming_pattern: bool,
     pattern_rename_buffer: String,
+    step_clipboard: Option<editor::EditableStep>,
 }
 
 impl Default for MemDeckGuiApp {
@@ -154,6 +161,7 @@ impl Default for MemDeckGuiApp {
             editor_open_path: String::new(),
             renaming_pattern: false,
             pattern_rename_buffer: String::new(),
+            step_clipboard: None,
         }
     }
 }
@@ -283,8 +291,38 @@ impl MemDeckGuiApp {
             return;
         }
 
+        match self.boot_options.editable_source.as_deref() {
+            Some("new") => self.create_new_song(),
+            Some("duplicate") => self.duplicate_demo_as_editable(),
+            _ => {}
+        }
+
+        if self.boot_options.apply_pattern_edits {
+            self.apply_boot_pattern_edits();
+        }
+
+        if let Some(mode) = self.boot_options.mode {
+            match mode {
+                EditorMode::Browser => self.set_mode(EditorMode::Browser),
+                EditorMode::Edit => {
+                    if self.editable_song.is_some() {
+                        self.set_mode(EditorMode::Edit);
+                    }
+                }
+                EditorMode::Preview => {
+                    if self.editable_song.is_some() {
+                        self.render_editable_preview();
+                    }
+                }
+            }
+        }
+
         if self.boot_options.auto_render {
-            let _ = self.render_selected_demo();
+            if self.editor_state.mode == EditorMode::Browser {
+                let _ = self.render_selected_demo();
+            } else {
+                self.render_editable_preview();
+            }
         }
 
         self.boot_applied = true;
@@ -730,25 +768,260 @@ impl MemDeckGuiApp {
             self.set_status(StatusTone::Normal, "RENAME CANCELED");
             return;
         }
+        if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+            self.focus_panel(FocusArea::PatternOverview);
+            return;
+        }
         self.stop_playback(true);
     }
 
     fn open_selected_pattern(&mut self) {
-        let Some(song) = self.editable_song.as_ref() else {
-            return;
-        };
         let Some(block_index) = self.editor_state.selected_arrangement_block else {
             return;
         };
-        let Some(block) = song.arrangement.blocks.get(block_index) else {
+        let Some((block_name, selected_pattern, block_start)) = self.editable_song.as_ref().and_then(|song| {
+            let block = song.arrangement.blocks.get(block_index)?;
+            let selected_pattern = song
+                .patterns
+                .iter()
+                .position(|pattern| pattern.name == block.pattern_name);
+            let block_start = song
+                .arrangement
+                .blocks
+                .iter()
+                .take(block_index)
+                .map(|b| b.length)
+                .sum::<usize>();
+            Some((block.pattern_name.clone(), selected_pattern, block_start))
+        }) else {
             return;
         };
-        self.editor_state.selected_pattern =
-            song.patterns.iter().position(|pattern| pattern.name == block.pattern_name);
+        self.editor_state.selected_pattern = selected_pattern;
+        self.editor_state.selected_step = Some(block_start);
+        self.focus_panel(FocusArea::PatternEditor);
         self.set_status(
             StatusTone::Normal,
-            format!("PATTERN OPEN • {}", block.pattern_name.to_uppercase()),
+            format!("PATTERN OPEN • {}", block_name.to_uppercase()),
         );
+    }
+
+    fn current_pattern_bounds(&self) -> Option<(usize, usize, usize)> {
+        let song = self.editable_song.as_ref()?;
+        let block_index = self.editor_state.selected_arrangement_block.unwrap_or(0);
+        let block = song.arrangement.blocks.get(block_index)?;
+        let mut start = 0usize;
+        for prior in song.arrangement.blocks.iter().take(block_index) {
+            start += prior.length;
+        }
+        Some((block_index, start, block.length.max(1)))
+    }
+
+    fn normalize_pattern_cursor(&mut self) {
+        let Some(song) = self.editable_song.as_ref() else {
+            self.editor_state.selected_step = None;
+            return;
+        };
+        if song.tracks.is_empty() {
+            self.editor_state.selected_track = 0;
+            self.editor_state.selected_step = None;
+            return;
+        }
+        self.editor_state.selected_track = self
+            .editor_state
+            .selected_track
+            .min(song.tracks.len().saturating_sub(1));
+        self.runtime.selected_track = self.editor_state.selected_track;
+
+        let Some((_, block_start, block_len)) = self.current_pattern_bounds() else {
+            self.editor_state.selected_step = None;
+            return;
+        };
+        let clamped = self
+            .editor_state
+            .selected_step
+            .unwrap_or(block_start)
+            .clamp(block_start, block_start + block_len.saturating_sub(1));
+        self.editor_state.selected_step = Some(clamped);
+    }
+
+    fn move_pattern_cursor(&mut self, delta_track: isize, delta_step: isize) {
+        self.normalize_pattern_cursor();
+        let Some(song) = self.editable_song.as_ref() else {
+            return;
+        };
+        if song.tracks.is_empty() {
+            return;
+        }
+        let Some((_, block_start, block_len)) = self.current_pattern_bounds() else {
+            return;
+        };
+        let track_max = song.tracks.len().saturating_sub(1) as isize;
+        let next_track = (self.editor_state.selected_track as isize + delta_track).clamp(0, track_max);
+        self.editor_state.selected_track = next_track as usize;
+        self.runtime.selected_track = self.editor_state.selected_track;
+
+        let relative = self
+            .editor_state
+            .selected_step
+            .unwrap_or(block_start)
+            .saturating_sub(block_start) as isize;
+        let step_max = block_len.saturating_sub(1) as isize;
+        let next_relative = (relative + delta_step).clamp(0, step_max);
+        self.editor_state.selected_step = Some(block_start + next_relative as usize);
+    }
+
+    fn set_pattern_cell(&mut self, track_index: usize, relative_step: usize) {
+        let Some((_, block_start, block_len)) = self.current_pattern_bounds() else {
+            return;
+        };
+        let Some(song) = self.editable_song.as_ref() else {
+            return;
+        };
+        if song.tracks.is_empty() {
+            return;
+        }
+        self.editor_state.selected_track = track_index.min(song.tracks.len().saturating_sub(1));
+        self.runtime.selected_track = self.editor_state.selected_track;
+        self.editor_state.selected_step =
+            Some(block_start + relative_step.min(block_len.saturating_sub(1)));
+    }
+
+    fn mark_editor_dirty(&mut self) {
+        if let Some(song) = self.editable_song.as_mut() {
+            song.mark_dirty();
+        }
+        self.editor_state.dirty = true;
+    }
+
+    fn with_selected_step_mut(
+        &mut self,
+        mutate: impl FnOnce(&mut editor::EditableStep),
+    ) -> bool {
+        self.normalize_pattern_cursor();
+        let Some(song) = self.editable_song.as_mut() else {
+            return false;
+        };
+        let Some(step_index) = self.editor_state.selected_step else {
+            return false;
+        };
+        let Some(track) = song.tracks.get_mut(self.editor_state.selected_track) else {
+            return false;
+        };
+        if step_index >= track.steps.len() {
+            return false;
+        }
+        mutate(&mut track.steps[step_index]);
+        true
+    }
+
+    fn toggle_selected_step(&mut self) {
+        if self.with_selected_step_mut(|step| step.toggle_active()) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn adjust_selected_step_octave(&mut self, semitone_delta: i16) {
+        if self.with_selected_step_mut(|step| {
+            if !step.active {
+                step.toggle_active();
+            }
+            let current = if step.midi_note == 0 {
+                editor::EditableStep::DEFAULT_MIDI_NOTE
+            } else {
+                step.midi_note
+            } as i16;
+            step.midi_note = (current + semitone_delta).clamp(1, 127) as u8;
+            step.active = true;
+        }) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn toggle_selected_step_accent(&mut self) {
+        if self.with_selected_step_mut(|step| step.accent = !step.accent) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn toggle_selected_step_fx_trigger(&mut self) {
+        if self.with_selected_step_mut(|step| step.fx_trigger = !step.fx_trigger) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn cycle_selected_step_gate(&mut self) {
+        const GATE_STEPS: [u8; 5] = [25, 50, 75, 90, 100];
+        if self.with_selected_step_mut(|step| {
+            let pos = GATE_STEPS
+                .iter()
+                .position(|value| *value == step.gate_percent)
+                .unwrap_or(0);
+            step.gate_percent = GATE_STEPS[(pos + 1) % GATE_STEPS.len()];
+        }) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn cycle_selected_step_velocity(&mut self) {
+        const VELOCITY_STEPS: [u8; 5] = [32, 64, 88, 110, 127];
+        if self.with_selected_step_mut(|step| {
+            let pos = VELOCITY_STEPS
+                .iter()
+                .position(|value| *value == step.velocity)
+                .unwrap_or(2);
+            step.velocity = VELOCITY_STEPS[(pos + 1) % VELOCITY_STEPS.len()];
+        }) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn copy_selected_step(&mut self, cut: bool) {
+        self.normalize_pattern_cursor();
+        let Some(song) = self.editable_song.as_mut() else {
+            return;
+        };
+        let Some(step_index) = self.editor_state.selected_step else {
+            return;
+        };
+        let Some(track) = song.tracks.get_mut(self.editor_state.selected_track) else {
+            return;
+        };
+        let Some(step) = track.steps.get(step_index).cloned() else {
+            return;
+        };
+        self.step_clipboard = Some(step);
+        if cut {
+            if let Some(step_mut) = track.steps.get_mut(step_index) {
+                *step_mut = editor::EditableStep::rest();
+                song.mark_dirty();
+                self.editor_state.dirty = true;
+            }
+        }
+    }
+
+    fn paste_selected_step(&mut self) {
+        let Some(clipboard_step) = self.step_clipboard.clone() else {
+            return;
+        };
+        if self.with_selected_step_mut(|step| *step = clipboard_step) {
+            self.mark_editor_dirty();
+        }
+    }
+
+    fn apply_boot_pattern_edits(&mut self) {
+        if self.editable_song.is_none() {
+            return;
+        }
+        self.editor_state.mode = EditorMode::Edit;
+        self.editor_state.selected_arrangement_block = Some(0);
+        self.editor_state.selected_track = 0;
+        self.editor_state.selected_step = Some(0);
+        self.toggle_selected_step();
+        self.adjust_selected_step_octave(12);
+        self.toggle_selected_step_accent();
+        self.toggle_selected_step_fx_trigger();
+        self.cycle_selected_step_velocity();
+        self.cycle_selected_step_gate();
     }
 
     fn render_selected_demo(&mut self) -> Result<(), String> {
@@ -878,12 +1151,19 @@ impl MemDeckGuiApp {
                 egui::Key::Escape,
                 egui::Key::Delete,
                 egui::Key::Backspace,
+                egui::Key::Plus,
+                egui::Key::Minus,
                 egui::Key::A,
+                egui::Key::C,
                 egui::Key::D,
+                egui::Key::E,
+                egui::Key::G,
                 egui::Key::N,
                 egui::Key::R,
                 egui::Key::S,
+                egui::Key::V,
                 egui::Key::W,
+                egui::Key::X,
                 egui::Key::P,
                 egui::Key::I,
                 egui::Key::F,
@@ -908,7 +1188,9 @@ impl MemDeckGuiApp {
         match key {
             egui::Key::Tab => self.cycle_focus(shift),
             egui::Key::ArrowLeft => {
-                if self.editor_state.mode != EditorMode::Browser
+                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                    self.move_pattern_cursor(0, -1);
+                } else if self.editor_state.mode != EditorMode::Browser
                     && self.runtime.focus == FocusArea::PatternOverview
                 {
                     if command {
@@ -919,7 +1201,9 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::ArrowRight => {
-                if self.editor_state.mode != EditorMode::Browser
+                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                    self.move_pattern_cursor(0, 1);
+                } else if self.editor_state.mode != EditorMode::Browser
                     && self.runtime.focus == FocusArea::PatternOverview
                 {
                     if command {
@@ -930,7 +1214,9 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::ArrowUp => {
-                if self.runtime.focus == FocusArea::DemoBrowser {
+                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                    self.move_pattern_cursor(-1, 0);
+                } else if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(-1);
                 } else {
                     self.move_track_selection(-1);
@@ -938,7 +1224,9 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::ArrowDown => {
-                if self.runtime.focus == FocusArea::DemoBrowser {
+                if self.editor_state.mode != EditorMode::Browser && self.runtime.focus == FocusArea::PatternEditor {
+                    self.move_pattern_cursor(1, 0);
+                } else if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(1);
                 } else {
                     self.move_track_selection(1);
@@ -949,6 +1237,10 @@ impl MemDeckGuiApp {
                 if self.renaming_pattern {
                     self.apply_pattern_rename();
                 } else if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.toggle_selected_step();
+                } else if self.editor_state.mode != EditorMode::Browser
                     && self.runtime.focus == FocusArea::PatternOverview
                 {
                     self.open_selected_pattern();
@@ -956,7 +1248,15 @@ impl MemDeckGuiApp {
                     let _ = self.render_selected_demo();
                 }
             }
-            egui::Key::Space => self.toggle_playback(),
+            egui::Key::Space => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.toggle_selected_step();
+                } else {
+                    self.toggle_playback();
+                }
+            }
             egui::Key::Escape => self.cancel_current_edit(),
             egui::Key::Delete | egui::Key::Backspace => {
                 if self.editor_state.mode != EditorMode::Browser
@@ -965,7 +1265,36 @@ impl MemDeckGuiApp {
                     self.arrangement_remove_block();
                 }
             }
-            egui::Key::A => self.focus_panel(FocusArea::PatternOverview),
+            egui::Key::Plus => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.adjust_selected_step_octave(12);
+                }
+            }
+            egui::Key::Minus => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.adjust_selected_step_octave(-12);
+                }
+            }
+            egui::Key::A => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.toggle_selected_step_accent();
+                } else {
+                    self.focus_panel(FocusArea::PatternOverview)
+                }
+            }
+            egui::Key::C => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.copy_selected_step(false);
+                }
+            }
             egui::Key::D => {
                 if command {
                     // Keep Cmd/Ctrl+D available to the host platform and avoid conflicting
@@ -978,6 +1307,16 @@ impl MemDeckGuiApp {
                     self.arrangement_duplicate_block();
                 } else {
                     self.focus_panel(FocusArea::DemoBrowser);
+                }
+            }
+            egui::Key::E => self.focus_panel(FocusArea::PatternEditor),
+            egui::Key::G => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.cycle_selected_step_gate();
+                } else {
+                    self.focus_panel(FocusArea::PatternEditor);
                 }
             }
             egui::Key::N => {
@@ -1006,8 +1345,19 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::P => {
-                if !command {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.paste_selected_step();
+                } else if !command {
                     self.focus_panel(FocusArea::PatternOverview)
+                }
+            }
+            egui::Key::V => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.cycle_selected_step_velocity();
                 }
             }
             egui::Key::I => {
@@ -1016,8 +1366,19 @@ impl MemDeckGuiApp {
                 }
             }
             egui::Key::F => {
-                if !command {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.toggle_selected_step_fx_trigger();
+                } else if !command {
                     self.focus_panel(FocusArea::FxInspector)
+                }
+            }
+            egui::Key::X => {
+                if self.editor_state.mode != EditorMode::Browser
+                    && self.runtime.focus == FocusArea::PatternEditor
+                {
+                    self.copy_selected_step(true);
                 }
             }
             _ => {}
@@ -1346,6 +1707,164 @@ impl MemDeckGuiApp {
                 }
             },
         );
+    }
+
+    fn draw_pattern_editor_panel(&mut self, ui: &mut egui::Ui) {
+        let in_edit_mode = self.editor_state.mode != EditorMode::Browser;
+        Self::retro_panel(
+            ui,
+            FocusArea::PatternEditor.title(),
+            self.runtime.focus == FocusArea::PatternEditor,
+            Some(if in_edit_mode {
+                "ARROWS MOVE • ENTER/SPACE TOGGLE • +/- OCTAVE • A/F ACCENT+FX • G/V GATE+VEL • C/X/P CLIPBOARD • ESC EXIT"
+            } else {
+                "EDIT MODE REQUIRED"
+            }),
+            |ui| {
+                if !in_edit_mode {
+                    ui.label(
+                        RichText::new("BROWSER MODE IS READ-ONLY. USE NEW/DUPLICATE/OPEN TO EDIT.")
+                            .monospace()
+                            .size(12.0)
+                            .color(TEXT_DIM),
+                    );
+                    return;
+                }
+                self.draw_pattern_editor_grid(ui);
+            },
+        );
+    }
+
+    fn draw_pattern_editor_grid(&mut self, ui: &mut egui::Ui) {
+        self.normalize_pattern_cursor();
+        let Some(song) = self.editable_song.as_ref() else {
+            ui.label(
+                RichText::new("NO EDITABLE SONG. USE NEW SONG / DUPLICATE / OPEN.")
+                    .monospace()
+                    .color(WARNING),
+            );
+            return;
+        };
+        let Some((block_index, block_start, block_len)) = self.current_pattern_bounds() else {
+            ui.label(RichText::new("NO PATTERN BLOCK SELECTED.").monospace().color(WARNING));
+            return;
+        };
+        let Some(block) = song.arrangement.blocks.get(block_index) else {
+            return;
+        };
+        if song.tracks.is_empty() {
+            ui.label(RichText::new("NO TRACKS AVAILABLE.").monospace().color(WARNING));
+            return;
+        }
+
+        let selected_step = self.editor_state.selected_step.unwrap_or(block_start);
+        let selected_rel = selected_step.saturating_sub(block_start);
+        let selected_track = self
+            .editor_state
+            .selected_track
+            .min(song.tracks.len().saturating_sub(1));
+
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                RichText::new(format!(
+                    "PATTERN {} • LEN {} • TRACK {:02} • STEP {:02}",
+                    block.pattern_name.to_uppercase(),
+                    block_len,
+                    selected_track + 1,
+                    selected_rel + 1
+                ))
+                .monospace()
+                .size(12.0)
+                .color(ACCENT),
+            );
+            if let Some(step) = song
+                .tracks
+                .get(selected_track)
+                .and_then(|track| track.steps.get(selected_step))
+            {
+                ui.separator();
+                ui.label(
+                    RichText::new(format!(
+                        "{} V{} G{} {}{}",
+                        if step.active {
+                            Self::midi_to_step_label(step.midi_note)
+                        } else {
+                            "REST".to_string()
+                        },
+                        step.velocity,
+                        step.gate_percent,
+                        if step.accent { "A" } else { "-" },
+                        if step.fx_trigger { "F" } else { "-" },
+                    ))
+                    .monospace()
+                    .size(12.0)
+                    .color(TEXT_DIM),
+                );
+            }
+        });
+
+        let tracks_snapshot = song.tracks.clone();
+        let mut clicked: Option<(usize, usize)> = None;
+        let mut toggle_clicked = false;
+        ui.add_space(4.0);
+        egui::ScrollArea::both().max_height(240.0).show(ui, |ui| {
+            for (track_index, track) in tracks_snapshot.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [110.0, 20.0],
+                        egui::Label::new(
+                            RichText::new(format!("{:02} {}", track_index + 1, track.name))
+                                .monospace()
+                                .size(11.0)
+                                .color(if track_index == selected_track { ACCENT } else { TEXT }),
+                        ),
+                    );
+                    for rel_step in 0..block_len {
+                        let absolute_step = block_start + rel_step;
+                        let step = track
+                            .steps
+                            .get(absolute_step)
+                            .cloned()
+                            .unwrap_or_else(editor::EditableStep::rest);
+                        let is_selected = track_index == selected_track && rel_step == selected_rel;
+                        let text = Self::step_cell_label(&step);
+                        let response = ui.add(
+                            egui::Button::new(
+                                RichText::new(text)
+                                    .monospace()
+                                    .size(10.0)
+                                    .color(if is_selected { BASE_BG } else { TEXT }),
+                            )
+                            .min_size(Vec2::new(30.0, 20.0))
+                            .fill(if is_selected {
+                                ACCENT
+                            } else if step.active {
+                                ACCENT_SOFT
+                            } else {
+                                PANEL_DIM_BG
+                            })
+                            .stroke(Stroke::new(
+                                if is_selected { 2.0 } else { 1.0 },
+                                if is_selected { ACCENT } else { BORDER_DIM },
+                            )),
+                        );
+                        if response.clicked() {
+                            clicked = Some((track_index, rel_step));
+                        }
+                        if response.double_clicked() {
+                            clicked = Some((track_index, rel_step));
+                            toggle_clicked = true;
+                        }
+                    }
+                });
+            }
+        });
+        if let Some((track_index, rel_step)) = clicked {
+            self.set_pattern_cell(track_index, rel_step);
+        }
+        if toggle_clicked {
+            self.toggle_selected_step();
+        }
     }
 
     fn draw_arrangement_editor(&mut self, ui: &mut egui::Ui) {
@@ -1787,7 +2306,7 @@ impl MemDeckGuiApp {
             ui,
             "STATUS LINE",
             false,
-            Some("TAB / SHIFT+TAB CYCLES PANELS • D/S/W/P/I/F DIRECT FOCUS"),
+            Some("TAB / SHIFT+TAB CYCLES PANELS • D/S/W/P/E/G/I/F DIRECT FOCUS"),
             |ui| {
                 ui.label(
                     RichText::new(&self.status.text)
@@ -1861,14 +2380,18 @@ impl MemDeckGuiApp {
                     for hint in [
                         "[UP/DOWN] DEMO OR TRACK",
                         "[A] ARRANGEMENT FOCUS",
+                        "[E/G] PATTERN EDITOR FOCUS",
                         "[ENTER] RENDER",
                         "[SPACE] PLAY / STOP",
                         "[ESC] STOP",
                         "[N/D/DEL/R] ARRANGE EDIT",
+                        "[ARROWS/ENTER] STEP EDIT",
+                        "[+/-] OCTAVE • [A/F] ACCENT+FX • [G/V] GATE+VEL",
+                        "[C/X/P] COPY/CUT/PASTE STEP",
                         "[CTRL+S] SAVE • [CTRL+SHIFT+S] SAVE AS",
                         "[CTRL+R] PREVIEW RENDER",
                         "[TAB] NEXT PANEL",
-                        "[D/S/W/P/I/F] DIRECT FOCUS",
+                        "[D/S/W/P/E/G/I/F] DIRECT FOCUS",
                     ] {
                         ui.label(RichText::new(hint).monospace().size(12.0).color(TEXT_DIM));
                         ui.separator();
@@ -2197,6 +2720,35 @@ impl MemDeckGuiApp {
         }
     }
 
+    fn midi_to_step_label(midi: u8) -> String {
+        const NOTES: [&str; 12] = [
+            "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+        ];
+        if midi == 0 {
+            return "REST".to_string();
+        }
+        let semitone = (midi % 12) as usize;
+        let octave = midi as i32 / 12 - 1;
+        format!("{}{}", NOTES[semitone], octave)
+    }
+
+    fn step_cell_label(step: &editor::EditableStep) -> String {
+        if !step.active || step.midi_note == 0 {
+            return "··".to_string();
+        }
+        let mut label = Self::midi_to_step_label(step.midi_note);
+        if label.len() > 3 {
+            label.truncate(3);
+        }
+        if step.accent {
+            label.push('!');
+        }
+        if step.fx_trigger {
+            label.push('*');
+        }
+        label
+    }
+
     fn draw_adsr_scope(ui: &mut egui::Ui, track: &TrackOverview) {
         ui.label(RichText::new("ADSR").monospace().size(12.0).color(TEXT_DIM));
         let desired_size = egui::vec2(ui.available_width(), 52.0);
@@ -2482,6 +3034,8 @@ impl eframe::App for MemDeckGuiApp {
                 ui.add_space(8.0);
                 self.draw_pattern_panel(ui);
                 ui.add_space(8.0);
+                self.draw_pattern_editor_panel(ui);
+                ui.add_space(8.0);
                 ui.columns(2, |columns| {
                     self.draw_instrument_inspector(&mut columns[0]);
                     self.draw_fx_inspector(&mut columns[1]);
@@ -2501,10 +3055,26 @@ impl BootOptions {
                 Some("demos") => Some(FocusArea::DemoBrowser),
                 Some("waveform") | Some("audio") => Some(FocusArea::WaveformView),
                 Some("pattern") | Some("arrangement") => Some(FocusArea::PatternOverview),
+                Some("pattern-editor") | Some("editor") => Some(FocusArea::PatternEditor),
                 Some("instrument") | Some("inspector") => Some(FocusArea::InstrumentInspector),
                 Some("fx") => Some(FocusArea::FxInspector),
                 _ => None,
             },
+            editable_source: env::var("MEMDECK_GUI_BOOT_EDITABLE").ok().and_then(|value| {
+                let normalized = value.to_lowercase();
+                if normalized == "new" || normalized == "duplicate" {
+                    Some(normalized)
+                } else {
+                    None
+                }
+            }),
+            mode: match env::var("MEMDECK_GUI_BOOT_MODE").ok().as_deref() {
+                Some("browser") => Some(EditorMode::Browser),
+                Some("edit") => Some(EditorMode::Edit),
+                Some("preview") => Some(EditorMode::Preview),
+                _ => None,
+            },
+            apply_pattern_edits: env_flag("MEMDECK_GUI_BOOT_PATTERN_EDITS"),
         }
     }
 }
@@ -2596,6 +3166,7 @@ mod tests {
             FocusArea::RenderStats,
             FocusArea::WaveformView,
             FocusArea::PatternOverview,
+            FocusArea::PatternEditor,
             FocusArea::InstrumentInspector,
             FocusArea::FxInspector,
             FocusArea::DemoBrowser,
@@ -2617,6 +3188,8 @@ mod tests {
             (egui::Key::S, FocusArea::RenderStats),
             (egui::Key::W, FocusArea::WaveformView),
             (egui::Key::P, FocusArea::PatternOverview),
+            (egui::Key::E, FocusArea::PatternEditor),
+            (egui::Key::G, FocusArea::PatternEditor),
             (egui::Key::I, FocusArea::InstrumentInspector),
             (egui::Key::F, FocusArea::FxInspector),
         ];
@@ -2668,6 +3241,23 @@ mod tests {
         assert_eq!(
             app.runtime.selected_track, 0,
             "up outside demo browser should move selected track"
+        );
+    }
+
+    #[test]
+    fn render_preview_from_editable_song_sets_preview_mode() {
+        let mut app = MemDeckGuiApp::default();
+        app.create_new_song();
+        app.runtime.focus = FocusArea::PatternEditor;
+        app.toggle_selected_step();
+        app.render_editable_preview();
+        assert_eq!(app.editor_state.mode, EditorMode::Preview);
+        assert!(
+            app.runtime
+                .rendered_audio
+                .as_ref()
+                .is_some_and(|state| state.demo_key == "__editable__"),
+            "preview render should use editable render key"
         );
     }
 }
