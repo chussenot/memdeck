@@ -25,7 +25,7 @@ const WARNING: Color32 = Color32::from_rgb(234, 122, 106);
 const WAVEFORM: Color32 = Color32::from_rgb(194, 222, 194);
 const GRID: Color32 = Color32::from_rgb(34, 44, 34);
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FocusArea {
     DemoBrowser,
     RenderStats,
@@ -465,56 +465,59 @@ impl MemDeckGuiApp {
     fn handle_keyboard(&mut self, ctx: &egui::Context) {
         ctx.input(|input| {
             if input.key_pressed(egui::Key::Tab) {
-                self.cycle_focus(input.modifiers.shift);
+                self.handle_key_press(egui::Key::Tab, input.modifiers.shift);
             }
 
-            if input.key_pressed(egui::Key::ArrowUp) {
+            for key in [
+                egui::Key::ArrowUp,
+                egui::Key::ArrowDown,
+                egui::Key::Enter,
+                egui::Key::Space,
+                egui::Key::Escape,
+                egui::Key::D,
+                egui::Key::S,
+                egui::Key::W,
+                egui::Key::P,
+                egui::Key::I,
+                egui::Key::F,
+            ] {
+                if input.key_pressed(key) {
+                    self.handle_key_press(key, false);
+                }
+            }
+        });
+    }
+
+    fn handle_key_press(&mut self, key: egui::Key, shift: bool) {
+        match key {
+            egui::Key::Tab => self.cycle_focus(shift),
+            egui::Key::ArrowUp => {
                 if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(-1);
                 } else {
                     self.move_track_selection(-1);
                 }
             }
-
-            if input.key_pressed(egui::Key::ArrowDown) {
+            egui::Key::ArrowDown => {
                 if self.runtime.focus == FocusArea::DemoBrowser {
                     self.move_demo_selection(1);
                 } else {
                     self.move_track_selection(1);
                 }
             }
-
-            if input.key_pressed(egui::Key::Enter) {
+            egui::Key::Enter => {
                 let _ = self.render_selected_demo();
             }
-
-            if input.key_pressed(egui::Key::Space) {
-                self.toggle_playback();
-            }
-
-            if input.key_pressed(egui::Key::Escape) {
-                self.stop_playback(true);
-            }
-
-            if input.key_pressed(egui::Key::D) {
-                self.focus_panel(FocusArea::DemoBrowser);
-            }
-            if input.key_pressed(egui::Key::S) {
-                self.focus_panel(FocusArea::RenderStats);
-            }
-            if input.key_pressed(egui::Key::W) {
-                self.focus_panel(FocusArea::WaveformView);
-            }
-            if input.key_pressed(egui::Key::P) {
-                self.focus_panel(FocusArea::PatternOverview);
-            }
-            if input.key_pressed(egui::Key::I) {
-                self.focus_panel(FocusArea::InstrumentInspector);
-            }
-            if input.key_pressed(egui::Key::F) {
-                self.focus_panel(FocusArea::FxInspector);
-            }
-        });
+            egui::Key::Space => self.toggle_playback(),
+            egui::Key::Escape => self.stop_playback(true),
+            egui::Key::D => self.focus_panel(FocusArea::DemoBrowser),
+            egui::Key::S => self.focus_panel(FocusArea::RenderStats),
+            egui::Key::W => self.focus_panel(FocusArea::WaveformView),
+            egui::Key::P => self.focus_panel(FocusArea::PatternOverview),
+            egui::Key::I => self.focus_panel(FocusArea::InstrumentInspector),
+            egui::Key::F => self.focus_panel(FocusArea::FxInspector),
+            _ => {}
+        }
     }
 
     fn draw_demo_browser(&mut self, ui: &mut egui::Ui) {
@@ -1763,6 +1766,90 @@ mod tests {
         assert!(
             app.runtime.rendered_audio.is_none(),
             "demo switch should clear stale render state"
+        );
+    }
+
+    #[test]
+    fn tab_focus_cycle_is_deterministic() {
+        let mut app = MemDeckGuiApp::default();
+        app.runtime.focus = FocusArea::DemoBrowser;
+
+        let expected_forward = [
+            FocusArea::RenderStats,
+            FocusArea::WaveformView,
+            FocusArea::PatternOverview,
+            FocusArea::InstrumentInspector,
+            FocusArea::FxInspector,
+            FocusArea::DemoBrowser,
+        ];
+        for expected in expected_forward {
+            app.handle_key_press(egui::Key::Tab, false);
+            assert_eq!(app.runtime.focus, expected);
+        }
+
+        app.handle_key_press(egui::Key::Tab, true);
+        assert_eq!(app.runtime.focus, FocusArea::FxInspector);
+    }
+
+    #[test]
+    fn direct_focus_shortcuts_target_expected_panel() {
+        let mut app = MemDeckGuiApp::default();
+        let checks = [
+            (egui::Key::D, FocusArea::DemoBrowser),
+            (egui::Key::S, FocusArea::RenderStats),
+            (egui::Key::W, FocusArea::WaveformView),
+            (egui::Key::P, FocusArea::PatternOverview),
+            (egui::Key::I, FocusArea::InstrumentInspector),
+            (egui::Key::F, FocusArea::FxInspector),
+        ];
+
+        for (key, expected_focus) in checks {
+            app.runtime.focus = FocusArea::DemoBrowser;
+            app.handle_key_press(key, false);
+            assert_eq!(app.runtime.focus, expected_focus);
+        }
+    }
+
+    #[test]
+    fn arrow_navigation_routes_between_demos_and_tracks() {
+        let mut app = MemDeckGuiApp::default();
+        let demo_count = app.demos.len();
+        assert!(demo_count >= 2, "expected at least two demos for navigation");
+
+        app.runtime.focus = FocusArea::DemoBrowser;
+        app.runtime.selected_demo = 0;
+        app.handle_key_press(egui::Key::ArrowDown, false);
+        assert_eq!(
+            app.runtime.selected_demo, 1,
+            "down in demo browser should move to next demo"
+        );
+        app.handle_key_press(egui::Key::ArrowUp, false);
+        assert_eq!(
+            app.runtime.selected_demo, 0,
+            "up in demo browser should move to previous demo"
+        );
+
+        let demo_index = app
+            .demos
+            .iter()
+            .position(|demo| {
+                demo.overview
+                    .as_ref()
+                    .is_some_and(|overview| overview.tracks.len() > 1)
+            })
+            .expect("expected at least one demo with multiple tracks");
+        app.select_demo(demo_index);
+        app.runtime.focus = FocusArea::PatternOverview;
+        app.runtime.selected_track = 0;
+        app.handle_key_press(egui::Key::ArrowDown, false);
+        assert_eq!(
+            app.runtime.selected_track, 1,
+            "down outside demo browser should move selected track"
+        );
+        app.handle_key_press(egui::Key::ArrowUp, false);
+        assert_eq!(
+            app.runtime.selected_track, 0,
+            "up outside demo browser should move selected track"
         );
     }
 }

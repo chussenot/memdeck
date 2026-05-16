@@ -39,3 +39,22 @@ jobs:
           node wasm/verify-audio.js
       - name: WASM application build
         run: make -C wasm
+
+  gui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Install GUI runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libxkbcommon-x11-0
+      - name: GUI cargo check
+        run: make gui-check
+      - name: GUI tests
+        run: make gui-test
+      - name: GUI headless smoke run
+        env:
+          MEMDECK_GUI_BOOT_RENDER: "1"
+          MEMDECK_GUI_BOOT_DEMO: dark_moroder
+          MEMDECK_GUI_BOOT_FOCUS: waveform
+        run: xvfb-run -a cargo run --manifest-path gui/Cargo.toml -- __screenshot
