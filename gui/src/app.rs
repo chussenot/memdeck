@@ -7,6 +7,7 @@ use crate::audio_engine::{
     AudioRenderStats, DemoEntry, DemoOverview, FxBusOverview, GuiAudioEngine, PatternBlock,
     RenderState, TrackOverview,
 };
+use crate::editor::EditorMode;
 use crate::playback::{PlaybackController, PlaybackState};
 
 const DEFAULT_STATUS_LINE: &str = "READY • SELECT A DEMO • ENTER RENDERS • SPACE PLAYS.";
@@ -101,6 +102,8 @@ pub struct MemDeckGuiApp {
     status: StatusMessage,
     boot_options: BootOptions,
     boot_applied: bool,
+    /// Current editor mode; `Browser` leaves the read-only GUI unchanged.
+    editor_mode: EditorMode,
 }
 
 impl Default for MemDeckGuiApp {
@@ -139,6 +142,7 @@ impl Default for MemDeckGuiApp {
             status,
             boot_options,
             boot_applied: false,
+            editor_mode: EditorMode::Browser,
         }
     }
 }
@@ -1053,6 +1057,17 @@ impl MemDeckGuiApp {
                         .monospace()
                         .size(12.0)
                         .color(TEXT_DIM),
+                    );
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("MODE {}", self.editor_mode.label()))
+                            .monospace()
+                            .size(12.0)
+                            .color(match self.editor_mode {
+                                EditorMode::Browser => TEXT_DIM,
+                                EditorMode::Edit => ACCENT,
+                                EditorMode::PreviewRender => WARNING,
+                            }),
                     );
                     ui.separator();
                     ui.label(

@@ -1,5 +1,6 @@
 mod app;
 mod audio_engine;
+mod editor;
 mod ffi;
 mod playback;
 

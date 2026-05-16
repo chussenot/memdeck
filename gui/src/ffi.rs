@@ -8,6 +8,7 @@ use std::slice;
 use std::sync::{LazyLock, Mutex};
 
 use crate::audio_engine::{DemoOverview, FxBusOverview, PatternBlock, StepState, TrackOverview};
+use crate::editor::{self, EditableSong};
 
 pub const SAMPLE_RATE_ABC: c_int = 22_050;
 const ABC_DEFAULT_VIBRATO_RATE: c_int = 5_200;
@@ -587,4 +588,172 @@ fn c_buf_to_string(buffer: &[c_char]) -> String {
         .map(|&value| value as u8)
         .collect::<Vec<_>>();
     String::from_utf8_lossy(&bytes).trim().to_string()
+}
+
+// ─── Editor song loading ─────────────────────────────────────────────────────
+
+/// Instrument data in a form the editor module can consume.
+pub struct RawInstrumentForEditor {
+    pub name: String,
+    pub preset: String,
+    pub waveform: i32,
+    pub amplitude: i32,
+    pub duty_cycle: i32,
+    pub attack_ms: i32,
+    pub decay_ms: i32,
+    pub sustain_level: i32,
+    pub release_ms: i32,
+    pub gate_percent: i32,
+    pub vibrato_cents: i32,
+    pub glide_ms: i32,
+    pub fx_bus: i32,
+}
+
+/// FX bus data in a form the editor module can consume.
+pub struct RawFxBusForEditor {
+    pub delay_steps: i32,
+    pub delay_feedback: i32,
+    pub delay_mix: i32,
+    pub drive_amount: i32,
+    pub lowpass_amount: i32,
+    pub sidechain_amount: i32,
+    pub sidechain_release_ms: i32,
+    pub mix_percent: i32,
+}
+
+/// Pattern definition in a form the editor module can consume.
+pub struct RawPatternForEditor {
+    pub name: String,
+    pub length: usize,
+}
+
+/// Voice/track data including the raw note frequencies.
+pub struct RawVoiceForEditor {
+    pub name: String,
+    pub instrument_ref: String,
+    /// Per-step note frequencies in Hz; 0.0 means rest.
+    pub note_freqs: Vec<f64>,
+}
+
+/// Full song data extracted from `AbcMusic`, consumed by
+/// [`editor::build_editable_song_from_ffi`].
+pub struct RawAbcMusicForEditor {
+    pub title: String,
+    pub bpm: i32,
+    pub swing_pct: i32,
+    pub instruments: Vec<RawInstrumentForEditor>,
+    pub fx_buses: Vec<RawFxBusForEditor>,
+    pub patterns: Vec<RawPatternForEditor>,
+    pub arrangement: Vec<String>,
+    pub voices: Vec<RawVoiceForEditor>,
+}
+
+/// Load an [`EditableSong`] from an ABC file, preserving per-step note
+/// frequencies so the editor model can reconstruct MIDI pitches.
+pub fn load_editor_song(path: &Path) -> Result<EditableSong, String> {
+    let path_str = normalized_demo_path(path)?;
+    let c_path = CString::new(path_str)
+        .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
+    let mut music = AbcMusic::default();
+
+    let result = catch_unwind(AssertUnwindSafe(|| unsafe {
+        abc_load(c_path.as_ptr(), &mut music)
+    }))
+    .map_err(|_| format!("editor load: parser panicked for {}", path.display()))?;
+    if result != 0 {
+        return Err(format!(
+            "editor load: invalid ABC or unreadable file: {}",
+            path.display()
+        ));
+    }
+
+    let raw = extract_raw_abc_music(&music);
+    Ok(editor::build_editable_song_from_ffi(raw))
+}
+
+fn extract_raw_abc_music(music: &AbcMusic) -> RawAbcMusicForEditor {
+    let instrument_count = music.instrument_count.max(0) as usize;
+    let instruments = music.instruments[..instrument_count]
+        .iter()
+        .map(|inst| RawInstrumentForEditor {
+            name: c_buf_to_string(&inst.name),
+            preset: c_buf_to_string(&inst.preset),
+            waveform: inst.waveform,
+            amplitude: inst.amplitude,
+            duty_cycle: inst.duty_cycle,
+            attack_ms: inst.attack_ms,
+            decay_ms: inst.decay_ms,
+            sustain_level: inst.sustain_level,
+            release_ms: inst.release_ms,
+            gate_percent: inst.gate_percent,
+            vibrato_cents: inst.vibrato_cents,
+            glide_ms: inst.glide_ms,
+            fx_bus: inst.fx_bus,
+        })
+        .collect();
+
+    let fx_bus_count = {
+        let requested = music.fx_bus_count.max(0) as usize;
+        let highest = music.voices[..music.voice_count.max(0) as usize]
+            .iter()
+            .map(|v| v.fx_bus.max(0) as usize)
+            .max()
+            .unwrap_or(0);
+        usize::max(requested, highest + 1).clamp(1, ABC_MAX_FX_BUSES)
+    };
+
+    let fx_buses = music.fx_buses[..fx_bus_count]
+        .iter()
+        .map(|bus| RawFxBusForEditor {
+            delay_steps: bus.delay_steps,
+            delay_feedback: bus.delay_feedback,
+            delay_mix: bus.delay_mix,
+            drive_amount: bus.drive_amount,
+            lowpass_amount: bus.lowpass_amount,
+            sidechain_amount: bus.sidechain_amount,
+            sidechain_release_ms: bus.sidechain_release_ms,
+            mix_percent: bus.mix_percent,
+        })
+        .collect();
+
+    let pattern_count = music.pattern_count.max(0) as usize;
+    let patterns = music.patterns[..pattern_count]
+        .iter()
+        .filter(|p| p.defined != 0)
+        .map(|p| RawPatternForEditor {
+            name: c_buf_to_string(&p.name),
+            length: normalized_pattern_length(p.length),
+        })
+        .collect();
+
+    let arrangement_length = music.arrangement_length.max(0) as usize;
+    let arrangement = music.arrangement[..arrangement_length]
+        .iter()
+        .map(|slot| c_buf_to_string(slot))
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let voice_count = music.voice_count.max(0) as usize;
+    let voices = music.voices[..voice_count]
+        .iter()
+        .map(|voice| {
+            let note_count = voice.note_count.max(0) as usize;
+            RawVoiceForEditor {
+                name: c_buf_to_string(&voice.name),
+                instrument_ref: c_buf_to_string(&voice.instrument_ref),
+                note_freqs: voice.freqs[..note_count].iter().map(|&f| f).collect(),
+            }
+        })
+        .collect();
+
+    RawAbcMusicForEditor {
+        title: c_buf_to_string(&music.title),
+        bpm: music.bpm,
+        swing_pct: music.swing_pct,
+        instruments,
+        fx_buses,
+        patterns,
+        arrangement,
+        voices,
+    }
 }
