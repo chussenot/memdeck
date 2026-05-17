@@ -11,3 +11,6 @@ wasm/verify-audio.js
 wasm/verify-audio.wasm
 
 bin/bench-audio
+bin/play-demo
+bin/render-demos
+bin/wav/
