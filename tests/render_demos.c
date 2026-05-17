@@ -42,7 +42,8 @@ int main(void)
         "data/music/metro_chase.abc",
         "data/music/black_sunrise.abc",
         "data/music/machine_romance.abc",
-        "data/music/hypersleep_dream.abc"
+        "data/music/hypersleep_dream.abc",
+        "data/music/aurora_halo.abc"
     };
     int failures = 0;
 

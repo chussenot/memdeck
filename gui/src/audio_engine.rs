@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::ffi;
 
-const SHOWCASE_DEMOS: [&str; 10] = [
+const SHOWCASE_DEMOS: [&str; 11] = [
     "dark_moroder",
     "neon_nightdrive",
     "metro_chase",
@@ -14,6 +14,7 @@ const SHOWCASE_DEMOS: [&str; 10] = [
     "carpenter_drive",
     "advanced_dsl_demo",
     "multi_fx_demo",
+    "aurora_halo",
 ];
 
 #[derive(Clone, Debug)]

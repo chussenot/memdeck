@@ -21,7 +21,8 @@ static const DemoEntry kDemos[] = {
     { "metro_chase", "data/music/metro_chase.abc" },
     { "black_sunrise", "data/music/black_sunrise.abc" },
     { "machine_romance", "data/music/machine_romance.abc" },
-    { "hypersleep_dream", "data/music/hypersleep_dream.abc" }
+    { "hypersleep_dream", "data/music/hypersleep_dream.abc" },
+    { "aurora_halo", "data/music/aurora_halo.abc" }
 };
 
 static void write_u16_le(FILE *f, uint16_t v)

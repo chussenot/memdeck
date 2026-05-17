@@ -1,0 +1,260 @@
+X:1
+T:Aurora Halo - Chip Cathedral
+C:MemDeck
+M:4/4
+L:1/4
+Q:1/4=100
+K:Dm
+%%swing 50
+%%instrument kick wave=noise amp=46 attack=0 decay=12 sustain=6 release=18 gate=22 fx=0
+%%instrument bass wave=pulse amp=72 duty=28 attack=4 decay=58 sustain=70 release=160 gate=88 fx=0
+%%instrument arp wave=pulse amp=42 duty=22 attack=0 decay=22 sustain=58 release=72 gate=50 vibrato=8 fx=1
+%%instrument pad wave=triangle amp=34 attack=240 decay=320 sustain=92 release=620 gate=99 vibrato=4 fx=1
+%%effect 0 delay_steps=2 delay_feedback=20 delay_mix=12 drive=18 lowpass=38 sidechain=42 sidechain_release=240 mix=98
+%%effect 1 delay_steps=8 delay_feedback=62 delay_mix=58 drive=4 lowpass=66 sidechain=18 sidechain_release=360 mix=70
+%%pattern A length=64
+%%pattern B length=64
+%%pattern C length=64
+%%pattern D length=64
+%%pattern E length=64
+%%pattern F length=64
+%%pattern G length=64
+%%pattern H length=64
+%%arrangement A A B B C C D D E E F F G G H H
+V:kick instrument=kick
+V:bass instrument=bass
+V:arp instrument=arp
+V:pad instrument=pad
+%
+% --- kick (256 bars) ---
+V:kick
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z D z | D z D z | D z D z | D z D z |
+| D z z z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D z z z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D z z z | D z z z | D z z z | D z z z |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D D D D | D D D D | D D D D | D D D D |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+| D z z z | z4 | D z z z | z4 |
+% --- bass (256 bars) ---
+V:bass
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,, D,, D,,2 | _B,, _B,, _B,,2 | F,, F,, F,,2 | C,, C,, C,,2 |
+| G,, G,, G,,2 | _B,, _B,, _B,,2 | A,, A,, A,,2 | A,, A,, A,,2 |
+| D,, D,, D,,2 | _B,, _B,, _B,,2 | F,, F,, F,,2 | C,, C,, C,,2 |
+| G,, G,, G,,2 | _B,, _B,, _B,,2 | A,, A,, A,,2 | A,, A,, A,,2 |
+| D,, D,, D,,2 | _B,, _B,, _B,,2 | F,, F,, F,,2 | C,, C,, C,,2 |
+| G,, G,, G,,2 | _B,, _B,, _B,,2 | A,, A,, A,,2 | A,, A,, A,,2 |
+| D,, D,, D,,2 | _B,, _B,, _B,,2 | F,, F,, F,,2 | C,, C,, C,,2 |
+| G,, G,, G,,2 | _B,, _B,, _B,,2 | A,, A,, A,,2 | A,, A,, A,,2 |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,, D,, D,, D,, | _B,, _B,, _B,, _B,, | F,, F,, F,, F,, | C,, C,, C,, C,, |
+| G,, G,, G,, G,, | _B,, _B,, _B,, _B,, | A,, A,, A,, A,, | A,, A,, A,, A,, |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+| D,,4 | _B,,4 | F,,4 | C,,4 |
+| G,,4 | _B,,4 | A,,4 | A,,4 |
+% --- arp (256 bars) ---
+V:arp
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A F | _B d F d | F A c A | C E G E |
+| G _B d _B | _B d F d | A ^c E ^c | A ^c E ^c |
+| D F A F | _B d F d | F A c A | C E G E |
+| G _B d _B | _B d F d | A ^c E ^c | A ^c E ^c |
+| D F A F | _B d F d | F A c A | C E G E |
+| G _B d _B | _B d F d | A ^c E ^c | A ^c E ^c |
+| D F A F | _B d F d | F A c A | C E G E |
+| G _B d _B | _B d F d | A ^c E ^c | A ^c E ^c |
+| d z z z | _b z z z | f z z z | c z z z |
+| g z z z | _b z z z | a z z z | a z z z |
+| d z z z | _b z z z | f z z z | c z z z |
+| g z z z | _b z z z | a z z z | a z z z |
+| d z z z | _b z z z | f z z z | c z z z |
+| g z z z | _b z z z | a z z z | a z z z |
+| d z z z | _b z z z | f z z z | c z z z |
+| g z z z | _b z z z | a z z z | a z z z |
+| D A F d | _b d F _B | F c A f | c E G C |
+| G d _B g | _b d F _B | A E ^c a | a ^c E A |
+| D A F d | _b d F _B | F c A f | c E G C |
+| G d _B g | _b d F _B | A E ^c a | a ^c E A |
+| D A F d | _b d F _B | F c A f | c E G C |
+| G d _B g | _b d F _B | A E ^c a | a ^c E A |
+| D A F d | _b d F _B | F c A f | c E G C |
+| G d _B g | _b d F _B | A E ^c a | a ^c E A |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| D F A d | _B d F _b | F A c f | C E G c |
+| G _B d g | _B d F _b | A ^c E a | A ^c E a |
+| d z A z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| d z A z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| d z A z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+| d z A z | z4 | z4 | z4 |
+| z4 | z4 | z4 | z4 |
+% --- pad (128 two-bar holds) ---
+V:pad
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
+| D8 | F8 | G8 | A8 |
