@@ -59,15 +59,15 @@ impl PlaybackController {
         write_wav_u8_mono(&path, samples, SAMPLE_RATE_ABC as u32)
             .map_err(|err| format!("could not write playback buffer: {err}"))?;
 
+        if let Err(err) = self.start_wav(&path) {
+            let _ = fs::remove_file(&path);
+            return Err(err);
+        }
+
+        self.temp_path = Some(path);
         self.expected_duration = Some(Duration::from_secs_f32(
             samples.len() as f32 / SAMPLE_RATE_ABC as f32,
         ));
-        self.temp_path = Some(path.clone());
-        if let Err(err) = self.start_wav(&path) {
-            self.cleanup_runtime_state();
-            self.state = PlaybackState::Error(err.clone());
-            return Err(err);
-        }
         Ok(())
     }
 
