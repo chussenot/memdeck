@@ -131,6 +131,13 @@ struct RuntimeState {
     rendered_audio: Option<RenderState>,
     focus: FocusArea,
     last_error: Option<String>,
+    /// User-managed playhead position in [0,1] across the current render.
+    /// When playback is active, this is overridden by live progress.
+    /// When playback is stopped, this is where `Space` will resume from.
+    playhead_position: f32,
+    /// Tracks an in-flight drag on the waveform so the visible playhead can
+    /// preview the seek target before the audio respawns on release.
+    waveform_drag_preview: Option<f32>,
 }
 
 pub struct MemDeckGuiApp {
@@ -185,6 +192,8 @@ impl Default for MemDeckGuiApp {
                 rendered_audio: None,
                 focus: boot_options.focus.unwrap_or(FocusArea::DemoBrowser),
                 last_error: None,
+                playhead_position: 0.0,
+                waveform_drag_preview: None,
             },
             status,
             boot_options,
@@ -384,11 +393,80 @@ impl MemDeckGuiApp {
     }
 
     fn playback_progress(&self) -> Option<f32> {
+        if let Some(preview) = self.runtime.waveform_drag_preview {
+            return Some(preview.clamp(0.0, 1.0));
+        }
         if self.playback.is_playing() {
             self.playback.progress()
+        } else if self.current_render().is_some() {
+            Some(self.runtime.playhead_position.clamp(0.0, 1.0))
         } else {
             None
         }
+    }
+
+    fn current_render_duration_secs(&self) -> Option<f32> {
+        let stats = self.current_render().and_then(|render| render.stats)?;
+        let secs = stats.duration_ms as f32 / 1000.0;
+        if secs > 0.0 {
+            Some(secs)
+        } else {
+            None
+        }
+    }
+
+    /// Move the user-managed playhead to `position` (clamped to [0,1)).
+    /// If audio is currently playing, restart it from the new offset so the
+    /// audible and visible playheads stay in sync.
+    fn seek_playhead(&mut self, position: f32) {
+        if self.current_render().is_none() {
+            return;
+        }
+        let target = position.clamp(0.0, 0.999);
+        self.runtime.playhead_position = target;
+        self.runtime.waveform_drag_preview = None;
+
+        if !self.playback.is_playing() {
+            return;
+        }
+        let Some(samples) = self.current_render().map(|render| render.samples.clone()) else {
+            return;
+        };
+        match self.playback.start_pcm_at(samples.as_ref(), target) {
+            Ok(()) => {
+                let demo_name = self.selected_demo().key.to_uppercase();
+                self.set_status(
+                    StatusTone::Active,
+                    format!("PLAYING • {demo_name} @ {}", Self::format_position(target, self.current_render_duration_secs())),
+                );
+            }
+            Err(error) => self.set_status(
+                StatusTone::Warning,
+                format!("SEEK ERROR • {error}"),
+            ),
+        }
+    }
+
+    fn nudge_playhead_seconds(&mut self, delta_seconds: f32) {
+        let Some(duration) = self.current_render_duration_secs() else {
+            return;
+        };
+        let current_secs = self.runtime.playhead_position * duration;
+        let target_secs = (current_secs + delta_seconds).max(0.0);
+        self.seek_playhead((target_secs / duration).min(0.999));
+    }
+
+    fn format_position(position: f32, duration_secs: Option<f32>) -> String {
+        let total = duration_secs.unwrap_or(0.0);
+        let at = position.clamp(0.0, 1.0) * total;
+        format!("{} / {}", Self::format_seconds(at), Self::format_seconds(total))
+    }
+
+    fn format_seconds(secs: f32) -> String {
+        let total = secs.max(0.0) as u32;
+        let m = total / 60;
+        let s = total % 60;
+        format!("{m}:{s:02}")
     }
 
     fn focus_index(&self) -> usize {
@@ -505,6 +583,8 @@ impl MemDeckGuiApp {
         self.runtime.selected_demo = index;
         self.runtime.selected_track = 0;
         self.runtime.rendered_audio = None;
+        self.runtime.playhead_position = 0.0;
+        self.runtime.waveform_drag_preview = None;
 
         let (error, key) = {
             let demo = &self.demos[index];
@@ -994,6 +1074,8 @@ impl MemDeckGuiApp {
                     samples: std::sync::Arc::<[u8]>::from(samples),
                     stats: ffi::get_render_stats(),
                 });
+                self.runtime.playhead_position = 0.0;
+                self.runtime.waveform_drag_preview = None;
                 self.set_mode(EditorMode::Preview);
                 self.set_status(StatusTone::Active, "PREVIEW RENDERED");
             }
@@ -1454,6 +1536,8 @@ impl MemDeckGuiApp {
                 let sample_count = render.samples.len();
                 let stats = render.stats;
                 self.runtime.rendered_audio = Some(render);
+                self.runtime.playhead_position = 0.0;
+                self.runtime.waveform_drag_preview = None;
                 self.sync_track_selection_state();
                 self.set_status(
                     StatusTone::Active,
@@ -1518,8 +1602,23 @@ impl MemDeckGuiApp {
             return;
         };
 
-        match self.playback.start_pcm(samples.as_ref()) {
-            Ok(()) => self.set_status(StatusTone::Active, format!("PLAYING • {demo_name}")),
+        // If the user left the playhead at (or past) the end on a previous
+        // finished run, restart from the beginning — Space-on-finished is a
+        // far more useful default than spawning a zero-length tail.
+        if self.runtime.playhead_position >= 0.999 {
+            self.runtime.playhead_position = 0.0;
+        }
+        let start_at = self.runtime.playhead_position;
+        let duration = self.current_render_duration_secs();
+
+        match self.playback.start_pcm_at(samples.as_ref(), start_at) {
+            Ok(()) => {
+                let position_label = Self::format_position(start_at, duration);
+                self.set_status(
+                    StatusTone::Active,
+                    format!("PLAYING • {demo_name} @ {position_label}"),
+                );
+            }
             Err(error) => self.set_status(StatusTone::Warning, format!("PLAYBACK ERROR • {error}")),
         }
     }
@@ -1537,6 +1636,10 @@ impl MemDeckGuiApp {
 
     fn poll_playback(&mut self) {
         if let Some(result) = self.playback.poll() {
+            // Park the playhead at the end so users see where playback ran out;
+            // toggle_playback rewinds to 0 the next time Space is pressed.
+            self.runtime.playhead_position = 1.0;
+            self.runtime.waveform_drag_preview = None;
             match result {
                 Ok(()) => self.set_status(StatusTone::Normal, "PLAYBACK FINISHED."),
                 Err(error) => {
@@ -1629,6 +1732,8 @@ impl MemDeckGuiApp {
                 egui::Key::P,
                 egui::Key::I,
                 egui::Key::F,
+                egui::Key::Home,
+                egui::Key::End,
             ] {
                 if input.key_pressed(key) {
                     self.handle_key_press_with_modifiers(
@@ -1661,6 +1766,8 @@ impl MemDeckGuiApp {
                     } else {
                         self.arrangement_move_cursor(-1);
                     }
+                } else if self.runtime.focus == FocusArea::WaveformView {
+                    self.nudge_playhead_seconds(if shift { -5.0 } else { -1.0 });
                 }
             }
             egui::Key::ArrowRight => {
@@ -1676,6 +1783,8 @@ impl MemDeckGuiApp {
                     } else {
                         self.arrangement_move_cursor(1);
                     }
+                } else if self.runtime.focus == FocusArea::WaveformView {
+                    self.nudge_playhead_seconds(if shift { 5.0 } else { 1.0 });
                 }
             }
             egui::Key::ArrowUp => {
@@ -1744,6 +1853,16 @@ impl MemDeckGuiApp {
                     && self.runtime.focus == FocusArea::PatternEditor
                 {
                     self.adjust_selected_step_octave(-12);
+                }
+            }
+            egui::Key::Home => {
+                if self.runtime.focus == FocusArea::WaveformView {
+                    self.seek_playhead(0.0);
+                }
+            }
+            egui::Key::End => {
+                if self.runtime.focus == FocusArea::WaveformView {
+                    self.seek_playhead(0.999);
                 }
             }
             egui::Key::A => {
@@ -2135,22 +2254,30 @@ impl MemDeckGuiApp {
         );
     }
 
-    fn draw_waveform_panel(&self, ui: &mut egui::Ui) {
+    fn draw_waveform_panel(&mut self, ui: &mut egui::Ui) {
+        let focused = self.runtime.focus == FocusArea::WaveformView;
         Self::retro_panel(
             ui,
             FocusArea::WaveformView.title(),
-            self.runtime.focus == FocusArea::WaveformView,
-            Some("PLAYHEAD FOLLOWS ACTIVE PLAYBACK"),
+            focused,
+            Some("CLICK OR DRAG TO SEEK • ←/→ NUDGE • HOME/END JUMP"),
             |ui| {
-                let stats = self.current_stats();
-                Self::draw_waveform_minimap(
-                    ui,
-                    self.current_render().map(|render| render.samples.as_ref()),
-                    stats,
-                    self.playback_progress(),
-                );
+                self.draw_waveform_minimap(ui);
                 ui.add_space(6.0);
+                let stats = self.current_stats();
+                let duration = self.current_render_duration_secs();
+                let position_label = self
+                    .playback_progress()
+                    .map(|p| Self::format_position(p, duration))
+                    .unwrap_or_else(|| "-- / --".to_string());
                 ui.horizontal_wrapped(|ui| {
+                    ui.label(
+                        RichText::new(format!("POS {position_label}"))
+                            .monospace()
+                            .size(12.0)
+                            .color(ACCENT),
+                    );
+                    ui.separator();
                     ui.label(
                         RichText::new(match stats {
                             Some(value) if value.clipping_count > 0 => {
@@ -3405,6 +3532,7 @@ impl MemDeckGuiApp {
                         "[C/X/P] COPY/CUT/PASTE STEP",
                         "[CTRL+N/O/S/SHIFT+S/D] SONG FLOW",
                         "[CTRL+R] PREVIEW RENDER",
+                        "[W THEN CLICK/DRAG/HOME/END/←→] SEEK PLAYHEAD",
                         "[TAB] NEXT PANEL",
                         "[D/S/W/P/E/G/I/F] DIRECT FOCUS",
                     ] {
@@ -3630,18 +3758,56 @@ impl MemDeckGuiApp {
         ui.end_row();
     }
 
-    fn draw_waveform_minimap(
-        ui: &mut egui::Ui,
-        samples: Option<&[u8]>,
-        stats: Option<AudioRenderStats>,
-        progress: Option<f32>,
-    ) {
+    fn draw_waveform_minimap(&mut self, ui: &mut egui::Ui) {
+        let samples = self.current_render().map(|render| render.samples.clone());
+        let stats = self.current_stats();
+        let progress = self.playback_progress();
+        let duration = self.current_render_duration_secs();
+        let has_render = samples.is_some();
+
         let desired_size = egui::vec2(ui.available_width(), 156.0);
-        let (response, painter) = ui.allocate_painter(desired_size, Sense::hover());
+        let (response, painter) = ui.allocate_painter(
+            desired_size,
+            if has_render {
+                Sense::click_and_drag()
+            } else {
+                Sense::hover()
+            },
+        );
         let rect = response.rect.shrink(4.0);
 
         painter.rect_filled(rect, 0.0, PANEL_DIM_BG);
         painter.rect_stroke(rect, 0.0, Stroke::new(1.0, BORDER_DIM));
+
+        // Interaction — translate pointer x into [0,1] across the rect.
+        let pointer_progress = |pos: egui::Pos2| -> f32 {
+            ((pos.x - rect.left()) / rect.width().max(1.0)).clamp(0.0, 0.999)
+        };
+        let mut seek_to: Option<f32> = None;
+        if has_render {
+            if response.dragged() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    let p = pointer_progress(pos);
+                    // Live visual preview only — audio respawns on release.
+                    self.runtime.waveform_drag_preview = Some(p);
+                }
+            }
+            if response.drag_stopped() {
+                if let Some(p) = self.runtime.waveform_drag_preview.take() {
+                    seek_to = Some(p);
+                }
+            }
+            // A pure click (no drag) registers via clicked(); commit immediately.
+            if response.clicked() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    self.runtime.waveform_drag_preview = None;
+                    seek_to = Some(pointer_progress(pos));
+                }
+            }
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            }
+        }
 
         let mid_y = rect.center().y;
         painter.line_segment(
@@ -3670,15 +3836,16 @@ impl MemDeckGuiApp {
             );
             return;
         };
+        let samples_slice: &[u8] = samples.as_ref();
 
         let columns = rect.width().max(64.0) as usize;
-        let stride = (samples.len() / columns).max(1);
+        let stride = (samples_slice.len() / columns).max(1);
         let usable_width = (rect.width() - 8.0).max(1.0);
         let mut upper = Vec::with_capacity(columns);
         let mut lower = Vec::with_capacity(columns);
         let mut clip_markers = Vec::with_capacity(columns / 4);
 
-        for (index, chunk) in samples.chunks(stride).take(columns).enumerate() {
+        for (index, chunk) in samples_slice.chunks(stride).take(columns).enumerate() {
             let x = rect.left() + 4.0 + usable_width * (index as f32 / columns as f32);
             let mut min_value = 1.0_f32;
             let mut max_value = -1.0_f32;
@@ -3717,12 +3884,43 @@ impl MemDeckGuiApp {
             );
         }
 
+        // Hover preview (ghost playhead) — only when not actively dragging.
+        if response.hovered() && !response.dragged() {
+            if let Some(hover) = response.hover_pos() {
+                let hover_progress = pointer_progress(hover);
+                let x = egui::lerp(rect.left()..=rect.right(), hover_progress);
+                painter.line_segment(
+                    [egui::pos2(x, rect.top() + 2.0), egui::pos2(x, rect.bottom() - 2.0)],
+                    Stroke::new(1.0, TEXT_DIM),
+                );
+                let label = Self::format_position(hover_progress, duration);
+                painter.text(
+                    egui::pos2(x + 6.0, rect.top() + 4.0),
+                    Align2::LEFT_TOP,
+                    label,
+                    FontId::monospace(10.0),
+                    TEXT_DIM,
+                );
+            }
+        }
+
         if let Some(progress) = progress {
             let x = egui::lerp(rect.left()..=rect.right(), progress.clamp(0.0, 1.0));
             painter.line_segment(
                 [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
                 Stroke::new(2.0, ACCENT),
             );
+            // Triangular handle on top so the playhead reads as graspable.
+            let handle = [
+                egui::pos2(x - 5.0, rect.top()),
+                egui::pos2(x + 5.0, rect.top()),
+                egui::pos2(x, rect.top() + 8.0),
+            ];
+            painter.add(egui::Shape::convex_polygon(
+                handle.to_vec(),
+                ACCENT,
+                Stroke::NONE,
+            ));
         }
 
         if let Some(stats) = stats {
@@ -3740,6 +3938,10 @@ impl MemDeckGuiApp {
                     TEXT_DIM
                 },
             );
+        }
+
+        if let Some(target) = seek_to {
+            self.seek_playhead(target);
         }
     }
 
@@ -4447,6 +4649,95 @@ mod tests {
         assert!(
             app.runtime.rendered_audio.is_none(),
             "demo switch should clear stale render state"
+        );
+    }
+
+    fn install_dummy_render(app: &mut MemDeckGuiApp) {
+        let key = app.demos[app.runtime.selected_demo].key.clone();
+        app.runtime.rendered_audio = Some(RenderState {
+            demo_key: key,
+            samples: Arc::<[u8]>::from(vec![128_u8; 22050]), // 1.0s of silent PCM
+            stats: Some(AudioRenderStats {
+                sample_count: 22050,
+                duration_ms: 1000.0,
+                min_sample: 0,
+                max_sample: 0,
+                peak: 0,
+                clipping_count: 0,
+                checksum: 0,
+                render_time_ms: 0.0,
+            }),
+        });
+    }
+
+    #[test]
+    fn seek_playhead_updates_position_when_stopped() {
+        let mut app = MemDeckGuiApp::default();
+        install_dummy_render(&mut app);
+
+        app.seek_playhead(0.5);
+        assert!(
+            (app.runtime.playhead_position - 0.5).abs() < f32::EPSILON,
+            "playhead should land at 0.5, got {}",
+            app.runtime.playhead_position
+        );
+        assert_eq!(
+            app.playback_progress(),
+            Some(0.5),
+            "stopped playback should expose the user-managed playhead"
+        );
+    }
+
+    #[test]
+    fn seek_playhead_clamps_to_safe_range() {
+        let mut app = MemDeckGuiApp::default();
+        install_dummy_render(&mut app);
+
+        app.seek_playhead(2.0);
+        assert!(
+            app.runtime.playhead_position < 1.0,
+            "playhead should be clamped strictly below 1.0 to avoid empty tail playback"
+        );
+
+        app.seek_playhead(-1.0);
+        assert!(
+            (app.runtime.playhead_position - 0.0).abs() < f32::EPSILON,
+            "negative seek should clamp to 0"
+        );
+    }
+
+    #[test]
+    fn seek_playhead_ignored_without_render() {
+        let mut app = MemDeckGuiApp::default();
+        app.runtime.rendered_audio = None;
+        app.runtime.playhead_position = 0.3;
+
+        app.seek_playhead(0.8);
+        assert!(
+            (app.runtime.playhead_position - 0.3).abs() < f32::EPSILON,
+            "seek should be a no-op when no PCM is loaded"
+        );
+        assert_eq!(app.playback_progress(), None);
+    }
+
+    #[test]
+    fn nudge_playhead_uses_actual_duration() {
+        let mut app = MemDeckGuiApp::default();
+        install_dummy_render(&mut app);
+        app.seek_playhead(0.5); // 0.5s into a 1.0s clip
+
+        app.nudge_playhead_seconds(-0.25);
+        assert!(
+            (app.runtime.playhead_position - 0.25).abs() < 1e-3,
+            "1s clip with -0.25s nudge should land near 0.25, got {}",
+            app.runtime.playhead_position
+        );
+
+        // Large positive nudge clamps inside the clip rather than overshooting.
+        app.nudge_playhead_seconds(100.0);
+        assert!(
+            app.runtime.playhead_position < 1.0,
+            "nudge must respect the playhead clamp"
         );
     }
 

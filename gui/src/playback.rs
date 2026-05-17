@@ -26,7 +26,8 @@ pub struct PlaybackController {
     temp_path: Option<PathBuf>,
     state: PlaybackState,
     started_at: Option<Instant>,
-    expected_duration: Option<Duration>,
+    full_duration: Option<Duration>,
+    start_progress: f32,
 }
 
 impl PlaybackController {
@@ -38,25 +39,46 @@ impl PlaybackController {
         &self.state
     }
 
+    /// Live progress in [0,1] across the full PCM buffer the user originally
+    /// asked to play, even if playback was started from an offset.
     pub fn progress(&self) -> Option<f32> {
         let elapsed = self.started_at?.elapsed();
-        let duration = self.expected_duration?;
+        let duration = self.full_duration?;
         if duration.is_zero() {
-            return Some(0.0);
+            return Some(self.start_progress.clamp(0.0, 1.0));
         }
 
-        Some((elapsed.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0))
+        let elapsed_fraction = elapsed.as_secs_f32() / duration.as_secs_f32();
+        Some((self.start_progress + elapsed_fraction).clamp(0.0, 1.0))
     }
 
-    pub fn start_pcm(&mut self, samples: &[u8]) -> Result<(), String> {
+    /// Start playback at `start_progress` (clamped to [0,1)). The audio child
+    /// only receives the tail of the PCM buffer; progress reporting still
+    /// references the full buffer length so the visible playhead stays
+    /// continuous across seeks.
+    pub fn start_pcm_at(&mut self, samples: &[u8], start_progress: f32) -> Result<(), String> {
         if samples.is_empty() {
             let message = "empty PCM buffer".to_string();
             self.state = PlaybackState::Error(message.clone());
             return Err(message);
         }
 
+        let full_len = samples.len();
+        let clamped = start_progress.clamp(0.0, 1.0);
+        let mut offset = ((full_len as f32) * clamped) as usize;
+        // Leave at least one sample so aplay has something to play.
+        if offset >= full_len {
+            offset = full_len.saturating_sub(1);
+        }
+        let effective_progress = if full_len == 0 {
+            0.0
+        } else {
+            offset as f32 / full_len as f32
+        };
+        let slice = &samples[offset..];
+
         let path = playback_temp_path();
-        write_wav_u8_mono(&path, samples, SAMPLE_RATE_ABC as u32)
+        write_wav_u8_mono(&path, slice, SAMPLE_RATE_ABC as u32)
             .map_err(|err| format!("could not write playback buffer: {err}"))?;
 
         if let Err(err) = self.start_wav(&path) {
@@ -65,9 +87,10 @@ impl PlaybackController {
         }
 
         self.temp_path = Some(path);
-        self.expected_duration = Some(Duration::from_secs_f32(
-            samples.len() as f32 / SAMPLE_RATE_ABC as f32,
+        self.full_duration = Some(Duration::from_secs_f32(
+            full_len as f32 / SAMPLE_RATE_ABC as f32,
         ));
+        self.start_progress = effective_progress;
         Ok(())
     }
 
@@ -139,7 +162,8 @@ impl PlaybackController {
 
     fn cleanup_runtime_state(&mut self) {
         self.started_at = None;
-        self.expected_duration = None;
+        self.full_duration = None;
+        self.start_progress = 0.0;
         self.cleanup_temp_file();
     }
 
@@ -233,7 +257,7 @@ mod tests {
     #[test]
     fn empty_pcm_start_sets_error_state() {
         let mut playback = PlaybackController::default();
-        let result = playback.start_pcm(&[]);
+        let result = playback.start_pcm_at(&[], 0.0);
 
         assert!(result.is_err());
         assert!(matches!(playback.state(), PlaybackState::Error(_)));
@@ -243,7 +267,7 @@ mod tests {
     fn stop_transitions_to_stopped_state() {
         let mut playback = PlaybackController::default();
         let start_error = playback
-            .start_pcm(&[])
+            .start_pcm_at(&[], 0.0)
             .expect_err("empty sample buffer should fail");
         assert!(
             start_error.contains("empty PCM buffer"),
@@ -288,4 +312,19 @@ mod tests {
             "stop should always remove owned temporary wav files"
         );
     }
+
+    #[test]
+    fn start_progress_clamps_and_records_offset() {
+        let mut playback = PlaybackController::default();
+        // Out-of-range progress is clamped; full_duration tracks the *whole*
+        // buffer, not the trimmed tail, so the visible playhead can interpolate
+        // from the seek point all the way to 1.0.
+        playback.full_duration = Some(Duration::from_secs(10));
+        playback.start_progress = 1.5;
+        playback.started_at = Some(Instant::now());
+
+        let p = playback.progress().expect("progress should be available");
+        assert!(p >= 1.0 - f32::EPSILON, "progress should clamp to 1.0, got {p}");
+    }
+
 }
