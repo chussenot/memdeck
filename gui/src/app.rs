@@ -1058,8 +1058,11 @@ impl MemDeckGuiApp {
             }
         };
 
-        let tmp_path =
-            std::env::temp_dir().join(format!("memdeck-edit-preview-{}.abc", std::process::id()));
+        let tmp_path = std::env::temp_dir().join(format!(
+            "memdeck-edit-preview-{}-{:?}.abc",
+            std::process::id(),
+            std::thread::current().id()
+        ));
         if let Err(error) = std::fs::write(&tmp_path, abc) {
             self.set_status(
                 StatusTone::Warning,
