@@ -1,2 +1,6 @@
 [env]
 _.file = ".env"
+
+[tasks.gui-system-deps]
+description = "Install Linux system packages needed to build the GUI (ALSA dev headers for cpal)"
+run = "sudo apt install -y libasound2-dev"
