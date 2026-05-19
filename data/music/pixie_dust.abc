@@ -1,0 +1,285 @@
+X:1
+T:Pixie Dust - Burst and Drift
+C:MemDeck
+M:4/4
+L:1/8
+Q:1/4=100
+K:Em
+%%swing 52
+%%instrument kick wave=noise amp=56 attack=0 decay=10 sustain=6 release=14 gate=26 fx=0
+%%instrument hats wave=noise amp=36 attack=0 decay=5 sustain=8 release=8 gate=20 fx=0
+%%instrument bass wave=pulse amp=74 duty=36 attack=2 decay=52 sustain=70 release=130 gate=80 fx=0
+%%instrument arp wave=pulse amp=46 duty=30 attack=2 decay=32 sustain=58 release=70 gate=60 vibrato=4 fx=1
+%%instrument lead wave=pulse amp=52 duty=22 attack=20 decay=120 sustain=66 release=180 gate=84 vibrato=12 glide=24 fx=1
+%%effect 0 delay_steps=2 delay_feedback=14 delay_mix=10 drive=28 lowpass=44 sidechain=42 sidechain_release=200 mix=96
+%%effect 1 delay_steps=5 delay_feedback=44 delay_mix=38 drive=18 lowpass=58 sidechain=24 sidechain_release=260 mix=78
+%%pattern A length=64
+%%pattern B length=64
+%%pattern C length=64
+%%pattern D length=64
+%%pattern E length=64
+%%pattern F length=64
+%%pattern G length=64
+%%pattern H length=64
+%%pattern I length=64
+%%pattern J length=64
+%%pattern K length=64
+%%pattern L length=64
+%%pattern M length=64
+%%pattern N length=64
+%%pattern O length=64
+%%pattern P length=64
+%%arrangement A B C D E F G H I J K L M N O P
+V:kick instrument=kick
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:lead instrument=lead
+%
+% Form: A intro / B verse / C BURST / D verse / E BURST / F break / G BURST peak / H break / I BURST / J break / K BURST / L verse / M BURST / N BURST / O outro_burst / P decay
+% Chord cycle per 8-bar pattern (2 bars each): Em - C - G - D
+V:kick
+% A intro (gradual fade in)
+| z8 | z8 | z8 | z8 |
+| z8 | c4 z4 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% B verse (sparse 1 and 3)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% C BURST 1 (sudden 4-on-floor)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% D verse 2 (return to sparse)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% E BURST 2
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% F break (silence)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G BURST peak (densest)
+| c2 c2 c2 c2 | c c c c c c c c | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c c c c c c c c | c2 c2 c2 c2 | c c c c c c c c |
+% H break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I BURST 3
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% J break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% K BURST 4
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% L verse (return to quiet)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% M BURST 5
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% N BURST 6 (with extra rolls)
+| c2 c2 c2 c2 | c c c c c c c c | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c c c c c c c c | c2 c2 c2 c2 | c c c c c c c c |
+% O outro_burst (declining)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c4 z4 | c4 z4 | c4 z4 | c4 z4 |
+% P decay
+| c4 z4 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:hats
+% A intro
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% B verse (backbeat)
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% C BURST 1 (dense 8ths)
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% D verse 2
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% E BURST 2
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% F break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G BURST peak
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% H break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I BURST 3
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% J break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% K BURST 4
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% L verse
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% M BURST 5
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% N BURST 6
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% O outro
+| c c c c c c c c | c c c c c c c c | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% P decay
+| z2 c2 z2 c2 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:bass
+% A intro
+| z8 | z8 | z8 | z8 |
+| E,,8 | E,,8 | E,,4 z4 | E,,4 z4 |
+% B verse (sustained root per bar)
+| E,,8 | E,,8 | C,,8 | C,,8 |
+| G,,8 | G,,8 | D,,8 | D,,8 |
+% C BURST 1 (8th-note pumping)
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% D verse 2
+| E,,8 | E,,8 | C,,8 | C,,8 |
+| G,,8 | G,,8 | D,,8 | D,,8 |
+% E BURST 2
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% F break (single drone)
+| E,,8 | E,,8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G BURST peak
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% H break
+| E,,8 | E,,8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I BURST 3
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% J break
+| z8 | z8 | E,,8 | E,,8 |
+| z8 | z8 | z8 | z8 |
+% K BURST 4
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% L verse
+| E,,8 | E,,8 | C,,8 | C,,8 |
+| G,,8 | G,,8 | D,,8 | D,,8 |
+% M BURST 5
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% N BURST 6
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, |
+| G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, | D,, D,, D,, D,, D,, D,, D,, D,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% O outro
+| E,, E,, E,, E,, E,, E,, E,, E,, | E,, E,, E,, E,, E,, E,, E,, E,, | E,,2 E,,2 E,,2 E,,2 | E,,2 E,,2 E,,2 E,,2 |
+| E,,4 z4 | E,,4 z4 | E,,4 z4 | E,,4 z4 |
+% P decay
+| E,,4 z4 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:arp
+% A intro (silent into riff)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | E G B E G B E G | B E G B E G B E |
+% B verse (signature riff — sparse)
+| E G B z E G B z | E G B z E G B z | C E G z C E G z | C E G z C E G z |
+| G B d z G B d z | G B d z G B d z | D F A z D F A z | D F A z D F A z |
+% C BURST 1 (dense arpeggio runs)
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% D verse 2
+| E G B z E G B z | E G B z E G B z | C E G z C E G z | C E G z C E G z |
+| G B d z G B d z | G B d z G B d z | D F A z D F A z | D F A z D F A z |
+% E BURST 2
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% F break (lone riff fragment)
+| E G B z z z z z | z8 | z8 | z8 |
+| z8 | E G B z z z z z | z8 | z8 |
+% G BURST peak
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% H break (riff fragment)
+| E G B z z z z z | z8 | E G B z z z z z | z8 |
+| z8 | z8 | z8 | z8 |
+% I BURST 3
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% J break
+| z8 | E G B z z z z z | z8 | E G B z z z z z |
+| z8 | z8 | z8 | z8 |
+% K BURST 4
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% L verse
+| E G B z E G B z | E G B z E G B z | C E G z C E G z | C E G z C E G z |
+| G B d z G B d z | G B d z G B d z | D F A z D F A z | D F A z D F A z |
+% M BURST 5
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% N BURST 6
+| E G b E G b E G | E G b E G b E G | C E g C E g C E | C E g C E g C E |
+| G B d G B d G B | G B d G B d G B | D F a D F a D F | D F a D F a D F |
+% O outro
+| E G b E G b E G | E G b E G b E G | E2 G2 B2 z2 | E2 G2 B2 z2 |
+| E4 z4 | E4 z4 | E4 z4 | E4 z4 |
+% P decay
+| E8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:lead
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse (silent — wail builds)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C BURST 1 (wail melody)
+| e2 g2 b2 g2 | e2 b2 g2 e2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% D verse 2 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% E BURST 2
+| e2 g2 b2 g2 | e2 b2 g2 e2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% F break (single drifting note)
+| z8 | z8 | z8 | z8 |
+| e'8 | z8 | z8 | z8 |
+% G BURST peak (highest)
+| e'2 g'2 b'2 g'2 | e'2 b'2 g'2 e'2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% H break (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I BURST 3
+| e2 g2 b2 g2 | e2 b2 g2 e2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% J break (drifting)
+| z8 | z8 | e'8 | z8 |
+| z8 | z8 | z8 | z8 |
+% K BURST 4
+| e2 g2 b2 g2 | e2 b2 g2 e2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% L verse (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% M BURST 5
+| e2 g2 b2 g2 | e2 b2 g2 e2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% N BURST 6 (final peak)
+| e'2 g'2 b'2 g'2 | e'2 b'2 g'2 e'2 | c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 |
+| b2 d'2 g'2 d'2 | b2 g'2 d'2 b2 | a2 d'2 f'2 d'2 | a2 f'2 d'2 a2 |
+% O outro (held cry)
+| e'4 z4 | e'4 z4 | e'4 z4 | e'4 z4 |
+| z8 | z8 | z8 | z8 |
+% P decay (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |

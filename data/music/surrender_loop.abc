@@ -1,0 +1,286 @@
+X:1
+T:Surrender Loop - Slow Storm
+C:MemDeck
+M:4/4
+L:1/8
+Q:1/4=100
+K:Am
+%%swing 50
+%%instrument kick wave=noise amp=54 attack=0 decay=12 sustain=8 release=16 gate=28 fx=0
+%%instrument hats wave=noise amp=34 attack=0 decay=7 sustain=10 release=12 gate=24 fx=0
+%%instrument bass wave=pulse amp=72 duty=34 attack=4 decay=64 sustain=74 release=160 gate=86 fx=0
+%%instrument arp wave=triangle amp=40 attack=12 decay=80 sustain=70 release=140 gate=72 vibrato=4 fx=1
+%%instrument lead wave=triangle amp=46 attack=140 decay=200 sustain=78 release=380 gate=96 vibrato=10 glide=28 fx=1
+%%effect 0 delay_steps=3 delay_feedback=24 delay_mix=16 drive=22 lowpass=40 sidechain=42 sidechain_release=240 mix=96
+%%effect 1 delay_steps=8 delay_feedback=58 delay_mix=52 drive=8 lowpass=68 sidechain=18 sidechain_release=360 mix=78
+%%pattern A length=64
+%%pattern B length=64
+%%pattern C length=64
+%%pattern D length=64
+%%pattern E length=64
+%%pattern F length=64
+%%pattern G length=64
+%%pattern H length=64
+%%pattern I length=64
+%%pattern J length=64
+%%pattern K length=64
+%%pattern L length=64
+%%pattern M length=64
+%%pattern N length=64
+%%pattern O length=64
+%%pattern P length=64
+%%arrangement A B C D E F G H I J K L M N O P
+V:kick instrument=kick
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:lead instrument=lead
+%
+% Form: long slow build to chorus, big dropout in middle, swelling re-entry, peak chorus, drift
+% A swell / B C D verses ramping / E lift / F G chorus 1 / H I collapse / J K rebuild / L M chorus peak / N final lift / O P decay
+% Chord cycle per 8-bar pattern (2 bars each): Am - F - C - G
+V:kick
+% A swell (silent kick)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (whisper kicks on 1)
+| c4 z4 | z8 | c4 z4 | z8 |
+| c4 z4 | z8 | c4 z4 | z8 |
+% C verse 2 (kicks 1 and 3, soft)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% D verse 3 (build)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c c c2 | c2 z2 c2 z2 | c2 z2 c c c2 |
+% E lift (pre-chorus)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c | c c c c c c c c |
+% F chorus 1a (full)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% G chorus 1b
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% H collapse (big drop)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I collapse 2 (sustained silence)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% J rebuild (single kicks creep back)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | c4 z4 | c4 z4 |
+% K rebuild 2 (kicks on 1 and 3)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c c c2 | c2 z2 c c c2 |
+% L chorus peak a
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% M chorus peak b
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% N final lift
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% O drift (thin out)
+| c4 z4 | z8 | c4 z4 | z8 |
+| c4 z4 | z8 | c4 z4 | z8 |
+% P decay
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:hats
+% A swell
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C verse 2 (gentle backbeat)
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% D verse 3 (backbeat with extra fills)
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z c z c z c z c | z2 c2 z2 c2 | z c z c z c z c |
+% E lift (8ths build)
+| z c z c z c z c | z c z c z c z c | z c z c z c z c | z c z c z c z c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% F chorus 1a
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% G chorus 1b
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% H collapse (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I collapse 2
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% J rebuild
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% K rebuild 2
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z c z c z c z c | z2 c2 z2 c2 | z c z c z c z c |
+% L chorus peak a
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% M chorus peak b
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% N final lift
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% O drift
+| z2 c2 z2 c2 | z8 | z2 c2 z2 c2 | z8 |
+| z2 c2 z2 c2 | z8 | z2 c2 z2 c2 | z8 |
+% P decay
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:bass
+% A swell (sub drone)
+| A,,8 | A,,8 | A,,8 | A,,8 |
+| A,,8 | A,,8 | A,,8 | A,,8 |
+% B verse 1 (held roots)
+| A,,8 | A,,8 | F,,8 | F,,8 |
+| C,,8 | C,,8 | G,,8 | G,,8 |
+% C verse 2 (root and octave on halves)
+| A,,4 A,4 | A,,4 A,4 | F,,4 F,4 | F,,4 F,4 |
+| C,,4 C,4 | C,,4 C,4 | G,,4 G,4 | G,,4 G,4 |
+% D verse 3 (quarter movement)
+| A,,2 A,2 A,,2 A,2 | A,,2 A,2 A,,2 A,2 | F,,2 F,2 F,,2 F,2 | F,,2 F,2 F,,2 F,2 |
+| C,,2 C,2 C,,2 C,2 | C,,2 C,2 C,,2 C,2 | G,,2 G,2 G,,2 G,2 | G,,2 G,2 G,,2 G,2 |
+% E lift
+| A,,2 A,,2 A,,2 A,,2 | A,,2 A,,2 A,,2 A,,2 | F,,2 F,,2 F,,2 F,,2 | F,,2 F,,2 F,,2 F,,2 |
+| C,,2 C,,2 C,,2 C,,2 | C,,2 C,,2 C,,2 C,,2 | G,,2 G,,2 G,,2 G,,2 | G,,2 G,,2 G,,2 G,,2 |
+% F chorus 1a (8ths)
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | F,, F,, F,, F,, F,, F,, F,, F,, | F,, F,, F,, F,, F,, F,, F,, F,, |
+| C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, | G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, |
+% G chorus 1b
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | F,, F,, F,, F,, F,, F,, F,, F,, | F,, F,, F,, F,, F,, F,, F,, F,, |
+| C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, | G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, |
+% H collapse (single sustained tone)
+| A,,8 | A,,8 | A,,8 | A,,8 |
+| z8 | z8 | z8 | z8 |
+% I collapse 2 (silence)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% J rebuild (low rumble returns)
+| z8 | z8 | z8 | z8 |
+| A,,8 | A,,8 | A,,8 | A,,8 |
+% K rebuild 2
+| A,,2 A,2 A,,2 A,2 | A,,2 A,2 A,,2 A,2 | F,,2 F,2 F,,2 F,2 | F,,2 F,2 F,,2 F,2 |
+| C,,2 C,2 C,,2 C,2 | C,,2 C,2 C,,2 C,2 | G,,2 G,2 G,,2 G,2 | G,,2 G,2 G,,2 G,2 |
+% L chorus peak a
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | F,, F,, F,, F,, F,, F,, F,, F,, | F,, F,, F,, F,, F,, F,, F,, F,, |
+| C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, | G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, |
+% M chorus peak b
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | F,, F,, F,, F,, F,, F,, F,, F,, | F,, F,, F,, F,, F,, F,, F,, F,, |
+| C,, C,, C,, C,, C,, C,, C,, C,, | C,, C,, C,, C,, C,, C,, C,, C,, | G,, G,, G,, G,, G,, G,, G,, G,, | G,, G,, G,, G,, G,, G,, G,, G,, |
+% N final lift
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | A,,2 A,,2 A,,2 A,,2 | A,,2 A,,2 A,,2 A,,2 |
+| A,,4 A,,4 | A,,4 A,,4 | A,,4 z4 | A,,4 z4 |
+% O drift
+| A,,8 | z8 | A,,8 | z8 |
+| A,,8 | z8 | A,,8 | z8 |
+% P decay
+| A,,8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:arp
+% A swell (sustained tones build)
+| A8 | A8 | A8 | A8 |
+| c8 | c8 | e8 | e8 |
+% B verse 1 (sparse chord tones)
+| A8 | A8 | F8 | F8 |
+| C8 | C8 | G8 | G8 |
+% C verse 2 (broken chord)
+| A4 c4 | A4 c4 | F4 A4 | F4 A4 |
+| C4 E4 | C4 E4 | G4 B4 | G4 B4 |
+% D verse 3 (arpeggio entering)
+| A2 c2 e2 c2 | A2 c2 e2 c2 | F2 A2 c2 A2 | F2 A2 c2 A2 |
+| C2 E2 G2 E2 | C2 E2 G2 E2 | G2 B2 d2 B2 | G2 B2 d2 B2 |
+% E lift
+| A2 c2 e2 c2 | A2 c2 e2 c2 | F2 A2 c2 A2 | F2 A2 c2 A2 |
+| C2 E2 G2 E2 | C2 E2 G2 E2 | G2 B2 d2 B2 | G2 B2 d2 B2 |
+% F chorus 1a (8th-note arp runs)
+| A c e A c e A c | A c e A c e A c | F A c F A c F A | F A c F A c F A |
+| C E G C E G C E | C E G C E G C E | G B d G B d G B | G B d G B d G B |
+% G chorus 1b
+| A c e A c e A c | A c e A c e A c | F A c F A c F A | F A c F A c F A |
+| C E G C E G C E | C E G C E G C E | G B d G B d G B | G B d G B d G B |
+% H collapse (single fading note)
+| A8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I collapse 2 (single low tone)
+| z8 | z8 | A8 | z8 |
+| z8 | z8 | z8 | z8 |
+% J rebuild (sparse chord tones)
+| A8 | A8 | F8 | F8 |
+| C8 | C8 | G8 | G8 |
+% K rebuild 2
+| A2 c2 e2 c2 | A2 c2 e2 c2 | F2 A2 c2 A2 | F2 A2 c2 A2 |
+| C2 E2 G2 E2 | C2 E2 G2 E2 | G2 B2 d2 B2 | G2 B2 d2 B2 |
+% L chorus peak a
+| A c e A c e A c | A c e A c e A c | F A c F A c F A | F A c F A c F A |
+| C E G C E G C E | C E G C E G C E | G B d G B d G B | G B d G B d G B |
+% M chorus peak b
+| A c e A c e A c | A c e A c e A c | F A c F A c F A | F A c F A c F A |
+| C E G C E G C E | C E G C E G C E | G B d G B d G B | G B d G B d G B |
+% N final lift
+| A c e A c e A c | A c e A c e A c | A2 c2 e2 z2 | A2 c2 e2 z2 |
+| A4 c4 | A4 c4 | A4 z4 | A4 z4 |
+% O drift (sustained)
+| A8 | z8 | c8 | z8 |
+| A8 | z8 | c8 | z8 |
+% P decay
+| A8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:lead
+% A swell (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C verse 2 (sparse echoes)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | a8 |
+% D verse 3 (single sustained line)
+| a8 | a8 | a8 | a8 |
+| c'8 | c'8 | e'8 | e'8 |
+% E lift (sustained build to chorus)
+| e'8 | e'8 | e'8 | e'8 |
+| e'4 g'4 | e'4 g'4 | a'4 z4 | a'4 z4 |
+% F chorus 1a (singing melody)
+| a2 c'2 e'2 c'2 | a2 e'2 c'2 a2 | f'2 a'2 c''2 a'2 | f'2 c''2 a'2 f'2 |
+| c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 | g'2 b'2 d''2 b'2 | g'2 d''2 b'2 g'2 |
+% G chorus 1b
+| a2 c'2 e'2 c'2 | a2 e'2 c'2 a2 | f'2 a'2 c''2 a'2 | f'2 c''2 a'2 f'2 |
+| c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 | g'2 b'2 d''2 b'2 | g'2 d''2 b'2 g'2 |
+% H collapse (lone fading note)
+| a8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I collapse 2 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% J rebuild (single rising tone)
+| z8 | z8 | a8 | a8 |
+| c'8 | c'8 | e'8 | e'8 |
+% K rebuild 2 (sustained chord tones)
+| a8 | a8 | c'8 | c'8 |
+| e'8 | e'8 | a'8 | a'8 |
+% L chorus peak a (highest)
+| a'2 c''2 e''2 c''2 | a'2 e''2 c''2 a'2 | f'2 a'2 c''2 a'2 | f'2 c''2 a'2 f'2 |
+| c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 | g'2 b'2 d''2 b'2 | g'2 d''2 b'2 g'2 |
+% M chorus peak b
+| a'2 c''2 e''2 c''2 | a'2 e''2 c''2 a'2 | f'2 a'2 c''2 a'2 | f'2 c''2 a'2 f'2 |
+| c'2 e'2 g'2 e'2 | c'2 g'2 e'2 c'2 | g'2 b'2 d''2 b'2 | g'2 d''2 b'2 g'2 |
+% N final lift (held high cry)
+| a'4 z4 | a'4 z4 | a'4 z4 | a'4 z4 |
+| a'4 z4 | a'4 z4 | z8 | z8 |
+% O drift (lone whisper)
+| a4 z4 | z8 | a4 z4 | z8 |
+| z8 | z8 | z8 | z8 |
+% P decay (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |

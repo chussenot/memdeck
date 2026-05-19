@@ -262,7 +262,7 @@ int  sound_profile_snapshot(SoundProfile *out);
 #define ABC_MAX_VOICES     8
 #define ABC_MAX_NOTES      1024
 #define ABC_MAX_INSTRUMENTS 8
-#define ABC_MAX_PATTERNS   8
+#define ABC_MAX_PATTERNS   16
 #define ABC_MAX_ARRANGEMENT 32
 #define ABC_MAX_FX_BUSES   4
 #define SAMPLE_RATE_ABC    22050

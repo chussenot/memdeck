@@ -43,7 +43,10 @@ int main(void)
         "data/music/black_sunrise.abc",
         "data/music/machine_romance.abc",
         "data/music/hypersleep_dream.abc",
-        "data/music/aurora_halo.abc"
+        "data/music/aurora_halo.abc",
+        "data/music/glass_anthem.abc",
+        "data/music/pixie_dust.abc",
+        "data/music/surrender_loop.abc"
     };
     int failures = 0;
 
