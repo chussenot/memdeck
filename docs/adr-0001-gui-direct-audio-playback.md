@@ -41,7 +41,7 @@ Local write benchmark on this branch for U8 mono 22,050 Hz WAV output (200 itera
 Notes:
 
 - This captures temp WAV write cost only.
-- It does not include external player startup latency (not reproducible in this sandbox due missing host player binaries/devices).
+- It does not include external player startup latency (not reproducible in this sandbox due to missing host player binaries/devices).
 - Tail jitter confirms file/process handoff variability that an in-process stream can remove.
 
 ## Decision
