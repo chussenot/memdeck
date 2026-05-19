@@ -234,6 +234,43 @@ mod tests {
     }
 
     #[test]
+    fn jam_worker_streams_sections_in_order() {
+        // Mirrors the GUI's worker pattern: spawn a thread that owns the
+        // session, push sections through a bounded channel, consume from
+        // the main thread.
+        use crate::ffi::{JamSection, JamSession};
+        use std::sync::mpsc;
+
+        let engine = GuiAudioEngine::new();
+        let demo = engine
+            .demo_catalog()
+            .into_iter()
+            .find(|entry| entry.key == "dark_moroder" && entry.overview.is_some())
+            .expect("dark_moroder demo should be available");
+        let session = JamSession::open(&demo.path, 0xC0FFEE, 12.0).unwrap();
+
+        let (tx, rx) = mpsc::sync_channel::<Result<JamSection, String>>(1);
+        let worker = std::thread::spawn(move || {
+            let mut session = session;
+            for _ in 0..3 {
+                let s = session.render_next().expect("render");
+                if tx.send(Ok(s)).is_err() {
+                    break;
+                }
+            }
+        });
+
+        let mut iters = Vec::new();
+        for _ in 0..3 {
+            let section = rx.recv().expect("recv").expect("ok");
+            assert!(!section.samples.is_empty());
+            iters.push(section.iteration);
+        }
+        worker.join().expect("worker exits");
+        assert_eq!(iters, vec![1, 2, 3], "sections arrive in order");
+    }
+
+    #[test]
     fn repeated_render_does_not_crash() {
         let engine = GuiAudioEngine::new();
         let demo = engine

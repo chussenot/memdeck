@@ -162,15 +162,23 @@ pub struct MemDeckGuiApp {
     jam: Option<JamRuntime>,
 }
 
-/// Active "infinite continuation" session. Holds the C-side jam state plus
-/// counters for the status bar. When the current PCM section finishes,
-/// `poll_playback` asks the session for the next one and restarts cpal.
+/// Active "infinite continuation" session. The JamSession lives in a
+/// background worker thread that pre-renders the next section into a
+/// bounded channel while the current one plays — so transitions are
+/// gapless in practice (the next section is already sitting in the
+/// queue when the current one finishes).
 pub struct JamRuntime {
-    pub session: ffi::JamSession,
     pub demo_key: String,
     pub seed: u64,
     pub sections_played: u32,
     pub current_section_iteration: u32,
+    /// Receiver fed by the worker. Channel capacity is 1, so the
+    /// worker is always either holding the next section ready or
+    /// mid-render of it.
+    pub next_section_rx: std::sync::mpsc::Receiver<Result<ffi::JamSection, String>>,
+    /// Join handle for the worker. We join on stop so the C session
+    /// drops cleanly without leaving an orphan thread.
+    pub worker: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Default for MemDeckGuiApp {
@@ -1694,48 +1702,81 @@ impl MemDeckGuiApp {
             .unwrap_or(0xCAFEBABE_12345678);
         const JAM_SECTION_SECONDS: f64 = 30.0;
 
-        let mut session = match ffi::JamSession::open(&path, seed, JAM_SECTION_SECONDS) {
+        let session = match ffi::JamSession::open(&path, seed, JAM_SECTION_SECONDS) {
             Ok(s) => s,
             Err(error) => {
                 self.set_status(StatusTone::Warning, format!("JAM OPEN FAILED • {error}"));
                 return;
             }
         };
-        let section = match session.render_next() {
-            Ok(s) => s,
-            Err(error) => {
+
+        // Bounded channel: capacity 1 means the worker keeps exactly one
+        // section ahead of playback. When the main thread consumes a
+        // section here, the worker immediately starts the next one.
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Result<ffi::JamSection, String>>(1);
+        let worker = std::thread::spawn(move || {
+            let mut session = session;
+            loop {
+                match session.render_next() {
+                    Ok(section) => {
+                        if tx.send(Ok(section)).is_err() {
+                            break; // receiver dropped — jam stopped
+                        }
+                    }
+                    Err(error) => {
+                        let _ = tx.send(Err(error));
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Pull section 1 synchronously (worker is rendering it right now;
+        // recv blocks until ready — typically a few tens of ms).
+        let first = match rx.recv() {
+            Ok(Ok(section)) => section,
+            Ok(Err(error)) => {
+                let _ = worker.join();
                 self.set_status(StatusTone::Warning, format!("JAM RENDER FAILED • {error}"));
+                return;
+            }
+            Err(_) => {
+                let _ = worker.join();
+                self.set_status(StatusTone::Warning, "JAM RENDER FAILED • WORKER DIED");
                 return;
             }
         };
 
-        match self.playback.start_pcm_at(&section.samples, 0.0) {
+        match self.playback.start_pcm_at(&first.samples, 0.0) {
             Ok(()) => {
+                let display_key = demo_key.to_uppercase();
+                let iter = first.iteration;
                 self.runtime.rendered_audio = Some(RenderState {
                     demo_key: format!("__jam__:{demo_key}"),
-                    samples: std::sync::Arc::<[u8]>::from(section.samples),
+                    samples: std::sync::Arc::<[u8]>::from(first.samples),
                     stats: None,
                 });
                 self.runtime.playhead_position = 0.0;
                 self.runtime.waveform_drag_preview = None;
                 self.jam = Some(JamRuntime {
-                    session,
-                    demo_key: demo_key.clone(),
+                    demo_key,
                     seed,
                     sections_played: 1,
-                    current_section_iteration: section.iteration,
+                    current_section_iteration: iter,
+                    next_section_rx: rx,
+                    worker: Some(worker),
                 });
                 self.set_status(
                     StatusTone::Active,
                     format!(
-                        "JAM • {} • section {} • seed {} • ESC TO STOP",
-                        demo_key.to_uppercase(),
-                        section.iteration,
-                        seed
+                        "JAM • {display_key} • section {iter} • seed {seed} • ESC TO STOP"
                     ),
                 );
             }
             Err(error) => {
+                // playback failed — tear the worker down via channel drop.
+                drop(rx);
+                let _ = worker.join();
                 self.set_status(StatusTone::Warning, format!("JAM PLAYBACK ERROR • {error}"));
             }
         }
@@ -1743,13 +1784,18 @@ impl MemDeckGuiApp {
 
     fn advance_jam_section(&mut self) {
         let Some(jam) = self.jam.as_mut() else { return };
-        let section = match jam.session.render_next() {
-            Ok(s) => s,
-            Err(error) => {
-                let msg = format!("JAM ENDED • {error}");
-                self.jam = None;
-                self.runtime.playhead_position = 1.0;
-                self.set_status(StatusTone::Warning, msg);
+        // Worker has been pre-rendering this since the last section
+        // started playing, so recv usually returns instantly.
+        let section = match jam.next_section_rx.recv() {
+            Ok(Ok(s)) => s,
+            Ok(Err(error)) => {
+                self.stop_jam_internal();
+                self.set_status(StatusTone::Warning, format!("JAM ENDED • {error}"));
+                return;
+            }
+            Err(_) => {
+                self.stop_jam_internal();
+                self.set_status(StatusTone::Warning, "JAM ENDED • WORKER STOPPED");
                 return;
             }
         };
@@ -1773,23 +1819,38 @@ impl MemDeckGuiApp {
                 self.set_status(
                     StatusTone::Active,
                     format!(
-                        "JAM • {demo_key_display} • section {} • seed {} • ESC TO STOP",
-                        section.iteration, seed
+                        "JAM • {demo_key_display} • section {} • seed {seed} • ESC TO STOP",
+                        section.iteration
                     ),
                 );
             }
             Err(error) => {
-                self.jam = None;
-                self.runtime.playhead_position = 1.0;
+                self.stop_jam_internal();
                 self.set_status(StatusTone::Warning, format!("JAM ENDED • {error}"));
             }
         }
     }
 
-    fn stop_jam(&mut self, update_status: bool) {
-        if self.jam.take().is_some() {
-            let _ = self.playback.stop();
+    /// Tear down jam state without touching status. Used both on user-
+    /// initiated stop and on internal errors.
+    fn stop_jam_internal(&mut self) {
+        if let Some(mut jam) = self.jam.take() {
+            // Drop the receiver first; that closes the channel so the
+            // worker's next send returns Err and it exits its loop.
+            // (Field drops in struct order would do this anyway, but
+            // being explicit makes the intent obvious.)
+            drop(jam.next_section_rx);
+            if let Some(handle) = jam.worker.take() {
+                let _ = handle.join();
+            }
             self.runtime.playhead_position = 1.0;
+        }
+    }
+
+    fn stop_jam(&mut self, update_status: bool) {
+        if self.jam.is_some() {
+            let _ = self.playback.stop();
+            self.stop_jam_internal();
             if update_status {
                 self.set_status(StatusTone::Normal, "JAM STOPPED.");
             }
