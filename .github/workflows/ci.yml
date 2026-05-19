@@ -47,7 +47,7 @@ jobs:
       - name: Install GUI runtime dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libxkbcommon-x11-0
+          sudo apt-get install -y xvfb libxkbcommon-x11-0 libasound2-dev
       - name: GUI cargo check
         run: make gui-check
       - name: GUI tests

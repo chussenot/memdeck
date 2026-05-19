@@ -61,8 +61,7 @@ This keeps runtime state compact and avoids duplicated metadata/state drift.
 Playback remains intentionally simple:
 
 - render once
-- wrap PCM into a temporary WAV
-- spawn the platform player
-- poll child process status
+- stream PCM directly through the Rust `cpal` backend
+- poll stream state for completion/errors
 - expose progress for cursor drawing
 - stop reliably on command or drop

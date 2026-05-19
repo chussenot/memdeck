@@ -1,9 +1,8 @@
-use std::env;
-use std::fs;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{SampleFormat, SizedSample, Stream, StreamConfig};
 
 use crate::ffi::SAMPLE_RATE_ABC;
 
@@ -20,14 +19,28 @@ impl Default for PlaybackState {
     }
 }
 
+struct PlaybackShared {
+    cursor_samples: AtomicUsize,
+    finished: AtomicBool,
+    error: Mutex<Option<String>>,
+}
+
+impl PlaybackShared {
+    fn new(start_offset: usize) -> Self {
+        Self {
+            cursor_samples: AtomicUsize::new(start_offset),
+            finished: AtomicBool::new(false),
+            error: Mutex::new(None),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct PlaybackController {
-    child: Option<Child>,
-    temp_path: Option<PathBuf>,
+    stream: Option<Stream>,
     state: PlaybackState,
-    started_at: Option<Instant>,
-    full_duration: Option<Duration>,
-    start_progress: f32,
+    full_len: Option<usize>,
+    shared: Option<Arc<PlaybackShared>>,
 }
 
 impl PlaybackController {
@@ -42,20 +55,18 @@ impl PlaybackController {
     /// Live progress in [0,1] across the full PCM buffer the user originally
     /// asked to play, even if playback was started from an offset.
     pub fn progress(&self) -> Option<f32> {
-        let elapsed = self.started_at?.elapsed();
-        let duration = self.full_duration?;
-        if duration.is_zero() {
-            return Some(self.start_progress.clamp(0.0, 1.0));
+        let full_len = self.full_len?;
+        if full_len == 0 {
+            return Some(0.0);
         }
-
-        let elapsed_fraction = elapsed.as_secs_f32() / duration.as_secs_f32();
-        Some((self.start_progress + elapsed_fraction).clamp(0.0, 1.0))
+        let shared = self.shared.as_ref()?;
+        let cursor = shared.cursor_samples.load(Ordering::Relaxed).min(full_len);
+        Some(cursor as f32 / full_len as f32)
     }
 
-    /// Start playback at `start_progress` (clamped to [0,1)). The audio child
-    /// only receives the tail of the PCM buffer; progress reporting still
-    /// references the full buffer length so the visible playhead stays
-    /// continuous across seeks.
+    /// Start playback at `start_progress` (clamped to [0,1)). Progress
+    /// reporting still references the full buffer length so the visible
+    /// playhead stays continuous across seeks.
     pub fn start_pcm_at(&mut self, samples: &[u8], start_progress: f32) -> Result<(), String> {
         if samples.is_empty() {
             let message = "empty PCM buffer".to_string();
@@ -64,188 +75,333 @@ impl PlaybackController {
         }
 
         let full_len = samples.len();
-        let clamped = start_progress.clamp(0.0, 1.0);
-        let mut offset = ((full_len as f32) * clamped) as usize;
-        // Leave at least one sample so aplay has something to play.
-        if offset >= full_len {
-            offset = full_len.saturating_sub(1);
-        }
-        let effective_progress = if full_len == 0 {
-            0.0
-        } else {
-            offset as f32 / full_len as f32
-        };
-        let slice = &samples[offset..];
+        let offset = start_offset_for_progress(full_len, start_progress);
+        let tail = Arc::<[u8]>::from(samples[offset..].to_vec());
+        let shared = Arc::new(PlaybackShared::new(offset));
+        let stream = build_stream(tail, full_len, offset, Arc::clone(&shared))?;
 
-        let path = playback_temp_path();
-        write_wav_u8_mono(&path, slice, SAMPLE_RATE_ABC as u32)
-            .map_err(|err| format!("could not write playback buffer: {err}"))?;
-
-        if let Err(err) = self.start_wav(&path) {
-            let _ = fs::remove_file(&path);
-            return Err(err);
-        }
-
-        self.temp_path = Some(path);
-        self.full_duration = Some(Duration::from_secs_f32(
-            full_len as f32 / SAMPLE_RATE_ABC as f32,
-        ));
-        self.start_progress = effective_progress;
-        Ok(())
-    }
-
-    pub fn start_wav(&mut self, path: &Path) -> Result<(), String> {
-        self.stop()
-            .map_err(|err| format!("could not reset playback: {err}"))?;
-
-        let mut command = playback_command(path)?;
-        let child = command.spawn().map_err(|err| {
-            let message = format!("could not start playback command: {err}");
+        stream.play().map_err(|error| {
+            let message = format!("could not start playback stream: {error}");
             self.state = PlaybackState::Error(message.clone());
             message
         })?;
 
-        self.child = Some(child);
-        self.started_at = Some(Instant::now());
+        self.stop_runtime();
+        self.stream = Some(stream);
+        self.shared = Some(shared);
+        self.full_len = Some(full_len);
         self.state = PlaybackState::Playing;
         Ok(())
     }
 
     pub fn stop(&mut self) -> Result<bool, String> {
-        let mut stopped = false;
-
-        if let Some(mut child) = self.child.take() {
-            stopped = true;
-            if let Err(err) = child.kill() {
-                if err.kind() != io::ErrorKind::InvalidInput {
-                    self.cleanup_runtime_state();
-                    self.state = PlaybackState::Error(err.to_string());
-                    return Err(err.to_string());
-                }
-            }
-            let _ = child.wait();
-        }
-
-        self.cleanup_runtime_state();
+        let stopped = self.stream.take().is_some();
+        self.stop_runtime();
         self.state = PlaybackState::Stopped;
         Ok(stopped)
     }
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
-        let status = match self.child.as_mut() {
-            Some(child) => match child.try_wait() {
-                Ok(Some(status)) => status,
-                Ok(None) => return None,
-                Err(err) => {
-                    self.child = None;
-                    self.cleanup_runtime_state();
-                    let message = format!("could not poll playback process: {err}");
-                    self.state = PlaybackState::Error(message.clone());
-                    return Some(Err(message));
-                }
+        if !self.is_playing() {
+            return None;
+        }
+
+        let shared = Arc::clone(self.shared.as_ref()?);
+        let error_message = shared
+            .error
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.take());
+        if let Some(message) = error_message {
+            self.stream = None;
+            self.stop_runtime();
+            self.state = PlaybackState::Error(message.clone());
+            return Some(Err(message));
+        }
+
+        if shared.finished.load(Ordering::Relaxed) {
+            self.stream = None;
+            self.stop_runtime();
+            self.state = PlaybackState::Stopped;
+            return Some(Ok(()));
+        }
+
+        None
+    }
+
+    fn stop_runtime(&mut self) {
+        self.stream = None;
+        self.shared = None;
+        self.full_len = None;
+    }
+}
+
+fn start_offset_for_progress(full_len: usize, start_progress: f32) -> usize {
+    let clamped = start_progress.clamp(0.0, 1.0);
+    let mut offset = ((full_len as f32) * clamped) as usize;
+    if offset >= full_len {
+        offset = full_len.saturating_sub(1);
+    }
+    offset
+}
+
+fn build_stream(
+    tail: Arc<[u8]>,
+    full_len: usize,
+    start_offset: usize,
+    shared: Arc<PlaybackShared>,
+) -> Result<Stream, String> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| "no output audio device available".to_string())?;
+    let output_config = device.default_output_config().map_err(|error| {
+        format!("could not read default output audio configuration: {error}")
+    })?;
+
+    let sample_format = output_config.sample_format();
+    let stream_config: StreamConfig = output_config.into();
+    let channels = usize::from(stream_config.channels.max(1));
+    let output_rate = stream_config.sample_rate.max(1);
+    let step = SAMPLE_RATE_ABC as f64 / output_rate as f64;
+
+    let shared_err = Arc::clone(&shared);
+    let error_callback = move |error: cpal::StreamError| {
+        if let Ok(mut guard) = shared_err.error.lock() {
+            *guard = Some(format!("playback stream error: {error}"));
+        }
+        shared_err.finished.store(true, Ordering::Relaxed);
+    };
+
+    let source_position = Arc::new(Mutex::new(0.0_f64));
+
+    match sample_format {
+        SampleFormat::F32 => build_output_stream::<f32>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::I8 => build_output_stream::<i8>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::I16 => build_output_stream::<i16>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::I32 => build_output_stream::<i32>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::I64 => build_output_stream::<i64>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::U8 => build_output_stream::<u8>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::U16 => build_output_stream::<u16>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::U32 => build_output_stream::<u32>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::U64 => build_output_stream::<u64>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        SampleFormat::F64 => build_output_stream::<f64>(
+            &device,
+            &stream_config,
+            channels,
+            tail,
+            full_len,
+            start_offset,
+            step,
+            shared,
+            source_position,
+            error_callback,
+        ),
+        _ => Err(format!("unsupported playback sample format: {sample_format:?}")),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_output_stream<T>(
+    device: &cpal::Device,
+    stream_config: &StreamConfig,
+    channels: usize,
+    tail: Arc<[u8]>,
+    full_len: usize,
+    start_offset: usize,
+    step: f64,
+    shared: Arc<PlaybackShared>,
+    source_position: Arc<Mutex<f64>>,
+    error_callback: impl FnMut(cpal::StreamError) + Send + 'static,
+) -> Result<Stream, String>
+where
+    T: SizedSample + cpal::FromSample<f32>,
+{
+    let callback_shared = Arc::clone(&shared);
+    let callback_tail = Arc::clone(&tail);
+    let callback_position = Arc::clone(&source_position);
+
+    device
+        .build_output_stream(
+            stream_config,
+            move |output: &mut [T], _| {
+                write_output(
+                    output,
+                    channels,
+                    &callback_tail,
+                    full_len,
+                    start_offset,
+                    step,
+                    &callback_shared,
+                    &callback_position,
+                );
             },
-            None => return None,
+            error_callback,
+            None,
+        )
+        .map_err(|error| format!("could not create playback stream: {error}"))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_output<T>(
+    output: &mut [T],
+    channels: usize,
+    tail: &[u8],
+    full_len: usize,
+    start_offset: usize,
+    step: f64,
+    shared: &PlaybackShared,
+    source_position: &Arc<Mutex<f64>>,
+) where
+    T: SizedSample + cpal::FromSample<f32>,
+{
+    let mut position_guard = match source_position.lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            shared.finished.store(true, Ordering::Relaxed);
+            shared.cursor_samples.store(full_len, Ordering::Relaxed);
+            output.fill(T::from_sample(0.0_f32));
+            return;
+        }
+    };
+
+    let mut pos = *position_guard;
+    let frame_count = output.len() / channels;
+    let mut finished = false;
+
+    for frame in 0..frame_count {
+        let source_index = pos.floor() as usize;
+        let sample_f32 = if source_index < tail.len() {
+            (tail[source_index] as f32 - 128.0) / 128.0
+        } else {
+            finished = true;
+            0.0
         };
 
-        self.child = None;
-        self.cleanup_runtime_state();
-
-        if status.success() {
-            self.state = PlaybackState::Stopped;
-            Some(Ok(()))
-        } else {
-            let message = format!("playback exited with status {status}");
-            self.state = PlaybackState::Error(message.clone());
-            Some(Err(message))
+        for channel in 0..channels {
+            output[frame * channels + channel] = T::from_sample(sample_f32);
         }
+
+        pos += step;
     }
 
-    fn cleanup_runtime_state(&mut self) {
-        self.started_at = None;
-        self.full_duration = None;
-        self.start_progress = 0.0;
-        self.cleanup_temp_file();
+    let absolute = start_offset + (pos.floor() as usize).min(tail.len());
+    shared
+        .cursor_samples
+        .store(absolute.min(full_len), Ordering::Relaxed);
+
+    if absolute >= full_len {
+        finished = true;
+    }
+    if finished {
+        shared.finished.store(true, Ordering::Relaxed);
     }
 
-    fn cleanup_temp_file(&mut self) {
-        if let Some(path) = self.temp_path.take() {
-            let _ = fs::remove_file(path);
-        }
-    }
-}
-
-fn playback_temp_path() -> PathBuf {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_millis())
-        .unwrap_or_default();
-    env::temp_dir().join(format!(
-        "memdeck-gui-{}-{timestamp}.wav",
-        std::process::id()
-    ))
-}
-
-fn playback_command(path: &Path) -> Result<Command, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let mut command = Command::new("afplay");
-        command.arg(path);
-        return Ok(command);
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let mut command = Command::new("powershell");
-        command.args([
-            "-NoProfile",
-            "-Command",
-            "& { \
-                $p = [System.IO.Path]::GetFullPath($args[0]); \
-                $player = New-Object Media.SoundPlayer; \
-                $player.SoundLocation = $p; \
-                $player.Load(); \
-                $player.PlaySync(); \
-            }",
-        ]);
-        command.arg(path);
-        return Ok(command);
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        let mut command = Command::new("aplay");
-        command.arg("-q").arg(path);
-        Ok(command)
-    }
-}
-
-fn write_wav_u8_mono(path: &Path, pcm: &[u8], sample_rate: u32) -> io::Result<()> {
-    let mut file = fs::File::create(path)?;
-    let data_size = pcm.len() as u32;
-    let riff_size = 36u32 + data_size;
-
-    file.write_all(b"RIFF")?;
-    file.write_all(&riff_size.to_le_bytes())?;
-    file.write_all(b"WAVE")?;
-    file.write_all(b"fmt ")?;
-    file.write_all(&16u32.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?;
-    file.write_all(&sample_rate.to_le_bytes())?;
-    file.write_all(&sample_rate.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?;
-    file.write_all(&8u16.to_le_bytes())?;
-    file.write_all(b"data")?;
-    file.write_all(&data_size.to_le_bytes())?;
-    file.write_all(pcm)?;
-    file.flush()
+    *position_guard = pos;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn default_state_is_stopped() {
@@ -286,45 +442,33 @@ mod tests {
     }
 
     #[test]
-    fn progress_requires_active_timing() {
+    fn progress_requires_active_runtime() {
         let playback = PlaybackController::default();
         assert_eq!(playback.progress(), None);
     }
 
     #[test]
-    fn stop_cleans_up_temp_file() {
+    fn stop_returns_false_without_active_stream() {
         let mut playback = PlaybackController::default();
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let temp_path = std::env::temp_dir().join(format!(
-            "memdeck-playback-test-{unique}-{}.wav",
-            std::process::id()
-        ));
-        fs::write(&temp_path, [0_u8, 1, 2]).expect("should write temp wav fixture");
-        playback.temp_path = Some(temp_path.clone());
-
         let stopped = playback.stop().expect("stop should succeed");
-        assert!(!stopped, "stop should report false with no child process");
-        assert!(
-            !temp_path.exists(),
-            "stop should always remove owned temporary wav files"
-        );
+        assert!(!stopped, "stop should report false with no active stream");
     }
 
     #[test]
-    fn start_progress_clamps_and_records_offset() {
+    fn progress_uses_cursor_ratio() {
         let mut playback = PlaybackController::default();
-        // Out-of-range progress is clamped; full_duration tracks the *whole*
-        // buffer, not the trimmed tail, so the visible playhead can interpolate
-        // from the seek point all the way to 1.0.
-        playback.full_duration = Some(Duration::from_secs(10));
-        playback.start_progress = 1.5;
-        playback.started_at = Some(Instant::now());
+        playback.full_len = Some(1000);
+        let shared = Arc::new(PlaybackShared::new(0));
+        shared.cursor_samples.store(250, Ordering::Relaxed);
+        playback.shared = Some(shared);
 
         let p = playback.progress().expect("progress should be available");
-        assert!(p >= 1.0 - f32::EPSILON, "progress should clamp to 1.0, got {p}");
+        assert!((p - 0.25).abs() < f32::EPSILON, "expected 0.25, got {p}");
     }
 
+    #[test]
+    fn start_offset_clamps_to_last_sample() {
+        let offset = start_offset_for_progress(100, 1.5);
+        assert_eq!(offset, 99);
+    }
 }

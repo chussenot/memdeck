@@ -39,13 +39,12 @@ Rendered PCM is allocated by the C engine.
 
 `gui/src/playback.rs` is intentionally outside the FFI layer.
 
-- rendered PCM becomes a temporary mono 8-bit WAV
-- the GUI spawns `afplay`, `SoundPlayer`, or `aplay`
-- playback progress is tracked from process start + expected duration
-- stop/poll always clean up the child process and temp file
+- rendered PCM is copied into Rust-owned memory and streamed directly with `cpal`
+- playback progress is tracked from consumed sample cursor over full render length
+- stop/poll always clean up stream ownership and playback runtime state
 
 ## Limitations
 
-- playback depends on platform audio tools
-- no low-latency Rust mixer is introduced
+- playback depends on host output device availability and a valid default stream config
+- no separate low-latency GUI mixer is introduced; playback is output-stream only
 - metadata is for inspection only; the GUI never edits the C structures

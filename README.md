@@ -24,6 +24,12 @@ make gui-test
 make gui-run
 ```
 
+On Linux, the GUI audio backend needs ALSA development headers:
+
+```sh
+sudo apt install libasound2-dev
+```
+
 On headless Linux environments:
 
 ```sh
@@ -47,7 +53,7 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 
 ### GUI Limitations
 
-- playback uses simple rendered-WAV handoff to the host audio command
+- GUI playback uses an in-process Rust audio stream backend (`cpal`)
 - editable step metadata is intentionally minimal and keyboard-driven
 - arrangement integration is block-based only (no advanced timeline editing)
 - the GUI remains a shell over the existing C renderer, not a new DAW engine
