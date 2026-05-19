@@ -32,6 +32,7 @@ const GRID: Color32 = Color32::from_rgb(34, 44, 34);
 const PATTERN_EDITOR_GATE_STEPS: [u8; 5] = [25, 50, 75, 90, 100];
 const PATTERN_EDITOR_VELOCITY_STEPS: [u8; 5] = [32, 64, 88, 110, 127];
 const RECENT_SONGS_LIMIT: usize = 8;
+const COMPACT_LAYOUT_BREAKPOINT: f32 = 1180.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FocusArea {
@@ -4498,8 +4499,9 @@ impl eframe::App for MemDeckGuiApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let available = ui.available_size();
-            let is_portrait = available.y > available.x * 1.1;
-            let use_compact_layout = is_portrait || available.x < 1180.0;
+            let is_tall_aspect = available.y > available.x * 1.1;
+            let use_compact_layout =
+                is_tall_aspect || available.x < COMPACT_LAYOUT_BREAKPOINT;
 
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
