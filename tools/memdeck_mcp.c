@@ -12,8 +12,10 @@
  */
 
 #define _GNU_SOURCE
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -128,6 +130,204 @@ static void send_tool_text_error(yyjson_val *id, const char *msg)
 }
 
 /* ============================================================
+ *   Music theory helpers (pitch resolution, chord spelling)
+ *
+ *   Mirrors src/abc.c parse_note pitch logic without pulling
+ *   the static parser. ABC convention here:
+ *     uppercase C..B = octave 4 (C4 = MIDI 60, A4 = MIDI 69)
+ *     lowercase c..b = octave 5 (c5 = MIDI 72)
+ *     trailing ','  = octave down,  '\'' = octave up
+ *     leading '^'/'_'/'=' = sharp/flat/natural accidental
+ * ============================================================ */
+
+static const int MT_SEMITONES[7] = { 0, 2, 4, 5, 7, 9, 11 }; /* C D E F G A B */
+
+/* Resolve a single ABC pitch token (no duration suffix expected).
+ * Accepts an optional leading accidental, the note letter, and any
+ * number of ',' / '\'' octave modifiers. Returns 0 on success. */
+static int mt_token_to_midi(const char *tok, int *out_midi)
+{
+    if (!tok) return -1;
+    const char *p = tok;
+    while (*p == ' ' || *p == '\t') p++;
+
+    int accidental = 0;
+    if (*p == '^') { accidental = 1; p++; if (*p == '^') { accidental = 2; p++; } }
+    else if (*p == '_') { accidental = -1; p++; if (*p == '_') { accidental = -2; p++; } }
+    else if (*p == '=') { p++; }
+
+    char nc = *p;
+    int idx = -1;
+    switch (nc) {
+        case 'C': case 'c': idx = 0; break;
+        case 'D': case 'd': idx = 1; break;
+        case 'E': case 'e': idx = 2; break;
+        case 'F': case 'f': idx = 3; break;
+        case 'G': case 'g': idx = 4; break;
+        case 'A': case 'a': idx = 5; break;
+        case 'B': case 'b': idx = 6; break;
+        default: return -1;
+    }
+    int octave = (nc >= 'a' && nc <= 'z') ? 5 : 4;
+    p++;
+    while (*p == '\'') { octave++; p++; }
+    while (*p == ',')  { octave--; p++; }
+
+    int midi = (octave + 1) * 12 + MT_SEMITONES[idx] + accidental;
+    if (midi < 0 || midi > 127) return -1;
+    *out_midi = midi;
+    return 0;
+}
+
+static double mt_midi_to_hz(int midi)
+{
+    return 440.0 * pow(2.0, (midi - 69) / 12.0);
+}
+
+static void mt_midi_to_scientific(int midi, char *out, size_t out_sz)
+{
+    static const char *names[12] = {
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+    };
+    int pc = ((midi % 12) + 12) % 12;
+    int oct = (midi - pc) / 12 - 1;
+    snprintf(out, out_sz, "%s%d", names[pc], oct);
+}
+
+/* Build a writable ABC token from a MIDI number. Uses sharps for accidentals
+ * (engine's parser accepts ^ for sharp). Output fits in 8 bytes. */
+static void mt_midi_to_abc_token(int midi, char *out, size_t out_sz)
+{
+    static const struct { char letter; int sharp; } pcmap[12] = {
+        {'C', 0}, {'C', 1}, {'D', 0}, {'D', 1}, {'E', 0},
+        {'F', 0}, {'F', 1}, {'G', 0}, {'G', 1}, {'A', 0},
+        {'A', 1}, {'B', 0}
+    };
+    int pc = ((midi % 12) + 12) % 12;
+    int octave = (midi - pc) / 12 - 1;
+    char letter = pcmap[pc].letter;
+    if (octave >= 5) letter = (char)(letter + 32);
+
+    size_t pos = 0;
+    if (pcmap[pc].sharp && pos + 1 < out_sz) out[pos++] = '^';
+    if (pos + 1 < out_sz)                    out[pos++] = letter;
+
+    int commas      = (octave < 4) ? (4 - octave) : 0;
+    int apostrophes = (octave > 5) ? (octave - 5) : 0;
+    for (int i = 0; i < commas && pos + 1 < out_sz; i++)      out[pos++] = ',';
+    for (int i = 0; i < apostrophes && pos + 1 < out_sz; i++) out[pos++] = '\'';
+    out[pos] = '\0';
+}
+
+/* Chord spec: root pitch class plus a list of semitone offsets. The 4th
+ * tone is the octave doubling for major/minor/sus, useful for arpeggios. */
+typedef struct {
+    int  root_pc;
+    const char *quality;
+    const int  *intervals;
+    int  interval_count;
+} MtChord;
+
+static int mt_parse_chord(const char *s, MtChord *out)
+{
+    static const int IV_MAJOR[] = { 0, 4, 7, 12 };
+    static const int IV_MINOR[] = { 0, 3, 7, 12 };
+    static const int IV_DOM7 [] = { 0, 4, 7, 10 };
+    static const int IV_MIN7 [] = { 0, 3, 7, 10 };
+    static const int IV_MAJ7 [] = { 0, 4, 7, 11 };
+    static const int IV_SUS4 [] = { 0, 5, 7, 12 };
+    static const int IV_DIM  [] = { 0, 3, 6, 9  };
+    static const int IV_AUG  [] = { 0, 4, 8, 12 };
+
+    if (!s || !*s) return -1;
+    const char *p = s;
+    while (*p == ' ' || *p == '\t') p++;
+
+    int rpc;
+    switch (*p++) {
+        case 'C': rpc = 0;  break;
+        case 'D': rpc = 2;  break;
+        case 'E': rpc = 4;  break;
+        case 'F': rpc = 5;  break;
+        case 'G': rpc = 7;  break;
+        case 'A': rpc = 9;  break;
+        case 'B': rpc = 11; break;
+        default: return -1;
+    }
+    if      (*p == '#') { rpc = (rpc + 1)  % 12; p++; }
+    else if (*p == 'b') { rpc = (rpc + 11) % 12; p++; }
+
+    if      (*p == '\0')                  { out->quality = "major"; out->intervals = IV_MAJOR; }
+    else if (strncmp(p, "maj7", 4) == 0)  { out->quality = "maj7";  out->intervals = IV_MAJ7;  }
+    else if (strncmp(p, "m7",   2) == 0)  { out->quality = "m7";    out->intervals = IV_MIN7;  }
+    else if (*p == '7')                   { out->quality = "7";     out->intervals = IV_DOM7;  }
+    else if (strncmp(p, "sus4", 4) == 0)  { out->quality = "sus4";  out->intervals = IV_SUS4;  }
+    else if (strncmp(p, "sus",  3) == 0)  { out->quality = "sus4";  out->intervals = IV_SUS4;  }
+    else if (strncmp(p, "dim",  3) == 0)  { out->quality = "dim";   out->intervals = IV_DIM;   }
+    else if (strncmp(p, "aug",  3) == 0)  { out->quality = "aug";   out->intervals = IV_AUG;   }
+    else if (*p == 'm')                   { out->quality = "minor"; out->intervals = IV_MINOR; }
+    else                                  { out->quality = "major"; out->intervals = IV_MAJOR; }
+
+    out->root_pc = rpc;
+    out->interval_count = 4;
+    return 0;
+}
+
+/* Register presets — base MIDI numbers are the floor the root snaps to. */
+static int mt_register_base_midi(const char *reg)
+{
+    if (!reg) return 57;
+    if (strcmp(reg, "bass") == 0) return 36; /* C2  — sub bass */
+    if (strcmp(reg, "stab") == 0) return 57; /* A3  — French house chord stab */
+    if (strcmp(reg, "arp")  == 0) return 69; /* A4  — middle arpeggio */
+    if (strcmp(reg, "high") == 0) return 81; /* A5  — top-line sparkle */
+    return 57;
+}
+
+/* Place chord tones at a register. Bass register returns just the root.
+ * Stab/arp/high return all four tones rising from the root. Returns count. */
+static int mt_chord_tones_at_register(const MtChord *c, const char *reg,
+                                      int *midis, int max_tones)
+{
+    int base = mt_register_base_midi(reg);
+    int root = c->root_pc;
+    while (root < base)        root += 12;
+    while (root >= base + 12)  root -= 12;
+
+    if (reg && strcmp(reg, "bass") == 0) {
+        if (max_tones < 1) return 0;
+        midis[0] = root;
+        return 1;
+    }
+    int n = c->interval_count;
+    if (n > max_tones) n = max_tones;
+    for (int i = 0; i < n; i++) midis[i] = root + c->intervals[i];
+    return n;
+}
+
+/* Concatenate tone tokens into a one-bar arpeggio of `steps_per_bar` 16th-
+ * note positions (or whatever the song's L:). Tones cycle. */
+static void mt_build_arpeggio_bar(const int *midis, int tone_count,
+                                  int steps_per_bar, char *out, size_t out_sz)
+{
+    if (tone_count <= 0 || steps_per_bar <= 0) { out[0] = '\0'; return; }
+    size_t pos = 0;
+    for (int i = 0; i < steps_per_bar; i++) {
+        char tok[16];
+        mt_midi_to_abc_token(midis[i % tone_count], tok, sizeof(tok));
+        size_t tlen = strlen(tok);
+        if (i > 0) {
+            if (pos + 1 >= out_sz) break;
+            out[pos++] = ' ';
+        }
+        if (pos + tlen >= out_sz) break;
+        memcpy(out + pos, tok, tlen);
+        pos += tlen;
+    }
+    out[pos] = '\0';
+}
+
+/* ============================================================
  *   Schema builder helpers
  * ============================================================ */
 
@@ -199,9 +399,43 @@ static void handle_tools_list(yyjson_val *id)
 
     t = add_tool_def(doc, tools, "memdeck_validate_abc",
         "Validate an ABC text blob (passed as a string, no disk write). "
-        "Returns {ok, voice_count?, pattern_count?, arrangement_length?, "
-        "error?}. Use this in a tight write-validate loop while drafting.");
+        "On success returns {ok, title, bpm, voice_count, pattern_count, "
+        "arrangement_length, fx_bus_count, expected_steps, voices:[{name, "
+        "instrument_ref, fx_bus, note_count, expected_steps, aligned, "
+        "delta_steps}]}. The per-voice block catches the common bug where "
+        "a voice has fewer bars than the arrangement requires (engine "
+        "silently truncates) — check 'aligned' on every voice. Use in a "
+        "tight write-validate loop while drafting.");
     add_prop(doc, t, "content", "string", "Raw ABC source text.", 1);
+
+    t = add_tool_def(doc, tools, "memdeck_pitch_resolve",
+        "Resolve ABC pitch tokens (e.g. 'A,,', 'c\\'', '^F') to MIDI "
+        "number, Hz, scientific name (A4, C#5), and octave. Pass either "
+        "a single 'token' or an array 'tokens'. Use to sanity-check "
+        "register before writing a bass/arp line — A,, is A2 (MIDI 45), "
+        "A is A4 (MIDI 69), a is A5 (MIDI 81). Pure math, no engine load.");
+    add_prop(doc, t, "token", "string",
+             "Single ABC pitch token, no duration suffix (e.g. 'A,,').", 0);
+    add_prop(doc, t, "tokens", "array",
+             "Array of pitch tokens; resolved as a batch.", 0);
+
+    t = add_tool_def(doc, tools, "memdeck_chord_tones",
+        "Spell a chord at a chosen register and return ready-to-paste ABC. "
+        "Input: chord name like 'Am', 'F', 'C', 'G7', 'Dm', 'F#m', 'Bb', "
+        "'Csus4', 'Bdim'. Output: tones as ABC tokens + MIDI + Hz, and a "
+        "one-bar arpeggio string sized to 'steps_per_bar' (cycles the "
+        "chord tones). Eliminates the mechanical work of writing chord "
+        "stabs/arps in the right octave.");
+    add_prop(doc, t, "chord", "string",
+             "Chord symbol: '<root>[#|b][m|m7|7|maj7|sus4|dim|aug]'. "
+             "Examples: 'Am', 'F', 'C', 'G7', 'Bb', 'F#m', 'Csus4', 'Bdim'.", 1);
+    add_prop(doc, t, "register", "string",
+             "'bass' (root only, MIDI 36+), 'stab' (mid French-house "
+             "chord, MIDI 57+), 'arp' (MIDI 69+), 'high' (MIDI 81+). "
+             "Default: 'stab'.", 0);
+    add_prop(doc, t, "steps_per_bar", "integer",
+             "Length in default-note steps for the arpeggio string. "
+             "Use 16 for L:1/16 in 4/4, 8 for L:1/8 in 4/4. Default: 16.", 0);
 
     t = add_tool_def(doc, tools, "memdeck_list_demos",
         "List all showcase demos in data/music/ with their parsed titles. "
@@ -441,6 +675,40 @@ static void tool_validate_abc(yyjson_val *id, yyjson_val *args)
         yyjson_mut_obj_add_int(doc, root, "arrangement_length", music.arrangement_length);
         yyjson_mut_obj_add_int(doc, root, "fx_bus_count", music.fx_bus_count);
         yyjson_mut_obj_add_int(doc, root, "bpm", music.bpm);
+
+        /* Compute expected step count from arrangement × pattern lengths. */
+        int expected_steps = 0;
+        for (int i = 0; i < music.arrangement_length; i++) {
+            for (int j = 0; j < music.pattern_count; j++) {
+                if (strcmp(music.patterns[j].name, music.arrangement[i]) == 0) {
+                    expected_steps += music.patterns[j].length;
+                    break;
+                }
+            }
+        }
+        yyjson_mut_obj_add_int(doc, root, "expected_steps", expected_steps);
+
+        /* Per-voice alignment block — catches silently truncated voices. */
+        int any_misaligned = 0;
+        yyjson_mut_val *voices = yyjson_mut_arr(doc);
+        for (int i = 0; i < music.voice_count; i++) {
+            const AbcVoice *v = &music.voices[i];
+            int delta = v->note_count - expected_steps;
+            int aligned = (delta == 0);
+            if (!aligned) any_misaligned = 1;
+            yyjson_mut_val *o = yyjson_mut_obj(doc);
+            yyjson_mut_obj_add_str(doc, o, "name", v->name);
+            yyjson_mut_obj_add_str(doc, o, "instrument_ref", v->instrument_ref);
+            yyjson_mut_obj_add_int(doc, o, "fx_bus", v->fx_bus);
+            yyjson_mut_obj_add_int(doc, o, "note_count", v->note_count);
+            yyjson_mut_obj_add_int(doc, o, "expected_steps", expected_steps);
+            yyjson_mut_obj_add_bool(doc, o, "aligned", aligned ? true : false);
+            yyjson_mut_obj_add_int(doc, o, "delta_steps", delta);
+            yyjson_mut_arr_append(voices, o);
+        }
+        yyjson_mut_obj_add_val(doc, root, "voices", voices);
+        yyjson_mut_obj_add_bool(doc, root, "all_voices_aligned",
+                                any_misaligned ? false : true);
     } else {
         yyjson_mut_obj_add_str(doc, root, "error",
                                "abc_load returned non-zero; "
@@ -679,6 +947,130 @@ static void tool_duration_calc(yyjson_val *id, yyjson_val *args)
 }
 
 /* ============================================================
+ *   tool: memdeck_pitch_resolve
+ * ============================================================ */
+
+static void resolve_one_pitch(yyjson_mut_doc *doc, yyjson_mut_val *arr,
+                              const char *tok)
+{
+    yyjson_mut_val *o = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_strcpy(doc, o, "token", tok ? tok : "");
+    int midi = 0;
+    if (tok && mt_token_to_midi(tok, &midi) == 0) {
+        char sci[16];
+        mt_midi_to_scientific(midi, sci, sizeof(sci));
+        int pc = ((midi % 12) + 12) % 12;
+        int oct = (midi - pc) / 12 - 1;
+        yyjson_mut_obj_add_bool(doc, o, "ok", true);
+        yyjson_mut_obj_add_int(doc, o, "midi", midi);
+        yyjson_mut_obj_add_real(doc, o, "hz", mt_midi_to_hz(midi));
+        yyjson_mut_obj_add_strcpy(doc, o, "scientific", sci);
+        yyjson_mut_obj_add_int(doc, o, "octave", oct);
+    } else {
+        yyjson_mut_obj_add_bool(doc, o, "ok", false);
+        yyjson_mut_obj_add_str(doc, o, "error",
+                               "could not parse as an ABC pitch token");
+    }
+    yyjson_mut_arr_append(arr, o);
+}
+
+static void tool_pitch_resolve(yyjson_val *id, yyjson_val *args)
+{
+    yyjson_val *single = yyjson_obj_get(args, "token");
+    yyjson_val *batch  = yyjson_obj_get(args, "tokens");
+    if (!single && !batch) {
+        write_jsonrpc_error(id, ERR_PARAMS,
+                            "provide either 'token' (string) or 'tokens' (array)");
+        return;
+    }
+
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    yyjson_mut_val *root = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_bool(doc, root, "ok", true);
+    yyjson_mut_val *resolved = yyjson_mut_arr(doc);
+
+    if (single && yyjson_is_str(single)) {
+        resolve_one_pitch(doc, resolved, yyjson_get_str(single));
+    }
+    if (batch && yyjson_is_arr(batch)) {
+        size_t idx, max;
+        yyjson_val *item;
+        yyjson_arr_foreach(batch, idx, max, item) {
+            if (yyjson_is_str(item)) resolve_one_pitch(doc, resolved, yyjson_get_str(item));
+        }
+    }
+    yyjson_mut_obj_add_val(doc, root, "resolved", resolved);
+    send_tool_payload(id, doc, root, 0);
+}
+
+/* ============================================================
+ *   tool: memdeck_chord_tones
+ * ============================================================ */
+
+static void tool_chord_tones(yyjson_val *id, yyjson_val *args)
+{
+    const char *chord_str = yyjson_get_str(yyjson_obj_get(args, "chord"));
+    if (!chord_str || !*chord_str) {
+        write_jsonrpc_error(id, ERR_PARAMS, "missing 'chord' argument");
+        return;
+    }
+    const char *reg = yyjson_get_str(yyjson_obj_get(args, "register"));
+    if (!reg) reg = "stab";
+
+    int steps_per_bar = 16;
+    yyjson_val *spb = yyjson_obj_get(args, "steps_per_bar");
+    if (spb && yyjson_is_int(spb)) {
+        int v = (int)yyjson_get_int(spb);
+        if (v > 0 && v <= 64) steps_per_bar = v;
+    }
+
+    MtChord c;
+    if (mt_parse_chord(chord_str, &c) != 0) {
+        send_tool_text_error(id,
+            "could not parse chord; use '<root>[#|b][m|m7|7|maj7|sus4|dim|aug]' "
+            "e.g. 'Am', 'F#m', 'Bb', 'G7', 'Csus4'");
+        return;
+    }
+
+    int midis[8] = {0};
+    int count = mt_chord_tones_at_register(&c, reg, midis, 8);
+
+    char arp[256];
+    mt_build_arpeggio_bar(midis, count, steps_per_bar, arp, sizeof(arp));
+
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    yyjson_mut_val *root = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_bool(doc, root, "ok", true);
+    yyjson_mut_obj_add_str(doc, root, "chord", chord_str);
+    yyjson_mut_obj_add_str(doc, root, "quality", c.quality);
+    yyjson_mut_obj_add_str(doc, root, "register", reg);
+    yyjson_mut_obj_add_int(doc, root, "steps_per_bar", steps_per_bar);
+
+    char root_tok[16], root_sci[16];
+    mt_midi_to_abc_token(midis[0], root_tok, sizeof(root_tok));
+    mt_midi_to_scientific(midis[0], root_sci, sizeof(root_sci));
+    yyjson_mut_obj_add_strcpy(doc, root, "root_abc", root_tok);
+    yyjson_mut_obj_add_strcpy(doc, root, "root_scientific", root_sci);
+
+    yyjson_mut_val *tones = yyjson_mut_arr(doc);
+    for (int i = 0; i < count; i++) {
+        char tok[16], sci[16];
+        mt_midi_to_abc_token(midis[i], tok, sizeof(tok));
+        mt_midi_to_scientific(midis[i], sci, sizeof(sci));
+        yyjson_mut_val *t = yyjson_mut_obj(doc);
+        yyjson_mut_obj_add_strcpy(doc, t, "abc", tok);
+        yyjson_mut_obj_add_int(doc, t, "midi", midis[i]);
+        yyjson_mut_obj_add_real(doc, t, "hz", mt_midi_to_hz(midis[i]));
+        yyjson_mut_obj_add_strcpy(doc, t, "scientific", sci);
+        yyjson_mut_arr_append(tones, t);
+    }
+    yyjson_mut_obj_add_val(doc, root, "tones", tones);
+    yyjson_mut_obj_add_strcpy(doc, root, "arpeggio_one_bar", arp);
+
+    send_tool_payload(id, doc, root, 0);
+}
+
+/* ============================================================
  *   tool: memdeck_engine_caps
  * ============================================================ */
 
@@ -726,13 +1118,15 @@ static void handle_tools_call(yyjson_val *id, yyjson_val *params)
     }
     const char *n = yyjson_get_str(name);
 
-    if (strcmp(n, "memdeck_inspect_abc") == 0)      tool_inspect_abc(id, args);
-    else if (strcmp(n, "memdeck_render_stats") == 0) tool_render_stats(id, args);
-    else if (strcmp(n, "memdeck_validate_abc") == 0) tool_validate_abc(id, args);
-    else if (strcmp(n, "memdeck_list_demos") == 0)   tool_list_demos(id, args);
+    if (strcmp(n, "memdeck_inspect_abc") == 0)         tool_inspect_abc(id, args);
+    else if (strcmp(n, "memdeck_render_stats") == 0)   tool_render_stats(id, args);
+    else if (strcmp(n, "memdeck_validate_abc") == 0)   tool_validate_abc(id, args);
+    else if (strcmp(n, "memdeck_pitch_resolve") == 0)  tool_pitch_resolve(id, args);
+    else if (strcmp(n, "memdeck_chord_tones") == 0)    tool_chord_tones(id, args);
+    else if (strcmp(n, "memdeck_list_demos") == 0)     tool_list_demos(id, args);
     else if (strcmp(n, "memdeck_directive_help") == 0) tool_directive_help(id, args);
-    else if (strcmp(n, "memdeck_duration_calc") == 0) tool_duration_calc(id, args);
-    else if (strcmp(n, "memdeck_engine_caps") == 0)  tool_engine_caps(id, args);
+    else if (strcmp(n, "memdeck_duration_calc") == 0)  tool_duration_calc(id, args);
+    else if (strcmp(n, "memdeck_engine_caps") == 0)    tool_engine_caps(id, args);
     else {
         char msg[128];
         snprintf(msg, sizeof(msg), "unknown tool: %s", n);
