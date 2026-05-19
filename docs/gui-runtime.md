@@ -34,6 +34,10 @@ flowchart LR
 7. `Space` writes rendered PCM to a temporary WAV and delegates playback to the platform audio command.
 8. The frame loop polls playback to update cursor position and stop/error state.
 
+## Related ADRs
+
+- `docs/adr-0001-gui-direct-audio-playback.md`
+
 ## Visible runtime states
 
 The status line always exposes:
