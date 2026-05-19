@@ -14,3 +14,5 @@ bin/bench-audio
 bin/play-demo
 bin/render-demos
 bin/wav/
+bin/test-audio-seq
+bin/test-abc
