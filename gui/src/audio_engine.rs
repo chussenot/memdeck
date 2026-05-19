@@ -3,19 +3,31 @@ use std::sync::Arc;
 
 use crate::ffi;
 
-const SHOWCASE_DEMOS: [&str; 11] = [
-    "dark_moroder",
-    "neon_nightdrive",
-    "metro_chase",
-    "black_sunrise",
-    "machine_romance",
-    "hypersleep_dream",
-    "perturbator_loop",
-    "carpenter_drive",
-    "advanced_dsl_demo",
-    "multi_fx_demo",
-    "aurora_halo",
-];
+// Showcase demos are discovered at runtime from data/music/*.abc.
+// Files whose stem starts with "menu" are skipped (those are UI sound effects,
+// not showcase songs).
+fn scan_showcase_demos(root: &Path) -> Vec<String> {
+    let dir = root.join("data").join("music");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let mut keys: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("abc") {
+                return None;
+            }
+            let stem = path.file_stem()?.to_str()?.to_string();
+            if stem.starts_with("menu") {
+                return None;
+            }
+            Some(stem)
+        })
+        .collect();
+    keys.sort();
+    keys
+}
 
 #[derive(Clone, Debug)]
 pub struct PatternBlock {
@@ -106,20 +118,19 @@ impl GuiAudioEngine {
 
     pub fn demo_catalog(&self) -> Vec<DemoEntry> {
         let root = repository_root();
-
-        SHOWCASE_DEMOS
+        scan_showcase_demos(&root)
             .into_iter()
             .map(|name| {
                 let path = root.join("data").join("music").join(format!("{name}.abc"));
                 match ffi::load_demo_overview(&path) {
                     Ok(overview) => DemoEntry {
-                        key: name.to_string(),
+                        key: name,
                         path,
                         overview: Some(overview),
                         error: None,
                     },
                     Err(error) => DemoEntry {
-                        key: name.to_string(),
+                        key: name,
                         path,
                         overview: None,
                         error: Some(error),
