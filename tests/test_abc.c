@@ -172,8 +172,8 @@ static void test_showcase_demo_regression(void)
         int max_clipping;
     } DemoExpectation;
     static const DemoExpectation demos[] = {
-        { "data/music/dark_moroder.abc", 341419, 0x51c34a9304aa4556ull, 5000 },
-        { "data/music/perturbator_loop.abc", 298140, 0xf93821e474e9e321ull, 9000 },
+        { "data/music/dark_moroder.abc", 341419, 0x40af1554d4910cccull, 5000 },
+        { "data/music/perturbator_loop.abc", 298140, 0xeb0b71f268df0b62ull, 9000 },
         { "data/music/carpenter_drive.abc", 407076, 0xaab706f01eaac6eaull, 6000 },
         { "data/music/advanced_dsl_demo.abc", 330750, 0x7bf8a698c875695dull, 2000 },
         { "data/music/multi_fx_demo.abc", 315940, 0x694dd56014426abfull, 2000 },

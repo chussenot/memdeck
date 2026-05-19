@@ -12,7 +12,7 @@ K:Fm
 %%instrument arp wave=pulse amp=42 duty=22 attack=4 decay=40 sustain=56 release=80 gate=58 vibrato=5 fx=1
 %%instrument lead wave=triangle amp=48 attack=70 decay=140 sustain=70 release=240 gate=92 vibrato=8 glide=18 fx=1
 %%effect 0 delay_steps=2 delay_feedback=18 delay_mix=10 drive=34 lowpass=38 sidechain=46 sidechain_release=220 mix=98
-%%effect 1 delay_steps=6 delay_feedback=52 delay_mix=42 drive=14 lowpass=62 sidechain=22 sidechain_release=300 mix=76
+%%effect 1 delay_steps=6 delay_feedback=52 delay_mix=42 drive=14 lowpass=62 sidechain=22 sidechain_release=300 mix=76 ladder=42 ladder_cutoff=66 ladder_resonance=32
 %%pattern A length=64
 %%pattern B length=64
 %%pattern C length=64
