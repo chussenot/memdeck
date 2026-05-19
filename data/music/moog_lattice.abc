@@ -1,0 +1,289 @@
+X:1
+T:Moog Lattice - Ladder Showcase
+C:MemDeck
+M:4/4
+L:1/8
+Q:1/4=100
+K:Cm
+%%swing 50
+%%instrument kick wave=noise amp=58 attack=0 decay=10 sustain=6 release=14 gate=26 fx=0
+%%instrument hats wave=noise amp=36 attack=0 decay=5 sustain=8 release=8 gate=20 fx=0
+%%instrument bass wave=pulse amp=82 duty=28 attack=2 decay=46 sustain=72 release=110 gate=78 fx=3
+%%instrument arp wave=pulse amp=46 duty=22 attack=2 decay=30 sustain=58 release=90 gate=62 vibrato=5 fx=1
+%%instrument lead wave=pulse amp=52 duty=18 attack=10 decay=180 sustain=78 release=320 gate=94 vibrato=10 glide=22 fx=2
+%%effect 0 delay_steps=1 delay_feedback=14 delay_mix=6 drive=18 lowpass=14 sidechain=34 sidechain_release=170 mix=100
+%%effect 1 delay_steps=4 delay_feedback=42 delay_mix=32 drive=12 lowpass=20 sidechain=24 sidechain_release=230 mix=82 ladder=58 ladder_cutoff=55 ladder_resonance=46
+%%effect 2 delay_steps=6 delay_feedback=48 delay_mix=40 drive=18 lowpass=10 sidechain=18 sidechain_release=280 mix=80 ladder=72 ladder_cutoff=40 ladder_resonance=72
+%%effect 3 delay_steps=2 delay_feedback=22 delay_mix=10 drive=22 lowpass=18 sidechain=20 sidechain_release=180 mix=92 ladder=78 ladder_cutoff=32 ladder_resonance=70
+%%pattern A length=64
+%%pattern B length=64
+%%pattern C length=64
+%%pattern D length=64
+%%pattern E length=64
+%%pattern F length=64
+%%pattern G length=64
+%%pattern H length=64
+%%pattern I length=64
+%%pattern J length=64
+%%pattern K length=64
+%%pattern L length=64
+%%pattern M length=64
+%%pattern N length=64
+%%pattern O length=64
+%%pattern P length=64
+%%arrangement A B C D E F G H I J K L M N O P
+V:kick instrument=kick
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:lead instrument=lead
+%
+% Form: ladder-driven instrumental. Four FX buses with distinct ladder
+% personalities; voices routed to walk a viewer from dark quacky bass
+% (bus 3) through mid-sweep arp (bus 1) to high-Q squealing lead (bus 2).
+% Chord cycle per 8-bar pattern (2 bars each): Cm - Ab - Eb - G
+V:kick
+% A intro (bass alone, no kick)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c4 z4 |
+% B kick joins (1 and 3)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% C arp enters; kick four-on-floor
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% D lead enters; full ensemble
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% E full ensemble continuing
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% F bass solo break (kick drops)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G lead solo break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% H arp solo break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I build back
+| c4 z4 | c4 z4 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% J full peak
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% K bass-only break (kick drops again)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% L arp + lead duet (no drums)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% M full peak return
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% N extreme resonance hits
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% O outro thin out
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c4 z4 | c4 z4 | z8 | z8 |
+% P decay (bass-only finale)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:hats
+% A intro
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B kick joins (no hats yet)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C arp enters; hats 8ths begin
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% D full ensemble
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% E full ensemble continuing
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% F bass solo break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G lead solo break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% H arp solo break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I build back
+| z8 | z8 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% J full peak
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% K bass-only break
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% L arp + lead duet
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% M full peak return
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% N extreme resonance
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% O outro thin out
+| c c c c c c c c | c c c c c c c c | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z8 | z8 |
+% P decay
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:bass
+% A intro (bass alone, pumping acid 8ths across the chord cycle)
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% B kick joins
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% C arp enters
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% D lead enters
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% E full ensemble continuing
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% F bass solo break (bass keeps the same line; ladder character on full display)
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% G lead solo break (bass silent — lead alone with ladder)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% H arp solo break (bass silent — arp alone with ladder)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I build back
+| C,,8 | C,,8 | A,,8 | A,,8 |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% J full peak
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% K bass-only break (bass shows off again)
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% L arp + lead duet (bass silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% M full peak return
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% N extreme resonance hits
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | A,, A,, E,, A,, A,, a,, E,, A,, | A,, A,, E,, A,, A,, a,, E,, A,, |
+| E,, E,, B,, E,, E,, e,, B,, E,, | E,, E,, B,, E,, E,, e,, B,, E,, | G,, G,, D,, G,, G,, g,, D,, G,, | G,, G,, D,, G,, G,, g,, D,, G,, |
+% O outro thin out
+| C,, C,, G,, C,, C,, c,, G,, C,, | C,, C,, G,, C,, C,, c,, G,, C,, | C,,2 C,,2 C,,2 C,,2 | C,,2 C,,2 C,,2 C,,2 |
+| C,,4 z4 | C,,4 z4 | C,,4 z4 | C,,4 z4 |
+% P decay (bass-only finale, slow root pulses)
+| C,,8 | C,,8 | C,,8 | C,,8 |
+| C,,4 z4 | z8 | C,,4 z4 | z8 |
+V:arp
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B (silent, waiting)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C arp enters with chord stabs (medium-Q ladder)
+| C2 z2 C2 z2 | C2 z2 C2 z2 | A2 z2 A2 z2 | A2 z2 A2 z2 |
+| E2 z2 E2 z2 | E2 z2 E2 z2 | G2 z2 G2 z2 | G2 z2 G2 z2 |
+% D arp continues (quarter stabs)
+| C2 G2 C2 G2 | C2 G2 C2 G2 | A2 E2 A2 E2 | A2 E2 A2 E2 |
+| E2 B2 E2 B2 | E2 B2 E2 B2 | G2 D2 G2 D2 | G2 D2 G2 D2 |
+% E full ensemble — running arpeggio
+| C E G C E G C E | C E G C E G C E | A c E A c E A c | A c E A c E A c |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% F bass solo (arp silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G lead solo (arp silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% H arp solo — arp at full ladder character
+| C E G C E G C E | C E G C E G C E | A c E A c E A c | A c E A c E A c |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% I build back
+| C2 z2 C2 z2 | C2 z2 C2 z2 | A2 z2 A2 z2 | A2 z2 A2 z2 |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% J full peak
+| C E G C E G C E | C E G C E G C E | A c E A c E A c | A c E A c E A c |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% K bass-only (arp silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% L arp + lead duet — arp continues
+| C E G C E G C E | C E G C E G C E | A c E A c E A c | A c E A c E A c |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% M full peak return
+| C E G C E G C E | C E G C E G C E | A c E A c E A c | A c E A c E A c |
+| E G B E G B E G | E G B E G B E G | G B d G B d G B | G B d G B d G B |
+% N extreme — arp tight 8ths near self-oscillation
+| C E G c C E G c | C E G c C E G c | A c E a A c E a | A c E a A c E a |
+| E G B e E G B e | E G B e E G B e | G B d g G B d g | G B d g G B d g |
+% O outro
+| C E G C E G C E | C E G C E G C E | C2 E2 G2 z2 | C2 E2 G2 z2 |
+| C4 z4 | z8 | z8 | z8 |
+% P decay (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:lead
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C (silent — arp first)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% D lead enters with long held notes (high-Q resonance rings)
+| g8 | g8 | a8 | a8 |
+| b8 | b8 | d'8 | d'8 |
+% E full ensemble — lead melody (sustained tones)
+| c'4 g4 | c'4 g4 | a4 e'4 | a4 e'4 |
+| b4 f'4 | b4 f'4 | d'4 g'4 | d'4 g'4 |
+% F bass solo (lead silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G lead solo — extreme high-Q showcase, sustained notes
+| g'8 | g'8 | f'8 | f'8 |
+| e'8 | e'8 | d'8 | d'8 |
+% H arp solo (lead silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I build back — lead returns sustained
+| z8 | z8 | g'8 | g'8 |
+| c'4 b4 | c'4 b4 | b4 d'4 | b4 d'4 |
+% J full peak — lead melody
+| c'4 g4 | c'4 g4 | a4 e'4 | a4 e'4 |
+| b4 f'4 | b4 f'4 | d'4 g'4 | d'4 g'4 |
+% K bass-only (lead silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% L arp + lead duet — lead sustains over arp
+| c'8 | c'8 | a8 | a8 |
+| b8 | b8 | d'8 | d'8 |
+% M full peak return
+| c'4 g4 | c'4 g4 | a4 e'4 | a4 e'4 |
+| b4 f'4 | b4 f'4 | d'4 g'4 | d'4 g'4 |
+% N extreme — lead screams at top of range
+| g'2 g'2 g'2 g'2 | g'2 g'2 g'2 g'2 | a'2 a'2 a'2 a'2 | a'2 a'2 a'2 a'2 |
+| b'2 b'2 b'2 b'2 | b'2 b'2 b'2 b'2 | d''4 g'4 | d''4 g'4 |
+% O outro (held final note that rings out)
+| c'8 | c'8 | c'4 z4 | c'4 z4 |
+| z8 | z8 | z8 | z8 |
+% P decay (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |

@@ -46,7 +46,8 @@ int main(void)
         "data/music/aurora_halo.abc",
         "data/music/glass_anthem.abc",
         "data/music/pixie_dust.abc",
-        "data/music/surrender_loop.abc"
+        "data/music/surrender_loop.abc",
+        "data/music/moog_lattice.abc"
     };
     int failures = 0;
 

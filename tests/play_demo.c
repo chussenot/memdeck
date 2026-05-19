@@ -25,7 +25,8 @@ static const DemoEntry kDemos[] = {
     { "aurora_halo", "data/music/aurora_halo.abc" },
     { "glass_anthem", "data/music/glass_anthem.abc" },
     { "pixie_dust", "data/music/pixie_dust.abc" },
-    { "surrender_loop", "data/music/surrender_loop.abc" }
+    { "surrender_loop", "data/music/surrender_loop.abc" },
+    { "moog_lattice", "data/music/moog_lattice.abc" }
 };
 
 static void write_u16_le(FILE *f, uint16_t v)
