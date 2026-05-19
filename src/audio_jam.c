@@ -1,7 +1,11 @@
 #include "audio_jam.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+
+#include "memdeck.h"
+#include "audio_engine.h"
 
 /* xorshift64* — fine for musical variation; cheap, deterministic. */
 static uint64_t xs64_next(uint64_t *s)
@@ -166,4 +170,72 @@ void audio_jam_vary_song(SeqSong *song, JamState *jam)
 
     if (audio_jam_rand_range(jam, 0, 100) < 30)
         mute_voice_in_pattern(song, jam);
+}
+
+/* ------------ session handle ------------ */
+
+struct AudioJamSession {
+    AbcMusic music;
+    SeqSong base;
+    JamState state;
+    int slots_per_section;
+};
+
+AudioJamSession *audio_jam_session_open(const char *abc_path, uint64_t seed,
+                                        double section_seconds)
+{
+    if (!abc_path) return NULL;
+    AudioJamSession *s = calloc(1, sizeof(*s));
+    if (!s) return NULL;
+    if (abc_load(abc_path, &s->music) != 0) {
+        free(s);
+        return NULL;
+    }
+    if (abc_build_seq_song(&s->music, &s->base) != 0) {
+        free(s);
+        return NULL;
+    }
+    if (s->base.arrangement_length <= 0) {
+        free(s);
+        return NULL;
+    }
+    audio_jam_init(&s->state, seed);
+    s->slots_per_section = audio_jam_slots_for_section(&s->base, section_seconds);
+    if (s->slots_per_section < 1) s->slots_per_section = 1;
+    return s;
+}
+
+unsigned char *audio_jam_session_render_next(AudioJamSession *s,
+                                             int sample_rate, int *out_pcm_len)
+{
+    if (!s || !out_pcm_len) return NULL;
+    SeqSong working;
+    audio_jam_slice_song(&working, &s->base, s->state.arrangement_offset,
+                         s->slots_per_section);
+    audio_jam_vary_song(&working, &s->state);
+    AudioRenderStats stats;
+    unsigned char *pcm = audio_engine_render_song(&working, sample_rate,
+                                                  out_pcm_len, &stats);
+    s->state.arrangement_offset += s->slots_per_section;
+    return pcm;
+}
+
+int audio_jam_session_iteration(const AudioJamSession *s)
+{
+    return s ? s->state.iteration : 0;
+}
+
+int audio_jam_session_arrangement_offset(const AudioJamSession *s)
+{
+    return s ? s->state.arrangement_offset : 0;
+}
+
+int audio_jam_session_slots_per_section(const AudioJamSession *s)
+{
+    return s ? s->slots_per_section : 0;
+}
+
+void audio_jam_session_close(AudioJamSession *s)
+{
+    free(s);
 }

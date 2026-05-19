@@ -206,6 +206,34 @@ mod tests {
     }
 
     #[test]
+    fn jam_session_renders_distinct_sections() {
+        use crate::ffi::JamSession;
+
+        let engine = GuiAudioEngine::new();
+        let demo = engine
+            .demo_catalog()
+            .into_iter()
+            .find(|entry| entry.key == "dark_moroder" && entry.overview.is_some())
+            .expect("dark_moroder demo should be available");
+
+        let mut session =
+            JamSession::open(&demo.path, 0xC0FFEE, 12.0).expect("jam session should open");
+        let first = session.render_next().expect("first section should render");
+        let second = session
+            .render_next()
+            .expect("second section should render");
+
+        assert!(!first.samples.is_empty(), "first section must produce PCM");
+        assert!(!second.samples.is_empty(), "second section must produce PCM");
+        assert_eq!(first.iteration, 1, "iteration starts at 1");
+        assert_eq!(second.iteration, 2, "iteration advances per section");
+        assert_ne!(
+            first.arrangement_offset, second.arrangement_offset,
+            "scroll head must advance between sections"
+        );
+    }
+
+    #[test]
     fn repeated_render_does_not_crash() {
         let engine = GuiAudioEngine::new();
         let demo = engine

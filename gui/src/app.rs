@@ -159,6 +159,18 @@ pub struct MemDeckGuiApp {
     renaming_pattern: bool,
     pattern_rename_buffer: String,
     step_clipboard: Option<editor::EditableStep>,
+    jam: Option<JamRuntime>,
+}
+
+/// Active "infinite continuation" session. Holds the C-side jam state plus
+/// counters for the status bar. When the current PCM section finishes,
+/// `poll_playback` asks the session for the next one and restarts cpal.
+pub struct JamRuntime {
+    pub session: ffi::JamSession,
+    pub demo_key: String,
+    pub seed: u64,
+    pub sections_played: u32,
+    pub current_section_iteration: u32,
 }
 
 impl Default for MemDeckGuiApp {
@@ -209,6 +221,7 @@ impl Default for MemDeckGuiApp {
             renaming_pattern: false,
             pattern_rename_buffer: String::new(),
             step_clipboard: None,
+            jam: None,
         }
     }
 }
@@ -1628,6 +1641,11 @@ impl MemDeckGuiApp {
     }
 
     fn stop_playback(&mut self, update_status: bool) {
+        // If a jam is running, tearing down playback also ends the jam.
+        if self.jam.is_some() {
+            self.stop_jam(update_status);
+            return;
+        }
         match self.playback.stop() {
             Ok(true) if update_status => self.set_status(StatusTone::Normal, "PLAYBACK STOPPED."),
             Ok(_) => {}
@@ -1639,16 +1657,141 @@ impl MemDeckGuiApp {
     }
 
     fn poll_playback(&mut self) {
-        if let Some(result) = self.playback.poll() {
-            // Park the playhead at the end so users see where playback ran out;
-            // toggle_playback rewinds to 0 the next time Space is pressed.
-            self.runtime.playhead_position = 1.0;
-            self.runtime.waveform_drag_preview = None;
-            match result {
-                Ok(()) => self.set_status(StatusTone::Normal, "PLAYBACK FINISHED."),
-                Err(error) => {
-                    self.set_status(StatusTone::Warning, format!("PLAYBACK ERROR • {error}"))
+        let Some(result) = self.playback.poll() else { return };
+        // When jam mode is active and playback finished cleanly, chain the
+        // next section instead of parking the playhead.
+        if matches!(result, Ok(())) && self.jam.is_some() {
+            self.advance_jam_section();
+            return;
+        }
+        // Park the playhead at the end so users see where playback ran out;
+        // toggle_playback rewinds to 0 the next time Space is pressed.
+        self.runtime.playhead_position = 1.0;
+        self.runtime.waveform_drag_preview = None;
+        // If jam was active but errored, surface the error and tear it down.
+        if self.jam.is_some() {
+            self.jam = None;
+        }
+        match result {
+            Ok(()) => self.set_status(StatusTone::Normal, "PLAYBACK FINISHED."),
+            Err(error) => {
+                self.set_status(StatusTone::Warning, format!("PLAYBACK ERROR • {error}"))
+            }
+        }
+    }
+
+    fn start_jam_for_selected(&mut self) {
+        if self.jam.is_some() {
+            self.set_status(StatusTone::Normal, "JAM ALREADY RUNNING • PRESS ESC TO STOP");
+            return;
+        }
+        let demo = self.selected_demo();
+        let demo_key = demo.key.clone();
+        let path = demo.path.clone();
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0xCAFEBABE_12345678);
+        const JAM_SECTION_SECONDS: f64 = 30.0;
+
+        let mut session = match ffi::JamSession::open(&path, seed, JAM_SECTION_SECONDS) {
+            Ok(s) => s,
+            Err(error) => {
+                self.set_status(StatusTone::Warning, format!("JAM OPEN FAILED • {error}"));
+                return;
+            }
+        };
+        let section = match session.render_next() {
+            Ok(s) => s,
+            Err(error) => {
+                self.set_status(StatusTone::Warning, format!("JAM RENDER FAILED • {error}"));
+                return;
+            }
+        };
+
+        match self.playback.start_pcm_at(&section.samples, 0.0) {
+            Ok(()) => {
+                self.runtime.rendered_audio = Some(RenderState {
+                    demo_key: format!("__jam__:{demo_key}"),
+                    samples: std::sync::Arc::<[u8]>::from(section.samples),
+                    stats: None,
+                });
+                self.runtime.playhead_position = 0.0;
+                self.runtime.waveform_drag_preview = None;
+                self.jam = Some(JamRuntime {
+                    session,
+                    demo_key: demo_key.clone(),
+                    seed,
+                    sections_played: 1,
+                    current_section_iteration: section.iteration,
+                });
+                self.set_status(
+                    StatusTone::Active,
+                    format!(
+                        "JAM • {} • section {} • seed {} • ESC TO STOP",
+                        demo_key.to_uppercase(),
+                        section.iteration,
+                        seed
+                    ),
+                );
+            }
+            Err(error) => {
+                self.set_status(StatusTone::Warning, format!("JAM PLAYBACK ERROR • {error}"));
+            }
+        }
+    }
+
+    fn advance_jam_section(&mut self) {
+        let Some(jam) = self.jam.as_mut() else { return };
+        let section = match jam.session.render_next() {
+            Ok(s) => s,
+            Err(error) => {
+                let msg = format!("JAM ENDED • {error}");
+                self.jam = None;
+                self.runtime.playhead_position = 1.0;
+                self.set_status(StatusTone::Warning, msg);
+                return;
+            }
+        };
+
+        let demo_key = jam.demo_key.clone();
+        let seed = jam.seed;
+        match self.playback.start_pcm_at(&section.samples, 0.0) {
+            Ok(()) => {
+                let demo_key_display = demo_key.to_uppercase();
+                self.runtime.rendered_audio = Some(RenderState {
+                    demo_key: format!("__jam__:{demo_key}"),
+                    samples: std::sync::Arc::<[u8]>::from(section.samples),
+                    stats: None,
+                });
+                self.runtime.playhead_position = 0.0;
+                self.runtime.waveform_drag_preview = None;
+                if let Some(jam) = self.jam.as_mut() {
+                    jam.sections_played = jam.sections_played.saturating_add(1);
+                    jam.current_section_iteration = section.iteration;
                 }
+                self.set_status(
+                    StatusTone::Active,
+                    format!(
+                        "JAM • {demo_key_display} • section {} • seed {} • ESC TO STOP",
+                        section.iteration, seed
+                    ),
+                );
+            }
+            Err(error) => {
+                self.jam = None;
+                self.runtime.playhead_position = 1.0;
+                self.set_status(StatusTone::Warning, format!("JAM ENDED • {error}"));
+            }
+        }
+    }
+
+    fn stop_jam(&mut self, update_status: bool) {
+        if self.jam.take().is_some() {
+            let _ = self.playback.stop();
+            self.runtime.playhead_position = 1.0;
+            if update_status {
+                self.set_status(StatusTone::Normal, "JAM STOPPED.");
             }
         }
     }
@@ -1702,6 +1845,18 @@ impl MemDeckGuiApp {
                     let _ = self.render_selected_demo();
                 } else {
                     self.render_editable_preview();
+                }
+            }
+
+            // Ctrl+J: start jam mode on the selected demo (Browser only).
+            // Esc stops it (handled via the existing stop_playback path).
+            if input.modifiers.command && input.key_pressed(egui::Key::J) {
+                if self.editor_state.mode == EditorMode::Browser {
+                    if self.jam.is_some() {
+                        self.stop_jam(true);
+                    } else {
+                        self.start_jam_for_selected();
+                    }
                 }
             }
 

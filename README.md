@@ -50,6 +50,7 @@ xvfb-run -a cargo run --manifest-path gui/Cargo.toml
 | `Ctrl+D` | Duplicate demo (Browser) or duplicate editable song (Edit/Preview) |
 | `Ctrl+S` / `Ctrl+Shift+S` | Save editable song / Save As |
 | `Ctrl+R` | Render selected demo (Browser) or editable preview (Edit/Preview) |
+| `Ctrl+J` | Start (or stop) Jam mode on the selected demo (Browser) — scrolls through the song in 30s chunks with random variation, until Esc/Space stops it |
 
 ### GUI Limitations
 

@@ -8,6 +8,7 @@ fn main() {
         "../src/audio_dsp.c",
         "../src/audio_fx.c",
         "../src/audio_song_builtin.c",
+        "../src/audio_jam.c",
         "../src/abc.c",
         "../src/card.c",
     ];
@@ -22,6 +23,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../src/audio_dsp.h");
     println!("cargo:rerun-if-changed=../src/audio_fx.h");
     println!("cargo:rerun-if-changed=../src/audio_song_builtin.h");
+    println!("cargo:rerun-if-changed=../src/audio_jam.h");
 
     let mut build = cc::Build::new();
     build

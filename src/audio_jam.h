@@ -45,4 +45,29 @@ int audio_jam_slots_for_section(const SeqSong *base, double section_seconds);
  * Increments jam->iteration. */
 void audio_jam_vary_song(SeqSong *song, JamState *jam);
 
+/* Opaque session handle: holds a parsed ABC song, its base SeqSong,
+ * the jam PRNG state, and how many arrangement slots make up one
+ * rendered section. Designed for FFI consumers (Rust GUI) that want
+ * to stream successive sections without re-parsing the file. */
+typedef struct AudioJamSession AudioJamSession;
+
+/* Parse the ABC file, build the base SeqSong, init the PRNG, and
+ * pick the section size. Returns NULL on parse/build failure or if
+ * the song has no arrangement. */
+AudioJamSession *audio_jam_session_open(const char *abc_path, uint64_t seed,
+                                        double section_seconds);
+
+/* Render the next section's PCM (caller frees via audio_engine_free_buffer).
+ * Advances the session's arrangement scroll head + iteration counter.
+ * Returns NULL on render failure. */
+unsigned char *audio_jam_session_render_next(AudioJamSession *session,
+                                             int sample_rate,
+                                             int *out_pcm_len);
+
+int audio_jam_session_iteration(const AudioJamSession *session);
+int audio_jam_session_arrangement_offset(const AudioJamSession *session);
+int audio_jam_session_slots_per_section(const AudioJamSession *session);
+
+void audio_jam_session_close(AudioJamSession *session);
+
 #endif

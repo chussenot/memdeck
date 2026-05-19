@@ -29,7 +29,9 @@ make jam              # build the infinite-continuation player (bin/memdeck-jam)
 make jam-play DEMO=name [SEED=N] [SECTION=secs]   # stream variations through aplay
 ```
 
-The jam binary scrolls through the song's arrangement in ~N-second chunks (rounded up to whole patterns) and applies four variation strategies per chunk (velocity humanization, arrangement shuffle, drum fill on last bar, voice mute). PRNG is xorshift64*, deterministic given `--seed`. Sections are SeqSong-level slice+mutate copies of an immutable base; the variation logic lives in `src/audio_jam.{c,h}` and is independent of the playback surface (the Rust GUI can drive the same primitives — see the follow-up GUI Jam mode).
+The jam binary scrolls through the song's arrangement in ~N-second chunks (rounded up to whole patterns) and applies four variation strategies per chunk (velocity humanization, arrangement shuffle, drum fill on last bar, voice mute). PRNG is xorshift64*, deterministic given `--seed`. Sections are SeqSong-level slice+mutate copies of an immutable base; the variation logic lives in `src/audio_jam.{c,h}` and is independent of the playback surface.
+
+The Rust GUI exposes the same primitives via an opaque `AudioJamSession` handle (`audio_jam_session_open/render_next/close`, mirrored as `ffi::JamSession`). **Ctrl+J** in Browser mode starts a jam on the selected demo; each finished section triggers `MemDeckGuiApp::advance_jam_section` to render and queue the next one through the existing cpal playback. Esc/Space (the existing stop path) tears down the session. State lives in `MemDeckGuiApp::jam: Option<JamRuntime>`.
 
 The Rust GUI's `build.rs` compiles `src/*.c` into the binary, so a C header change must rebuild the Rust side too. If the GUI ever shows mismatched struct data (e.g. `TRACKS 0` on a freshly-added song), the symptom is a stale C build inside `gui/target/`: `cargo clean --manifest-path gui/Cargo.toml && make gui-run`.
 

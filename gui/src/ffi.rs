@@ -186,6 +186,26 @@ unsafe extern "C" {
 
     fn audio_engine_free_buffer(buffer: *mut u8);
     fn abc_load(path: *const c_char, music: *mut AbcMusic) -> c_int;
+
+    fn audio_jam_session_open(
+        abc_path: *const c_char,
+        seed: u64,
+        section_seconds: c_double,
+    ) -> *mut AudioJamSessionRaw;
+    fn audio_jam_session_render_next(
+        session: *mut AudioJamSessionRaw,
+        sample_rate: c_int,
+        out_pcm_len: *mut c_int,
+    ) -> *mut u8;
+    fn audio_jam_session_iteration(session: *const AudioJamSessionRaw) -> c_int;
+    fn audio_jam_session_arrangement_offset(session: *const AudioJamSessionRaw) -> c_int;
+    fn audio_jam_session_slots_per_section(session: *const AudioJamSessionRaw) -> c_int;
+    fn audio_jam_session_close(session: *mut AudioJamSessionRaw);
+}
+
+#[repr(C)]
+struct AudioJamSessionRaw {
+    _private: [u8; 0],
 }
 
 static LAST_RENDER_STATS: LazyLock<Mutex<Option<AudioRenderStats>>> =
@@ -276,6 +296,92 @@ pub fn render_abc_file(path: &Path) -> Result<Vec<u8>, String> {
     }
 
     Ok(samples)
+}
+
+/// Owned handle to a C-side jam session. Each `render_next()` call produces
+/// a fresh ~N-second PCM section (varied via [`audio_jam_vary_song`] under
+/// the hood) and advances the session's scroll head. Drop closes the C
+/// session; the underlying SeqSong copy is freed there.
+pub struct JamSession {
+    raw: *mut AudioJamSessionRaw,
+}
+
+unsafe impl Send for JamSession {}
+
+pub struct JamSection {
+    pub samples: Vec<u8>,
+    pub iteration: u32,
+    #[allow(dead_code)] // exposed for future status-bar UI / debugging
+    pub arrangement_offset: i32,
+    #[allow(dead_code)]
+    pub slots_per_section: i32,
+}
+
+impl JamSession {
+    pub fn open(path: &Path, seed: u64, section_seconds: f64) -> Result<Self, String> {
+        let path_str = normalized_demo_path(path)?;
+        let c_path = CString::new(path_str.clone())
+            .map_err(|_| format!("demo path contains NUL byte: {}", path.display()))?;
+
+        let raw = catch_unwind(AssertUnwindSafe(|| unsafe {
+            audio_jam_session_open(c_path.as_ptr(), seed, section_seconds)
+        }))
+        .map_err(|_| format!("jam session open panicked for {}", path.display()))?;
+
+        if raw.is_null() {
+            return Err(format!(
+                "could not open jam session for {} (parse/build failed or empty arrangement)",
+                path.display()
+            ));
+        }
+        Ok(Self { raw })
+    }
+
+    pub fn render_next(&mut self) -> Result<JamSection, String> {
+        if self.raw.is_null() {
+            return Err("jam session is closed".to_string());
+        }
+        let mut pcm_len: c_int = 0;
+
+        let ptr = catch_unwind(AssertUnwindSafe(|| unsafe {
+            audio_jam_session_render_next(self.raw, SAMPLE_RATE_ABC, &mut pcm_len)
+        }))
+        .map_err(|_| "jam render panicked".to_string())?;
+
+        if ptr.is_null() || pcm_len <= 0 {
+            if !ptr.is_null() {
+                free_buffer(ptr);
+            }
+            return Err("jam render returned empty PCM".to_string());
+        }
+        let samples = unsafe { slice::from_raw_parts(ptr, pcm_len as usize).to_vec() };
+        free_buffer(ptr);
+
+        let (iteration, offset, slots) = unsafe {
+            (
+                audio_jam_session_iteration(self.raw),
+                audio_jam_session_arrangement_offset(self.raw),
+                audio_jam_session_slots_per_section(self.raw),
+            )
+        };
+        Ok(JamSection {
+            samples,
+            iteration: iteration.max(0) as u32,
+            arrangement_offset: offset,
+            slots_per_section: slots,
+        })
+    }
+}
+
+impl Drop for JamSession {
+    fn drop(&mut self) {
+        if !self.raw.is_null() {
+            unsafe {
+                audio_jam_session_close(self.raw);
+            }
+            self.raw = std::ptr::null_mut();
+        }
+    }
 }
 
 pub fn load_demo_overview(path: &Path) -> Result<DemoOverview, String> {
