@@ -25,7 +25,11 @@ make render-demos     # render every showcase ABC to PCM and print {duration, ch
 make play-demo DEMO=name [WAV=1]   # render one song; name resolves through tests/play_demo.c kDemos
 make mcp              # build the MCP server (bin/memdeck-mcp)
 make mcp-smoke        # pipe a few JSON-RPC requests through it
+make jam              # build the infinite-continuation player (bin/memdeck-jam)
+make jam-play DEMO=name [SEED=N] [SECTION=secs]   # stream variations through aplay
 ```
+
+The jam binary scrolls through the song's arrangement in ~N-second chunks (rounded up to whole patterns) and applies four variation strategies per chunk (velocity humanization, arrangement shuffle, drum fill on last bar, voice mute). PRNG is xorshift64*, deterministic given `--seed`. Sections are SeqSong-level slice+mutate copies of an immutable base; the variation logic lives in `src/audio_jam.{c,h}` and is independent of the playback surface (the Rust GUI can drive the same primitives — see the follow-up GUI Jam mode).
 
 The Rust GUI's `build.rs` compiles `src/*.c` into the binary, so a C header change must rebuild the Rust side too. If the GUI ever shows mismatched struct data (e.g. `TRACKS 0` on a freshly-added song), the symptom is a stale C build inside `gui/target/`: `cargo clean --manifest-path gui/Cargo.toml && make gui-run`.
 

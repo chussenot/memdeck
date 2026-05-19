@@ -12,8 +12,9 @@ TEST_SEQ_BIN = bin/test-audio-seq
 RENDER_DEMOS_BIN = bin/render-demos
 PLAY_DEMO_BIN = bin/play-demo
 MCP_BIN = bin/memdeck-mcp
+JAM_BIN = bin/memdeck-jam
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo gui-check gui-test gui-run mcp mcp-smoke help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo gui-check gui-test gui-run mcp mcp-smoke jam jam-play help
 
 .DEFAULT_GOAL := help
 
@@ -26,7 +27,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN) $(MCP_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN) $(MCP_BIN) $(JAM_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -139,6 +140,27 @@ mcp-smoke: $(MCP_BIN)
 	  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"memdeck_engine_caps","arguments":{}}}' \
 	  | $(MCP_BIN)
 
+JAM_ENGINE_SRC = src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c src/audio_jam.c
+JAM_CFLAGS = -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -Isrc
+
+jam: $(JAM_BIN)
+
+$(JAM_BIN): tools/memdeck_jam.c $(JAM_ENGINE_SRC) src/memdeck.h src/audio_jam.h
+	@mkdir -p bin
+	$(CC) $(JAM_CFLAGS) -o $@ tools/memdeck_jam.c $(JAM_ENGINE_SRC) -lm
+
+# Convenience: jam a named demo and pipe to aplay (Linux/ALSA).
+# Usage: make jam-play DEMO=three_chord_howl [SEED=42] [SECTION=30]
+jam-play: $(JAM_BIN)
+	@if [ -z "$(DEMO)" ]; then \
+		echo "Usage: make jam-play DEMO=name [SEED=N] [SECTION=secs]"; \
+		exit 1; \
+	fi
+	@$(JAM_BIN) "data/music/$(DEMO).abc" \
+	  $(if $(SEED),--seed $(SEED)) \
+	  $(if $(SECTION),--section-seconds $(SECTION)) \
+	  | aplay -q -f U8 -r 22050 -c 1
+
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
 	@echo ""
@@ -161,4 +183,6 @@ help:
 	@echo "  gui-run    Run the GUI crate"
 	@echo "  mcp        Build the MCP server (bin/memdeck-mcp)"
 	@echo "  mcp-smoke  Pipe a few JSON-RPC requests through the MCP server"
+	@echo "  jam        Build the infinite-continuation player (bin/memdeck-jam)"
+	@echo "  jam-play DEMO=name [SEED=N] [SECTION=secs]   Stream variations through aplay (Linux)"
 	@echo "  help       Show this help message (default)"
