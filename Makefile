@@ -11,8 +11,9 @@ TEST_ABC_BIN = bin/test-abc
 TEST_SEQ_BIN = bin/test-audio-seq
 RENDER_DEMOS_BIN = bin/render-demos
 PLAY_DEMO_BIN = bin/play-demo
+MCP_BIN = bin/memdeck-mcp
 
-.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo gui-check gui-test gui-run help
+.PHONY: all clean install uninstall test test-audio test-abc test-audio-seq bench-audio render-demos play-demo gui-check gui-test gui-run mcp mcp-smoke help
 
 .DEFAULT_GOAL := help
 
@@ -25,7 +26,7 @@ $(BIN): $(SRC) src/memdeck.h
 	@echo "Build complete: $(BIN)"
 
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN) $(MCP_BIN)
 
 install: all
 	install -d $(PREFIX)/bin
@@ -119,6 +120,25 @@ gui-test:
 gui-run:
 	cargo run --manifest-path gui/Cargo.toml
 
+MCP_ENGINE_SRC = src/abc.c src/audio_mix.c src/audio_seq.c src/audio_dsp.c src/audio_fx.c src/audio_song_builtin.c src/audio_engine.c
+MCP_CFLAGS = -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600 -Imcp/vendor/yyjson -Isrc
+# yyjson is third-party; suppress its warnings without diluting ours.
+MCP_VENDOR_CFLAGS = -O2 -std=c99 -w -Imcp/vendor/yyjson
+
+mcp: $(MCP_BIN)
+
+$(MCP_BIN): tools/memdeck_mcp.c $(MCP_ENGINE_SRC) src/memdeck.h mcp/vendor/yyjson/yyjson.c mcp/vendor/yyjson/yyjson.h
+	@mkdir -p bin build/mcp
+	$(CC) $(MCP_VENDOR_CFLAGS) -c mcp/vendor/yyjson/yyjson.c -o build/mcp/yyjson.o
+	$(CC) $(MCP_CFLAGS) -o $@ tools/memdeck_mcp.c $(MCP_ENGINE_SRC) build/mcp/yyjson.o -lm
+
+mcp-smoke: $(MCP_BIN)
+	@printf '%s\n%s\n%s\n' \
+	  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+	  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+	  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"memdeck_engine_caps","arguments":{}}}' \
+	  | $(MCP_BIN)
+
 help:
 	@echo "MemDeck - Memorized Deck Trainer"
 	@echo ""
@@ -139,4 +159,6 @@ help:
 	@echo "  gui-check  Run cargo check for the GUI crate"
 	@echo "  gui-test   Run cargo test for the GUI crate"
 	@echo "  gui-run    Run the GUI crate"
+	@echo "  mcp        Build the MCP server (bin/memdeck-mcp)"
+	@echo "  mcp-smoke  Pipe a few JSON-RPC requests through the MCP server"
 	@echo "  help       Show this help message (default)"
