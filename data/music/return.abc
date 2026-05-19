@@ -1,0 +1,199 @@
+X:1
+T:Eternal Return
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=96
+K:Em
+
+%%instrument pulse wave=pulse amp=72 duty=34 attack=2 decay=28 sustain=76 release=140 gate=92 glide=12 fx=0
+%%instrument lead wave=pulse amp=52 duty=18 attack=12 decay=100 sustain=82 release=320 gate=94 vibrato=12 glide=36 fx=1
+%%instrument choir wave=triangle amp=34 attack=180 decay=220 sustain=92 release=520 gate=99 vibrato=4 fx=2
+%%instrument sub wave=sine amp=88 attack=0 decay=18 sustain=90 release=80 gate=98 fx=3
+
+%%effect 0 delay_steps=2 delay_feedback=18 delay_mix=12 drive=28 lowpass=22 sidechain=18 sidechain_release=180 mix=100 ladder=74 ladder_cutoff=38 ladder_resonance=48
+%%effect 1 delay_steps=6 delay_feedback=44 delay_mix=36 drive=12 lowpass=54 sidechain=10 sidechain_release=260 mix=82 ladder=58 ladder_cutoff=60 ladder_resonance=28
+%%effect 2 delay_steps=8 delay_feedback=52 delay_mix=44 drive=8 lowpass=72 sidechain=8 sidechain_release=360 mix=74 ladder=44 ladder_cutoff=76 ladder_resonance=18
+%%effect 3 delay_steps=1 delay_feedback=6 delay_mix=4 drive=36 lowpass=18 sidechain=28 sidechain_release=120 mix=100 ladder=82 ladder_cutoff=28 ladder_resonance=56
+
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%pattern E length=16
+%%pattern F length=16
+
+%%arrangement A A B C B D E F E F
+
+V:pulse instrument=pulse
+V:lead instrument=lead
+V:choir instrument=choir
+V:sub instrument=sub
+
+%
+% A — Birth
+%
+
+V:pulse
+| E,2 B,2 E2 B,2 E2 B,2 E2 B,2 |
+| C2 G,2 C2 G,2 C2 G,2 C2 G,2 |
+| G,2 D2 G2 D2 G2 D2 G2 D2 |
+| D2 A,2 D2 A,2 D2 A,2 D2 A,2 |
+
+V:lead
+| z16 |
+| z16 |
+| b4 g4 |
+| a4 f4 |
+
+V:choir
+| E,16 |
+| C16 |
+| G,16 |
+| D16 |
+
+V:sub
+| E,,16 |
+| C,,16 |
+| G,,16 |
+| D,,16 |
+
+%
+% B — Memory
+%
+
+V:pulse
+| E,2 B,2 E2 G2 B2 G2 E2 B,2 |
+| C2 G,2 C2 E2 G2 E2 C2 G,2 |
+| G,2 D2 G2 B2 D'2 B2 G2 D2 |
+| D2 A,2 D2 F2 A2 F2 D2 A,2 |
+
+V:lead
+| b4 e'4 g'4 |
+| g4 e'4 c'4 |
+| d'4 b4 g4 |
+| a4 f4 d4 |
+
+V:choir
+| b8 g8 |
+| g8 e8 |
+| d8 b8 |
+| a8 f8 |
+
+V:sub
+| E,,2 z2 E,,2 z2 E,,2 z2 E,,2 z2 |
+| C,,2 z2 C,,2 z2 C,,2 z2 C,,2 z2 |
+| G,,2 z2 G,,2 z2 G,,2 z2 G,,2 z2 |
+| D,,2 z2 D,,2 z2 D,,2 z2 D,,2 z2 |
+
+%
+% C — Ascension
+%
+
+V:pulse
+| E2 G2 B2 e2 B2 G2 E2 B,2 |
+| C2 E2 G2 c2 G2 E2 C2 G,2 |
+| G2 B2 d'2 g'2 d'2 B2 G2 D2 |
+| D2 F2 a2 d'2 a2 F2 D2 A,2 |
+
+V:lead
+| e'2 g'2 b'4 |
+| c'2 e'2 g'4 |
+| g'2 d''2 b'4 |
+| f'2 a'2 d'4 |
+
+V:choir
+| e8 b8 |
+| c'8 g8 |
+| g'8 d'8 |
+| d'8 a8 |
+
+V:sub
+| E,,16 |
+| C,,16 |
+| G,,16 |
+| D,,16 |
+
+%
+% D — Silence
+%
+
+V:pulse
+| E,8 z8 |
+| C8 z8 |
+| G,8 z8 |
+| D8 z8 |
+
+V:lead
+| b8 |
+| g8 |
+| d'8 |
+| a8 |
+
+V:choir
+| E,16 |
+| C16 |
+| G,16 |
+| D16 |
+
+V:sub
+| E,,16 |
+| C,,16 |
+| G,,16 |
+| D,,16 |
+
+%
+% E — Return
+%
+
+V:pulse
+| E,2 B,2 E2 G2 B2 G2 E2 B,2 |
+| C2 G,2 C2 E2 G2 E2 C2 G,2 |
+| G,2 D2 G2 B2 D'2 B2 G2 D2 |
+| D2 A,2 D2 F2 A2 F2 D2 A,2 |
+
+V:lead
+| b4 e'4 g'4 |
+| g4 e'4 c'4 |
+| d'4 g'4 b'4 |
+| a4 d'4 f'4 |
+
+V:choir
+| e8 g8 |
+| c'8 e8 |
+| g'8 b8 |
+| d'8 f8 |
+
+V:sub
+| E,,2 E,2 E,,2 E,2 E,,2 E,2 E,,2 E,2 |
+| C,,2 C,2 C,,2 C,2 C,,2 C,2 C,,2 C,2 |
+| G,,2 G,2 G,,2 G,2 G,,2 G,2 G,,2 G,2 |
+| D,,2 D,2 D,,2 D,2 D,,2 D,2 D,,2 D,2 |
+
+%
+% F — Eternal Loop
+%
+
+V:pulse
+| E2 B2 E2 B2 E2 B2 E2 B2 |
+| C2 G2 C2 G2 C2 G2 C2 G2 |
+| G2 D2 G2 D2 G2 D2 G2 D2 |
+| D2 A2 D2 A2 D2 A2 D2 A2 |
+
+V:lead
+| e'8 b8 |
+| c'8 g8 |
+| g'8 d'8 |
+| d'8 a8 |
+
+V:choir
+| e16 |
+| c16 |
+| g16 |
+| d16 |
+
+V:sub
+| E,,16 |
+| C,,16 |
+| G,,16 |
+| D,,16 |

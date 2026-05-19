@@ -1,0 +1,143 @@
+X:2
+T:Little Clockwork Sonata
+C:MemDeck - Classical Mode
+M:4/4
+L:1/8
+Q:1/4=112
+K:C
+
+%%instrument piano wave=triangle amp=52 attack=2 decay=80 sustain=72 release=180 gate=90 fx=1
+%%instrument bass wave=triangle amp=44 attack=2 decay=70 sustain=70 release=160 gate=88 fx=0
+%%instrument violin wave=pulse amp=38 duty=18 attack=12 decay=120 sustain=80 release=260 gate=92 vibrato=8 fx=2
+%%instrument flute wave=sine amp=34 attack=20 decay=90 sustain=82 release=220 gate=90 vibrato=5 fx=2
+
+%%effect 0 delay_steps=1 delay_feedback=4 delay_mix=3 drive=2 lowpass=70 mix=100
+%%effect 1 delay_steps=2 delay_feedback=8 delay_mix=7 drive=1 lowpass=82 mix=96
+%%effect 2 delay_steps=3 delay_feedback=12 delay_mix=10 drive=1 lowpass=88 mix=94
+
+%%pattern A length=32
+%%pattern B length=32
+%%pattern C length=32
+%%pattern D length=32
+
+% Approx 10 min:
+% A A B B C C A B D D A A B C D A
+
+%%arrangement A A B B C C A B D D A A B C D A
+
+V:piano instrument=piano
+V:bass instrument=bass
+V:violin instrument=violin
+V:flute instrument=flute
+
+%
+% A — Allegro Theme
+%
+
+V:piano
+| C2 E2 G2 E2 | D2 F2 A2 F2 | E2 G2 c2 G2 | F2 A2 d2 A2 |
+| G2 E2 C2 E2 | A2 F2 D2 F2 | G2 E2 C2 D2 | E4 D4 |
+| C2 E2 G2 E2 | D2 F2 A2 F2 | E2 G2 c2 G2 | F2 A2 d2 A2 |
+| G2 c2 e2 c2 | A2 d2 f2 d2 | G2 B2 d2 B2 | c8 |
+
+V:bass
+| C,4 G,4 | D,4 A,4 | E,4 C4 | F,4 D4 |
+| G,4 C4 | A,4 D4 | G,4 B,4 | C8 |
+| C,4 G,4 | D,4 A,4 | E,4 C4 | F,4 D4 |
+| G,4 E4 | A,4 F4 | G,4 G,,4 | C,8 |
+
+V:violin
+| z8 | z8 | G2 c2 e2 c2 | A2 d2 f2 d2 |
+| B2 d2 g2 d2 | c2 e2 a2 e2 | d2 B2 G2 B2 | c8 |
+| e2 d2 c2 B2 | A2 G2 F2 E2 | G2 c2 e2 c2 | A2 d2 f2 d2 |
+| g2 e2 c2 e2 | f2 d2 A2 d2 | d2 B2 G2 B2 | c8 |
+
+V:flute
+| z8 | z8 | z8 | z8 |
+| G4 E4 | A4 F4 | G4 D4 | E8 |
+| c2 B2 A2 G2 | F2 E2 D2 C2 | E2 G2 c2 G2 | F2 A2 d2 A2 |
+| e4 c4 | f4 d4 | d4 B4 | c8 |
+
+%
+% B — Graceful Second Theme
+%
+
+V:piano
+| G2 B2 d2 B2 | A2 c2 e2 c2 | G2 B2 d2 g2 | f2 e2 d2 c2 |
+| B2 d2 g2 d2 | c2 e2 a2 e2 | d2 B2 G2 A2 | B8 |
+| E2 G2 B2 G2 | F2 A2 c2 A2 | G2 B2 d2 B2 | A2 c2 e2 c2 |
+| B2 d2 g2 f2 | e2 c2 A2 c2 | B2 G2 D2 F2 | E8 |
+
+V:bass
+| G,4 D4 | A,4 E4 | G,4 B,4 | C4 D4 |
+| G,4 B,4 | A,4 C4 | D4 D,4 | G,8 |
+| E,4 B,4 | F,4 C4 | G,4 D4 | A,4 E4 |
+| B,4 G4 | C4 A,4 | B,4 D4 | E,8 |
+
+V:violin
+| d2 g2 b2 g2 | e2 a2 c'2 a2 | b2 g2 d2 g2 | a2 g2 f2 e2 |
+| d2 g2 b2 g2 | e2 a2 c'2 a2 | b2 g2 d2 f2 | g8 |
+| B2 e2 g2 e2 | A2 f2 c2 f2 | B2 d2 g2 d2 | c2 e2 a2 e2 |
+| g2 b2 d'2 c'2 | b2 a2 g2 f2 | e2 B2 G2 B2 | e8 |
+
+V:flute
+| z8 | z8 | d4 g4 | f2 e2 d2 c2 |
+| B4 d4 | c4 e4 | d4 A4 | B8 |
+| g2 f2 e2 d2 | c2 B2 A2 G2 | B2 d2 g2 d2 | c2 e2 a2 e2 |
+| b4 g4 | a4 f4 | g4 D4 | E8 |
+
+%
+% C — Minor Storm
+%
+
+V:piano
+| A2 c2 e2 c2 | G2 B2 e2 B2 | F2 A2 d2 A2 | E2 G2 c2 G2 |
+| A2 e2 c2 e2 | F2 d2 A2 d2 | E2 B2 G2 B2 | A8 |
+| A2 c2 e2 a2 | G2 B2 e2 g2 | F2 A2 d2 f2 | E2 G2 c2 e2 |
+| d2 c2 B2 A2 | G2 F2 E2 D2 | C2 E2 A2 ^G2 | A8 |
+
+V:bass
+| A,4 E4 | G,4 E4 | F,4 D4 | E,4 C4 |
+| A,4 C4 | F,4 A,4 | E,4 E,,4 | A,8 |
+| A,4 E4 | G,4 E4 | F,4 D4 | E,4 C4 |
+| D4 A,4 | G,4 E4 | C4 E4 | A,8 |
+
+V:violin
+| e2 a2 c'2 a2 | e2 g2 b2 g2 | d2 f2 a2 f2 | c2 e2 g2 e2 |
+| a2 e2 c2 e2 | f2 d2 A2 d2 | e2 B2 G2 B2 | A8 |
+| c'2 b2 a2 g2 | b2 a2 g2 f2 | a2 g2 f2 e2 | g2 f2 e2 d2 |
+| f2 e2 d2 c2 | B2 A2 G2 F2 | E2 C2 E2 ^G2 | A8 |
+
+V:flute
+| z8 | z8 | a4 f4 | g4 e4 |
+| a4 c'4 | f4 d4 | e4 B4 | A8 |
+| e2 a2 c'2 a2 | e2 g2 b2 g2 | d2 f2 a2 f2 | c2 e2 g2 e2 |
+| d'2 c'2 b2 a2 | g2 f2 e2 d2 | c2 e2 a2 ^g2 | a8 |
+
+%
+% D — Finale Rondo
+%
+
+V:piano
+| C2 E2 G2 c2 | B2 G2 D2 G2 | A2 F2 C2 F2 | G2 E2 C2 E2 |
+| F2 A2 c2 f2 | E2 G2 c2 e2 | D2 F2 A2 d2 | G8 |
+| C2 G2 E2 G2 | D2 A2 F2 A2 | E2 c2 G2 c2 | F2 d2 A2 d2 |
+| G2 e2 c2 e2 | A2 f2 d2 f2 | G2 B2 d2 B2 | c8 |
+
+V:bass
+| C,4 C4 | G,4 B,4 | F,4 A,4 | C,4 G,4 |
+| F,4 C4 | C,4 E4 | D,4 F4 | G,8 |
+| C,4 G,4 | D,4 A,4 | E,4 C4 | F,4 D4 |
+| G,4 E4 | A,4 F4 | G,4 G,,4 | C,8 |
+
+V:violin
+| e2 g2 c'2 g2 | d2 g2 b2 g2 | c2 f2 a2 f2 | e2 g2 c'2 g2 |
+| a2 c'2 f'2 c'2 | g2 c'2 e'2 c'2 | f2 a2 d'2 a2 | g8 |
+| c'2 b2 a2 g2 | f2 e2 d2 c2 | e2 g2 c'2 g2 | f2 a2 d'2 a2 |
+| g2 e2 c2 e2 | a2 f2 d2 f2 | d2 B2 G2 B2 | c8 |
+
+V:flute
+| c'4 g4 | b4 g4 | a4 f4 | g4 e4 |
+| f'4 c'4 | e'4 c'4 | d'4 a4 | g8 |
+| e'2 d'2 c'2 b2 | a2 g2 f2 e2 | g2 c'2 e'2 c'2 | a2 d'2 f'2 d'2 |
+| e'4 c'4 | f'4 d'4 | d'4 B4 | c'8 |

@@ -1,0 +1,161 @@
+X:1
+T:Moonlit Ladder Sonata
+C:MemDeck
+M:4/4
+L:1/8
+Q:1/4=92
+K:Dm
+
+%%instrument bass wave=pulse amp=82 duty=42 attack=0 decay=24 sustain=80 release=120 gate=94 glide=10 fx=0
+%%instrument harmony wave=triangle amp=44 attack=18 decay=90 sustain=78 release=260 gate=92 vibrato=4 fx=1
+%%instrument lead wave=pulse amp=52 duty=20 attack=8 decay=120 sustain=82 release=340 gate=94 vibrato=10 glide=28 fx=2
+%%instrument pad wave=triangle amp=30 attack=220 decay=260 sustain=92 release=620 gate=99 vibrato=3 fx=3
+
+%%effect 0 delay_steps=1 delay_feedback=10 delay_mix=8 drive=28 lowpass=20 sidechain=18 sidechain_release=120 mix=100 ladder=76 ladder_cutoff=36 ladder_resonance=52
+%%effect 1 delay_steps=3 delay_feedback=24 delay_mix=18 drive=12 lowpass=40 sidechain=12 sidechain_release=180 mix=90 ladder=62 ladder_cutoff=48 ladder_resonance=36
+%%effect 2 delay_steps=6 delay_feedback=42 delay_mix=34 drive=10 lowpass=56 sidechain=10 sidechain_release=260 mix=82 ladder=54 ladder_cutoff=62 ladder_resonance=24
+%%effect 3 delay_steps=8 delay_feedback=48 delay_mix=40 drive=8 lowpass=72 sidechain=8 sidechain_release=320 mix=76 ladder=42 ladder_cutoff=74 ladder_resonance=18
+
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+
+%%arrangement A A B C B D A
+
+V:bass instrument=bass
+V:harmony instrument=harmony
+V:lead instrument=lead
+V:pad instrument=pad
+
+%
+% A — Main Sonata Theme
+%
+
+V:bass
+| D,,2 A,,2 D,2 A,,2 | Bb,,2 F,,2 Bb,2 F,,2 |
+| G,,2 D,,2 G,2 D,,2 | A,,2 E,,2 A,2 E,,2 |
+| D,,2 A,,2 D,2 A,,2 | Bb,,2 F,,2 Bb,2 F,,2 |
+| G,,2 D,,2 G,2 D,,2 | A,,4 D,4 |
+
+V:harmony
+| f2 a2 d'2 a2 | f2 bb2 d'2 bb2 |
+| g2 bb2 d'2 bb2 | a2 c'2 e'2 c'2 |
+| f2 a2 d'2 a2 | f2 bb2 d'2 bb2 |
+| g2 bb2 d'2 bb2 | a2 e'2 d'4 |
+
+V:lead
+| z8 | z8 |
+| a4 bb4 | c'2 a2 f2 |
+| d'4 c'4 | bb2 a2 |
+| g2 f2 e2 d2 | a4 d'4 |
+
+V:pad
+| D,8 D8 | Bb,8 Bb8 |
+| G,8 G8 | A,8 A8 |
+| D,8 D8 | Bb,8 Bb8 |
+| G,8 G8 | D8 A,8 |
+
+%
+% B — Minor Development
+%
+
+V:bass
+| F,,2 C,,2 F,2 C,,2 | G,,2 D,,2 G,2 D,,2 |
+| A,,2 E,,2 A,2 E,,2 | D,,2 A,,2 D,2 A,,2 |
+| C,,2 G,,2 C,2 G,,2 | Bb,,2 F,,2 Bb,2 F,,2 |
+| A,,2 E,,2 A,2 E,,2 | D,,4 A,,4 |
+
+V:harmony
+| a2 c'2 f'2 c'2 | bb2 d'2 g'2 d'2 |
+| c'2 e'2 a'2 e'2 | f2 a2 d'2 a2 |
+| g2 c'2 e'2 c'2 | f2 bb2 d'2 bb2 |
+| e2 a2 c'2 a2 | a2 f2 d2 a2 |
+
+V:lead
+| c'4 a4 | bb4 g4 |
+| a4 e4 | d4 f4 |
+| e4 g4 | d4 bb4 |
+| c'2 a2 | d'4 c'4 |
+
+V:pad
+| F,16 | G,16 |
+| A,16 | D,16 |
+| C,16 | Bb,16 |
+| A,16 | D,16 |
+
+%
+% C — Filtered Breakdown
+%
+
+V:bass
+| D,,8 z8 | Bb,,8 z8 |
+| G,,8 z8 | A,,8 z8 |
+| D,,8 z8 | Bb,,8 z8 |
+| A,,4 D,4 |
+
+V:harmony
+| a2 d'2 a2 d'2 |
+| bb2 d'2 bb2 d'2 |
+| bb2 d'2 bb2 d'2 |
+| c'2 e'2 a2 e2 |
+| a2 d'2 a2 d'2 |
+| bb2 d'2 bb2 d'2 |
+| e2 a2 c'2 a2 |
+| d'8 |
+
+V:lead
+| d'8 | c'8 |
+| bb8 | a8 |
+| d'4 a4 | bb4 f4 |
+| e4 c'4 | d'8 |
+
+V:pad
+| D,16 | Bb,16 |
+| G,16 | A,16 |
+| D,16 | Bb,16 |
+| A,16 | D,16 |
+
+%
+% D — Finale
+%
+
+V:bass
+| D,,2 A,,2 D,2 A,,2 |
+| Bb,,2 F,,2 Bb,2 F,,2 |
+| G,,2 D,,2 G,2 D,,2 |
+| A,,2 E,,2 A,2 E,,2 |
+| D,,2 A,,2 D,2 A,,2 |
+| Bb,,2 F,,2 Bb,2 F,,2 |
+| G,,2 D,,2 G,2 D,,2 |
+| D,, D,, D,, D,, D,, D,, D,, D,, |
+
+V:harmony
+| f2 a2 d'2 a2 |
+| f2 bb2 d'2 bb2 |
+| g2 bb2 d'2 bb2 |
+| a2 c'2 e'2 c'2 |
+| d'2 f'2 a'2 f'2 |
+| d'2 bb2 f'2 bb2 |
+| d'2 bb2 g'2 d'2 |
+| a'8 |
+
+V:lead
+| d'4 f'4 |
+| bb4 d'4 |
+| g4 bb4 |
+| a4 c'4 |
+| d'2 a'2 |
+| f'2 d'2 |
+| bb2 g2 |
+| d'8 |
+
+V:pad
+| D,8 D8 |
+| Bb,8 Bb8 |
+| G,8 G8 |
+| A,8 A8 |
+| D8 A8 |
+| Bb8 F8 |
+| G8 D8 |
+| D16 |

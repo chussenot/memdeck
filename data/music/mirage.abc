@@ -1,0 +1,253 @@
+X:1
+T:Neon Mirage Run
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=114
+K:Am
+%%swing 54
+
+%%instrument kick wave=noise amp=72 attack=0 decay=12 sustain=6 release=22 gate=28 fx=0
+%%instrument snare wave=noise amp=60 attack=2 decay=32 sustain=28 release=90 gate=48 fx=0
+%%instrument hats wave=noise amp=26 attack=0 decay=3 sustain=4 release=8 gate=16 fx=0
+
+%%instrument bass wave=pulse amp=80 duty=34 attack=0 decay=22 sustain=74 release=120 gate=92 glide=10 fx=1
+%%instrument arp wave=pulse amp=42 duty=22 attack=1 decay=26 sustain=62 release=90 gate=60 vibrato=4 fx=2
+%%instrument pluck wave=pulse amp=36 duty=18 attack=0 decay=16 sustain=34 release=48 gate=42 vibrato=3 fx=2
+
+%%instrument lead wave=pulse amp=50 duty=20 attack=8 decay=120 sustain=82 release=320 gate=94 vibrato=16 glide=36 fx=3
+%%instrument counter wave=triangle amp=34 attack=18 decay=90 sustain=70 release=220 gate=88 vibrato=10 fx=3
+%%instrument pad wave=triangle amp=30 attack=260 decay=320 sustain=92 release=640 gate=99 vibrato=5 fx=3
+
+%%effect 0 delay_steps=2 delay_feedback=14 delay_mix=8 drive=24 lowpass=14 sidechain=46 sidechain_release=220 mix=100
+%%effect 1 delay_steps=1 delay_feedback=10 delay_mix=6 drive=26 lowpass=16 sidechain=42 sidechain_release=180 mix=98
+%%effect 2 delay_steps=4 delay_feedback=48 delay_mix=36 drive=16 lowpass=26 sidechain=38 sidechain_release=260 mix=86 ladder=64 ladder_cutoff=44 ladder_resonance=46
+%%effect 3 delay_steps=8 delay_feedback=52 delay_mix=38 drive=12 lowpass=34 sidechain=48 sidechain_release=360 mix=82 ladder=48 ladder_cutoff=62 ladder_resonance=32 chorus=40 wow=8 flutter=5
+
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%pattern E length=16
+
+%%arrangement A B C D C E
+
+V:kick instrument=kick
+V:snare instrument=snare
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:pluck instrument=pluck
+V:lead instrument=lead
+V:counter instrument=counter
+V:pad instrument=pad
+
+%
+% SECTION A — INTRO
+%
+
+V:kick
+| c4 z12 | z16 | c4 z12 | z16 |
+
+V:snare
+| z16 | z16 | z16 | z16 |
+
+V:hats
+| z16 | z16 | z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+
+V:bass
+| A,,4 z4 A,,4 z4 | F,,4 z4 F,,4 z4 |
+| C,4 z4 C,4 z4 | E,,4 z4 E,,4 z4 |
+
+V:arp
+| z16 | z16 | z16 | z16 |
+
+V:pluck
+| z16 | z16 | z16 | z16 |
+
+V:lead
+| z16 | z16 | z16 | z16 |
+
+V:counter
+| z16 | z16 | z16 | z16 |
+
+V:pad
+| A,16 | F,16 | C16 | E,16 |
+
+%
+% SECTION B — VERSE
+%
+
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+
+V:snare
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+
+V:hats
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+
+V:bass
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 |
+| F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 |
+| C,2 C2 C,2 C,2 C2 C,2 C,2 C2 |
+| E,,2 E,2 E,,2 E,,2 E,2 E,,2 E,,2 E,2 |
+
+V:arp
+| A,2 C2 E2 A2 A,2 C2 E2 A2 |
+| F,2 A,2 C2 F2 F,2 A,2 C2 F2 |
+| C2 E2 G2 c2 C2 E2 G2 c2 |
+| E,2 G,2 B,2 E2 E,2 G,2 B,2 E2 |
+
+V:pluck
+| z16 | z16 | z16 | z16 |
+
+V:lead
+| e4 g4 a8 e8 |
+| c'4 b4 a8 g8 |
+| e4 g4 c'8 b8 |
+| a2 g4 e4 |
+
+V:counter
+| z16 | z16 | z16 | z16 |
+
+V:pad
+| A,8 e8 | F,8 c8 | C8 g8 | E,8 b8 |
+
+%
+% SECTION C — CHORUS
+%
+
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+| c2 z6 c2 z6 | c c c c c c c c c c c c c c c c |
+
+V:snare
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 | c c c c c c c c c c c c c c c c |
+
+V:hats
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+
+V:bass
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 |
+| G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 G,2 |
+| F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 |
+| E,,2 E,2 E,,2 E,,2 E,2 E,,2 E,,2 E,2 |
+
+V:arp
+| A, C E A A, C E A A, C E A A, C E A |
+| G, B, D G G, B, D G G, B, D G G, B, D G |
+| F, A, C F F, A, C F F, A, C F F, A, C F |
+| E, G, B, E E, G, B, E E, G, B, E E, G, B, E |
+
+V:pluck
+| z2 a2 z2 a2 z2 a2 z2 a2 |
+| z2 g2 z2 g2 z2 g2 z2 g2 |
+| z2 f2 z2 f2 z2 f2 z2 f2 |
+| z2 e2 z2 e2 z2 e2 z2 e2 |
+
+V:lead
+| e4 g4 a8 e8 |
+| c'4 b4 a8 g8 |
+| e4 g4 c'8 b8 |
+| a2 g4 e4 |
+
+V:counter
+| z8 a8 | z8 g8 | z8 f8 | z8 e8 |
+
+V:pad
+| A,8 a8 | G,8 d8 | F,8 c8 | E,8 b8 |
+
+%
+% SECTION D — BREAKDOWN
+%
+
+V:kick
+| c4 z12 | z16 | c4 z12 | z16 |
+
+V:snare
+| z16 | z16 | z16 | z16 |
+
+V:hats
+| z16 | z16 | z16 | z16 |
+
+V:bass
+| A,,8 A,8 | G,,8 G,8 | F,,8 F,8 | E,,8 E,8 |
+
+V:arp
+| A,4 C4 E4 A4 |
+| G,4 B,4 D4 G4 |
+| F,4 A,4 C4 F4 |
+| E,4 G,4 B,4 E4 |
+
+V:pluck
+| z16 | z16 | z16 | z16 |
+
+V:lead
+| a8 e'8 | g8 d'8 | f8 c'8 | e8 b8 |
+
+V:counter
+| e4 z4 e4 z4 |
+| d4 z4 d4 z4 |
+| c4 z4 c4 z4 |
+| b,4 z4 b,4 z4 |
+
+V:pad
+| A,16 | G,16 | F,16 | E,16 |
+
+%
+% SECTION E — FINAL CHORUS
+%
+
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+| c2 z6 c2 z6 | c c c c c c c c c c c c c c c c |
+
+V:snare
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 | c c c c c c c c c c c c c c c c |
+
+V:hats
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+
+V:bass
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 |
+| G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 G,2 |
+| F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 |
+| E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, E,, |
+
+V:arp
+| A, C E A A, C E A A, C E A A, C E A |
+| G, B, D G G, B, D G G, B, D G G, B, D G |
+| F, A, C F F, A, C F F, A, C F F, A, C F |
+| E, G, B, E E, G, B, E E, G, B, E E, G, B, E |
+
+V:pluck
+| z2 a2 z2 c'2 z2 a2 z2 e'2 |
+| z2 g2 z2 b2 z2 g2 z2 d'2 |
+| z2 f2 z2 a2 z2 f2 z2 c'2 |
+| z2 e2 z2 g2 z2 b2 z2 e'2 |
+
+V:lead
+| e'4 c''4 b'8 a'8 |
+| g'4 d''4 b'8 g'8 |
+| f'4 c''4 a'8 f'8 |
+| e'2 d'4 a4 |
+
+V:counter
+| a8 e'8 | g8 d'8 | f8 c'8 | e8 b8 |
+
+V:pad
+| A,8 a8 | G,8 d8 | F,8 c8 | E,8 b8 |

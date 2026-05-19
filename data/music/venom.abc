@@ -1,0 +1,252 @@
+X:1
+T:Desert Venom
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=102
+K:Fm
+%%swing 50
+
+%%instrument kick wave=noise amp=78 attack=0 decay=8 sustain=4 release=12 gate=20 fx=0
+%%instrument snare wave=noise amp=72 attack=0 decay=24 sustain=18 release=40 gate=32 fx=0
+%%instrument hats wave=noise amp=32 attack=0 decay=4 sustain=6 release=10 gate=16 fx=0
+
+%%instrument sub wave=pulse amp=96 duty=50 attack=0 decay=32 sustain=88 release=90 gate=96 glide=18 fx=1
+%%instrument stab wave=pulse amp=62 duty=20 attack=0 decay=20 sustain=44 release=60 gate=44 vibrato=4 fx=2
+%%instrument brass wave=triangle amp=54 attack=16 decay=60 sustain=72 release=120 gate=84 vibrato=7 fx=2
+
+%%instrument lead wave=pulse amp=52 duty=18 attack=12 decay=90 sustain=78 release=180 gate=90 vibrato=14 glide=40 fx=3
+%%instrument vox wave=triangle amp=44 attack=24 decay=100 sustain=82 release=220 gate=92 vibrato=12 glide=28 fx=3
+%%instrument pad wave=triangle amp=26 attack=240 decay=280 sustain=90 release=520 gate=98 fx=3
+
+%%effect 0 delay_steps=1 delay_feedback=8 delay_mix=6 drive=46 lowpass=28 sidechain=62 sidechain_release=110 mix=100
+%%effect 1 delay_steps=2 delay_feedback=14 delay_mix=10 drive=40 lowpass=22 sidechain=72 sidechain_release=120 mix=100
+%%effect 2 delay_steps=4 delay_feedback=36 delay_mix=24 drive=22 lowpass=44 sidechain=44 sidechain_release=180 mix=82 ladder=58 ladder_cutoff=42 ladder_resonance=38
+%%effect 3 delay_steps=8 delay_feedback=52 delay_mix=42 drive=16 lowpass=56 sidechain=58 sidechain_release=280 mix=74 ladder=48 ladder_cutoff=60 ladder_resonance=24
+
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%pattern E length=16
+
+%%arrangement A B C B D C E E
+
+V:kick instrument=kick
+V:snare instrument=snare
+V:hats instrument=hats
+V:sub instrument=sub
+V:stab instrument=stab
+V:brass instrument=brass
+V:lead instrument=lead
+V:vox instrument=vox
+V:pad instrument=pad
+
+%
+% INTRO
+%
+
+V:kick
+| c2 z14 | z16 | c2 z14 | z16 |
+
+V:snare
+| z16 | z16 | z16 | z16 |
+
+V:hats
+| z16 | z16 | z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+
+V:sub
+| F,,8 z8 | D,,8 z8 | C,,8 z8 | C#, ,8 z8 |
+
+V:stab
+| z16 | z16 | z16 | z16 |
+
+V:brass
+| z16 | z16 | z16 | z16 |
+
+V:lead
+| z16 | z16 | z16 | z16 |
+
+V:vox
+| c'8 z8 | a8 z8 | g8 z8 | f8 z8 |
+
+V:pad
+| F,16 | D,16 | C16 | C#16 |
+
+%
+% BUILD
+%
+
+V:kick
+| c2 z6 c2 z6 | c2 z6 c2 z6 |
+| c2 z6 c2 z6 | c c c c c c c c c c c c c c c c |
+
+V:snare
+| z16 | z8 c2 z6 | z4 c2 z4 c2 z2 | c c c c c c c c c c c c c c c c |
+
+V:hats
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+| c2 c2 c2 c2 c2 c2 c2 c2 |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+
+V:sub
+| F,,2 F,2 F,,2 z2 F,,2 F,2 z2 |
+| D,,2 D,2 D,,2 z2 D,,2 D,2 z2 |
+| C,,2 C,2 C,,2 z2 C,,2 C,2 z2 |
+| C#, ,2 C#2 C#, ,2 z2 C#, ,2 C#2 z2 |
+
+V:stab
+| z8 f4 z4 | z8 d4 z4 |
+| z8 c4 z4 | z8 ^c4 z4 |
+
+V:brass
+| z16 | z16 | z16 | z16 |
+
+V:lead
+| z16 | z16 | z16 | a4 c'4 f'8 |
+
+V:vox
+| z16 | z16 | z16 | c'2 d'2 f'4 |
+
+V:pad
+| F,16 | D,16 | C16 | C#16 |
+
+%
+% DROP
+%
+
+V:kick
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c c c c c c c c c c c c c c c c |
+
+V:snare
+| z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 |
+| c c c c c c c c c c c c c c c c |
+
+V:hats
+| c c z c c z c c c z c c z c c z |
+| c c z c c z c c c z c c z c c z |
+| c c z c c z c c c z c c z c c z |
+| c c c c c c c c c c c c c c c c |
+
+V:sub
+| F,,2 z2 F,,2 F,2 z2 F,,2 F,2 |
+| D,,2 z2 D,,2 D,2 z2 D,,2 D,2 |
+| C,,2 z2 C,,2 C,2 z2 C,,2 C,2 |
+| C#, ,2 z2 C#, ,2 C#2 z2 C#, ,2 C#2 |
+
+V:stab
+| f2 z2 f2 z2 c'2 z2 f2 z2 |
+| d2 z2 d2 z2 a2 z2 d2 z2 |
+| c2 z2 c2 z2 g2 z2 c2 z2 |
+| ^c2 z2 ^c2 z2 g2 z2 ^c2 z2 |
+
+V:brass
+| z8 f'4 z4 | z8 d'4 z4 |
+| z8 c'4 z4 | z8 ^c'4 z4 |
+
+V:lead
+| f'2 c''2 a'4 |
+| d'2 a'2 f'4 |
+| c'2 g'2 e'4 |
+| ^c'2 g'2 f'4 |
+
+V:vox
+| c'4 z4 c'4 z4 |
+| a4 z4 a4 z4 |
+| g4 z4 g4 z4 |
+| f4 z4 f4 z4 |
+
+V:pad
+| F,16 | D,16 | C16 | C#16 |
+
+%
+% BREAKDOWN
+%
+
+V:kick
+| z16 | z16 | c2 z14 | z16 |
+
+V:snare
+| z16 | z16 | z16 | z16 |
+
+V:hats
+| z16 | z16 | z16 | z16 |
+
+V:sub
+| F,,16 | D,,16 | C,,16 | C#,,16 |
+
+V:stab
+| z16 | z16 | z16 | z16 |
+
+V:brass
+| f'8 z8 | d'8 z8 | c'8 z8 | ^c'8 z8 |
+
+V:lead
+| c''4 a'4 f'4 |
+| a'4 f'4 d'4 |
+| g'4 e'4 c'4 |
+| f'4 ^c'4 g4 |
+
+V:vox
+| c'8 d'8 | a8 c'8 | g8 a8 | f8 g8 |
+
+V:pad
+| F,16 | D,16 | C16 | C#16 |
+
+%
+% FINAL DROP
+%
+
+V:kick
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c2 z2 c2 z2 c2 z2 c2 z2 |
+| c c c c c c c c c c c c c c c c |
+
+V:snare
+| z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 |
+| z4 c2 z6 c2 z2 |
+| c c c c c c c c c c c c c c c c |
+
+V:hats
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+| c c c c c c c c c c c c c c c c |
+
+V:sub
+| F,,2 F,2 F,,2 F,2 F,,2 F,2 F,,2 F,2 |
+| D,,2 D,2 D,,2 D,2 D,,2 D,2 D,,2 D,2 |
+| C,,2 C,2 C,,2 C,2 C,,2 C,2 C,,2 C,2 |
+| C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , C#, , |
+
+V:stab
+| f2 c'2 f2 c'2 f2 c'2 f2 c'2 |
+| d2 a2 d2 a2 d2 a2 d2 a2 |
+| c2 g2 c2 g2 c2 g2 c2 g2 |
+| ^c2 g2 ^c2 g2 ^c2 g2 ^c2 g2 |
+
+V:brass
+| f'4 c''4 | d'4 a'4 | c'4 g'4 | ^c'4 g'4 |
+
+V:lead
+| c''2 a'2 f'4 |
+| a'2 f'2 d'4 |
+| g'2 e'2 c'4 |
+| f'2 ^c'2 g4 |
+
+V:vox
+| c'4 c''4 c'4 a4 |
+| a4 a'4 a4 f4 |
+| g4 g'4 g4 e4 |
+| f4 f'4 f4 c4 |
+
+V:pad
+| F,16 | D,16 | C16 | C#16 |
