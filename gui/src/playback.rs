@@ -107,11 +107,10 @@ impl PlaybackController {
         }
 
         let shared = Arc::clone(self.shared.as_ref()?);
-        let error_message = shared
-            .error
-            .lock()
-            .ok()
-            .and_then(|mut guard| guard.take());
+        let error_message = match shared.error.lock() {
+            Ok(mut guard) => guard.take(),
+            Err(_) => Some("playback error state lock poisoned".to_string()),
+        };
         if let Some(message) = error_message {
             self.stream = None;
             self.stop_runtime();
@@ -296,7 +295,9 @@ fn build_stream(
             source_position,
             error_callback,
         ),
-        _ => Err(format!("unsupported playback sample format: {sample_format:?}")),
+        other => Err(format!(
+            "unsupported playback sample format: {other:?}; add an explicit stream handler"
+        )),
     }
 }
 
