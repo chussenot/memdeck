@@ -71,6 +71,9 @@ struct AbcFxBus {
     sidechain_amount: c_int,
     sidechain_release_ms: c_int,
     mix_percent: c_int,
+    ladder_amount: c_int,
+    ladder_cutoff: c_int,
+    ladder_resonance: c_int,
 }
 
 #[repr(C)]
@@ -618,6 +621,9 @@ pub struct RawFxBusForEditor {
     pub sidechain_amount: i32,
     pub sidechain_release_ms: i32,
     pub mix_percent: i32,
+    pub ladder_amount: i32,
+    pub ladder_cutoff: i32,
+    pub ladder_resonance: i32,
 }
 
 /// Pattern definition in a form the editor module can consume.
@@ -712,6 +718,9 @@ fn extract_raw_abc_music(music: &AbcMusic) -> RawAbcMusicForEditor {
             sidechain_amount: bus.sidechain_amount,
             sidechain_release_ms: bus.sidechain_release_ms,
             mix_percent: bus.mix_percent,
+            ladder_amount: bus.ladder_amount,
+            ladder_cutoff: bus.ladder_cutoff,
+            ladder_resonance: bus.ladder_resonance,
         })
         .collect();
 

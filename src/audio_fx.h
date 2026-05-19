@@ -21,6 +21,21 @@ typedef struct {
     int state;
 } AudioLowpass;
 
+/* Moog-style 4-pole ladder lowpass with resonance.
+ * Q15 fixed-point transcription of the Stilson-Smith form (Stilson 1996,
+ * Huovilainen 2004): four cascaded one-pole stages with a soft-clipped
+ * resonance feedback from stage 4 back to the input. Self-oscillates near
+ * resonance=100. */
+typedef struct {
+    int enabled;
+    int amount;            /* wet mix percent (0-100); 0 short-circuits */
+    int cutoff;            /* 1-100 percent of Nyquist */
+    int resonance;         /* 0-100 */
+    int alpha_q15;         /* one-pole coefficient (per stage) */
+    int feedback_q15;      /* resonance feedback gain */
+    int stage[4];          /* per-stage state, clamped to FX_BUFFER_CLAMP */
+} AudioMoogLadder;
+
 typedef struct {
     int enabled;
     int amount;
@@ -36,6 +51,7 @@ typedef struct {
     int drive_amount;
     AudioDelay delay;
     AudioLowpass lowpass;
+    AudioMoogLadder ladder;
     AudioSidechain sidechain;
 } AudioFxBusState;
 
@@ -56,6 +72,9 @@ int audio_fx_apply_drive(int input, int drive_amount);
 
 void audio_fx_lowpass_init(AudioLowpass *lp, int amount);
 int audio_fx_lowpass_process(AudioLowpass *lp, int input);
+
+void audio_fx_moog_ladder_init(AudioMoogLadder *m, int amount, int cutoff, int resonance);
+int audio_fx_moog_ladder_process(AudioMoogLadder *m, int input);
 
 void audio_fx_sidechain_init(AudioSidechain *sc, int sample_rate, int amount, int release_ms);
 int audio_fx_sidechain_process(AudioSidechain *sc, int input, int trigger, int *out_env_q15);

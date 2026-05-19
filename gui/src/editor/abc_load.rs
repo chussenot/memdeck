@@ -91,6 +91,9 @@ pub fn build_editable_song_from_raw(raw: ffi::RawAbcMusicForEditor) -> EditableS
                 180
             },
             mix_percent: if bus.mix_percent > 0 { bus.mix_percent } else { 100 },
+            ladder_amount: bus.ladder_amount,
+            ladder_cutoff: bus.ladder_cutoff,
+            ladder_resonance: bus.ladder_resonance,
         })
         .collect::<Vec<_>>();
     if fx_buses.is_empty() {

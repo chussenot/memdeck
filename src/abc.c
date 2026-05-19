@@ -510,6 +510,9 @@ static void parse_numbered_effect_directive(AbcMusic *music, const char *val)
     bus->sidechain_amount = parse_int_param(val, "sidechain=", bus->sidechain_amount);
     bus->sidechain_release_ms = parse_int_param(val, "sidechain_release=", bus->sidechain_release_ms);
     bus->mix_percent = parse_int_param(val, "mix=", bus->mix_percent);
+    bus->ladder_amount = parse_int_param(val, "ladder=", bus->ladder_amount);
+    bus->ladder_cutoff = parse_int_param(val, "ladder_cutoff=", bus->ladder_cutoff);
+    bus->ladder_resonance = parse_int_param(val, "ladder_resonance=", bus->ladder_resonance);
     
     /* Set default mix if not specified */
     if (bus->mix_percent == 0) bus->mix_percent = 100;
@@ -1133,6 +1136,9 @@ int abc_build_seq_song(const AbcMusic *music, SeqSong *song)
         dst->sidechain_amount = dsp_clampi(src->sidechain_amount, 0, 100);
         dst->sidechain_release_ms = dsp_clampi(src->sidechain_release_ms > 0 ? src->sidechain_release_ms : ABC_DEFAULT_SIDECHAIN_RELEASE_MS, 10, 2000);
         dst->mix_percent = dsp_clampi(src->mix_percent > 0 ? src->mix_percent : 100, 0, 100);
+        dst->ladder_amount = dsp_clampi(src->ladder_amount, 0, 100);
+        dst->ladder_cutoff = dsp_clampi(src->ladder_cutoff > 0 ? src->ladder_cutoff : 50, 1, 100);
+        dst->ladder_resonance = dsp_clampi(src->ladder_resonance, 0, 100);
     }
 
     for (int t = 0; t < track_count; t++) {

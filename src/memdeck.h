@@ -302,6 +302,9 @@ typedef struct {
     int sidechain_amount;
     int sidechain_release_ms;
     int mix_percent;     /* bus output mix (0-100) */
+    int ladder_amount;   /* moog ladder wet mix 0-100; 0 = disabled */
+    int ladder_cutoff;   /* 1-100 (percent of Nyquist) */
+    int ladder_resonance;/* 0-100 */
 } AbcFxBus;
 
 typedef struct {

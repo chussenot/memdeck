@@ -126,6 +126,71 @@ int audio_fx_lowpass_process(AudioLowpass *lp, int input)
     return lp->state;
 }
 
+void audio_fx_moog_ladder_init(AudioMoogLadder *m, int amount, int cutoff, int resonance)
+{
+    if (!m) return;
+    memset(m, 0, sizeof(*m));
+    amount = dsp_clampi(amount, 0, 100);
+    if (amount <= 0) return;
+    cutoff = dsp_clampi(cutoff, 1, 100);
+    resonance = dsp_clampi(resonance, 0, 100);
+
+    m->enabled = 1;
+    m->amount = amount;
+    m->cutoff = cutoff;
+    m->resonance = resonance;
+    /* alpha controls per-stage one-pole cutoff: bigger -> brighter.
+     * Curve chosen so cutoff=1 is very dark and cutoff=100 is wide open. */
+    m->alpha_q15 = dsp_clampi(160 + cutoff * 280, 160, 28800);
+    /* resonance feedback: at 100, k approaches 4 in Q15 (~131068).
+     * Capped just below to keep self-oscillation under control. */
+    m->feedback_q15 = (resonance * 122000) / 100;
+}
+
+static int moog_soft_clip(int x)
+{
+    /* Cheap odd-symmetric polynomial soft-clip approximating tanh for the
+     * resonance feedback path. Identity around zero; bends into saturation
+     * above FX_DRIVE_SOFT_CLIP, hard-limited to FX_BUFFER_CLAMP. */
+    int sign = 1;
+    int a;
+    int clipped;
+    if (x < 0) { sign = -1; x = -x; }
+    a = x;
+    if (a <= FX_DRIVE_SOFT_CLIP) return sign * a;
+    clipped = FX_DRIVE_SOFT_CLIP + ((a - FX_DRIVE_SOFT_CLIP) * 384)
+              / ((a - FX_DRIVE_SOFT_CLIP) + 384);
+    return clamp_sample(sign * clipped, FX_BUFFER_CLAMP);
+}
+
+int audio_fx_moog_ladder_process(AudioMoogLadder *m, int input)
+{
+    int driven;
+    int wet;
+    int dry;
+    if (!m || !m->enabled) return input;
+
+    /* Feedback path: subtract a soft-clipped resonant tap from the input
+     * before the ladder. Without saturation, high-Q would blow up Q15. */
+    driven = input - ((m->stage[3] * m->feedback_q15) >> 15);
+    driven = moog_soft_clip(driven);
+
+    /* Four cascaded one-pole lowpass stages. */
+    m->stage[0] += (m->alpha_q15 * (driven      - m->stage[0])) >> 15;
+    m->stage[1] += (m->alpha_q15 * (m->stage[0] - m->stage[1])) >> 15;
+    m->stage[2] += (m->alpha_q15 * (m->stage[1] - m->stage[2])) >> 15;
+    m->stage[3] += (m->alpha_q15 * (m->stage[2] - m->stage[3])) >> 15;
+
+    m->stage[0] = clamp_sample(m->stage[0], FX_BUFFER_CLAMP);
+    m->stage[1] = clamp_sample(m->stage[1], FX_BUFFER_CLAMP);
+    m->stage[2] = clamp_sample(m->stage[2], FX_BUFFER_CLAMP);
+    m->stage[3] = clamp_sample(m->stage[3], FX_BUFFER_CLAMP);
+
+    wet = (m->stage[3] * m->amount) / 100;
+    dry = (input * (100 - m->amount)) / 100;
+    return dry + wet;
+}
+
 void audio_fx_sidechain_init(AudioSidechain *sc, int sample_rate, int amount, int release_ms)
 {
     int release_samples;
@@ -181,6 +246,7 @@ int audio_fx_bus_init(AudioFxBusState *state, const SeqFxBus *bus,
     state->mix_percent = dsp_clampi(bus->mix_percent, 0, 100);
     state->drive_amount = dsp_clampi(bus->drive_amount, 0, 100);
     audio_fx_lowpass_init(&state->lowpass, bus->lowpass_amount);
+    audio_fx_moog_ladder_init(&state->ladder, bus->ladder_amount, bus->ladder_cutoff, bus->ladder_resonance);
     audio_fx_sidechain_init(&state->sidechain, sample_rate, bus->sidechain_amount, bus->sidechain_release_ms);
 
     delay_samples = audio_fx_delay_samples_from_steps(sample_rate, tempo_bpm, steps_per_beat, bus->delay_steps);
@@ -210,6 +276,7 @@ int audio_fx_bus_process(AudioFxBusState *state, int input, int trigger, int *ou
 
     sample = audio_fx_apply_drive(sample, state->drive_amount);
     sample = audio_fx_lowpass_process(&state->lowpass, sample);
+    sample = audio_fx_moog_ladder_process(&state->ladder, sample);
     sample = audio_fx_delay_process(&state->delay, sample);
     sample = audio_fx_sidechain_process(&state->sidechain, sample, trigger, &env_q15);
     sample = (sample * state->mix_percent) / 100;

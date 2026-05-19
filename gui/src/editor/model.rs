@@ -128,6 +128,9 @@ pub struct EditableFxBus {
     pub sidechain_amount: i32,
     pub sidechain_release_ms: i32,
     pub mix_percent: i32,
+    pub ladder_amount: i32,
+    pub ladder_cutoff: i32,
+    pub ladder_resonance: i32,
 }
 
 impl EditableFxBus {
@@ -142,6 +145,9 @@ impl EditableFxBus {
             sidechain_amount: 0,
             sidechain_release_ms: 180,
             mix_percent: 100,
+            ladder_amount: 0,
+            ladder_cutoff: 0,
+            ladder_resonance: 0,
         }
     }
 }

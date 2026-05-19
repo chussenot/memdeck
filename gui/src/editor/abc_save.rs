@@ -104,8 +104,8 @@ fn format_instrument_directive(inst: &EditableInstrument) -> String {
 }
 
 fn format_effect_directive(bus: &EditableFxBus) -> String {
-    format!(
-        "%%effect {} delay_steps={} delay_feedback={} delay_mix={} drive={} lowpass={} sidechain={} sidechain_release={} mix={}\n",
+    let mut line = format!(
+        "%%effect {} delay_steps={} delay_feedback={} delay_mix={} drive={} lowpass={} sidechain={} sidechain_release={} mix={}",
         bus.bus_index,
         bus.delay_steps,
         bus.delay_feedback,
@@ -115,7 +115,15 @@ fn format_effect_directive(bus: &EditableFxBus) -> String {
         bus.sidechain_amount,
         bus.sidechain_release_ms,
         bus.mix_percent,
-    )
+    );
+    if bus.ladder_amount > 0 {
+        line.push_str(&format!(
+            " ladder={} ladder_cutoff={} ladder_resonance={}",
+            bus.ladder_amount, bus.ladder_cutoff, bus.ladder_resonance
+        ));
+    }
+    line.push('\n');
+    line
 }
 
 fn format_track_steps(steps: &[super::model::EditableStep], blocks: &[EditableArrangementBlock]) -> String {
