@@ -173,15 +173,15 @@ static void test_showcase_demo_regression(void)
     } DemoExpectation;
     static const DemoExpectation demos[] = {
         { "data/music/dark_moroder.abc", 341419, 0x51c34a9304aa4556ull, 5000 },
-        { "data/music/perturbator_loop.abc", 298140, 0xe610f99b4c4b6b37ull, 7000 },
+        { "data/music/perturbator_loop.abc", 298140, 0xf93821e474e9e321ull, 9000 },
         { "data/music/carpenter_drive.abc", 407076, 0xaab706f01eaac6eaull, 6000 },
-        { "data/music/advanced_dsl_demo.abc", 330750, 0x064097bd78e56a0dull, 2000 },
-        { "data/music/multi_fx_demo.abc", 315940, 0xc461e95426b0fd72ull, 2000 },
-        { "data/music/neon_nightdrive.abc", 347016, 0x3cae36a6a440ea7dull, 2000 },
-        { "data/music/metro_chase.abc", 289972, 0x129a5338dc6a44c9ull, 16000 },
-        { "data/music/black_sunrise.abc", 378000, 0x5c427d0791f0c53cull, 2000 },
-        { "data/music/machine_romance.abc", 352800, 0x39615b7ff5900283ull, 5000 },
-        { "data/music/hypersleep_dream.abc", 441000, 0xb6a2b00a57398405ull, 1000 }
+        { "data/music/advanced_dsl_demo.abc", 330750, 0x7bf8a698c875695dull, 2000 },
+        { "data/music/multi_fx_demo.abc", 315940, 0x694dd56014426abfull, 2000 },
+        { "data/music/neon_nightdrive.abc", 347016, 0xb7aa1da212da5aa9ull, 2000 },
+        { "data/music/metro_chase.abc", 289972, 0x8377e2a56353b8c7ull, 16000 },
+        { "data/music/black_sunrise.abc", 378000, 0x621b25ee41ae1c61ull, 2000 },
+        { "data/music/machine_romance.abc", 352800, 0x1e20575de2133460ull, 5000 },
+        { "data/music/hypersleep_dream.abc", 441000, 0x3bfe2cd451d41c50ull, 1000 }
     };
 
     for (size_t i = 0; i < sizeof(demos) / sizeof(demos[0]); i++) {

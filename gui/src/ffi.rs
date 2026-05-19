@@ -18,7 +18,7 @@ const ABC_MAX_INSTRUMENTS: usize = 8;
 const ABC_MAX_PATTERNS: usize = 8;
 const ABC_MAX_ARRANGEMENT: usize = 32;
 const ABC_MAX_FX_BUSES: usize = 4;
-const SEQ_MAX_TRACKS: usize = 4;
+const SEQ_MAX_TRACKS: usize = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]

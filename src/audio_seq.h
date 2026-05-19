@@ -5,7 +5,7 @@
 #include "audio_dsp.h"
 
 #define SEQ_MAX_STEPS        64
-#define SEQ_MAX_TRACKS       4
+#define SEQ_MAX_TRACKS       8
 #define SEQ_MAX_PATTERNS     16
 #define SEQ_MAX_ARRANGEMENT  16
 #define SEQ_MAX_INSTRUMENTS  8
