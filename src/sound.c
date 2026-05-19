@@ -1,15 +1,17 @@
 #include "memdeck.h"
 #include "audio_engine.h"
 #include "audio_dsp.h"
-#include <signal.h>
-#include <sys/wait.h>
+#include "miniaudio_playback.h"
+#include <stdlib.h>
+#include <string.h>
 
 /*
- * Native audio backend.
+ * Native audio backend using miniaudio.
  *
- * SFX:  short one-shot sounds (success/fail) forked and forgotten.
- * Music: looping background track, PCM rendered via audio_engine.h,
- *        streamed to aplay through a parent-owned pipe for reliable stop.
+ * SFX:   short one-shot tones played via a dedicated MaPlaybackHandle.
+ * Music: looping background track rendered by audio_engine, played in a
+ *        looping MaPlaybackHandle.  No external tool (aplay, afplay, etc.)
+ *        is required — miniaudio loads the platform audio driver at runtime.
  */
 
 #define SAMPLE_RATE 22050
@@ -21,40 +23,7 @@
 static DspProfile g_sound_profile;
 static int g_last_loop_samples = 0;
 
-/* ─── Helpers ─────────────────────────────────────────────────── */
-
-/*
- * Reap finished SFX children only.
- * We must NOT use waitpid(-1) because that could accidentally reap
- * the music child processes (aplay_pid / writer_pid).
- */
-static pid_t sfx_pids[16];
-static int sfx_count = 0;
-
-static void sfx_reap(void)
-{
-    int j = 0;
-    for (int i = 0; i < sfx_count; i++) {
-        if (waitpid(sfx_pids[i], NULL, WNOHANG) == 0) {
-            /* still running, keep it */
-            sfx_pids[j++] = sfx_pids[i];
-        }
-        /* else: reaped or error, drop it */
-    }
-    sfx_count = j;
-}
-
-static void sfx_track(pid_t pid)
-{
-    if (sfx_count < 16)
-        sfx_pids[sfx_count++] = pid;
-}
-
-static void profile_generation(int samples, uint64_t ticks)
-{
-    if (!MEMDECK_AUDIO_PROFILE) return;
-    dsp_profile_add_generation(&g_sound_profile, samples, ticks);
-}
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 static int gen_tone(unsigned char *buf, int max_samples, double freq, int duration_ms,
                     int amplitude, DspWaveform waveform)
@@ -62,55 +31,34 @@ static int gen_tone(unsigned char *buf, int max_samples, double freq, int durati
     int n = dsp_samples_from_ms(SAMPLE_RATE, duration_ms);
     if (n > max_samples) n = max_samples;
     if (freq <= 0.0) {
-        memset(buf, 128, n);
+        memset(buf, 128, (size_t)n);
         return n;
     }
     DspOscillator osc;
     dsp_osc_init(&osc, waveform, amplitude);
     dsp_osc_set_frequency(&osc, freq, SAMPLE_RATE);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
         buf[i] = (unsigned char)dsp_clamp_u8(128 + dsp_osc_next(&osc));
-    }
     return n;
 }
 
-/* Fork + pipe PCM data to aplay for one-shot SFX. Returns immediately. */
-static void sound_play(const unsigned char *data, int len)
+/* ── SFX ─────────────────────────────────────────────────────────────────── */
+
+/* One shared handle for all SFX (one-shot sounds, not looping). */
+static MaPlaybackHandle *g_sfx_handle = NULL;
+
+static void sfx_ensure_handle(void)
 {
-    sfx_reap();
-    pid_t pid = fork();
-    if (pid < 0) return;
-    if (pid > 0) { sfx_track(pid); return; }
-
-    /* Child: pipe data to aplay and exit */
-    int pipefd[2];
-    if (pipe(pipefd) < 0) _exit(1);
-    pid_t p2 = fork();
-    if (p2 < 0) _exit(1);
-
-    if (p2 == 0) {
-        close(pipefd[1]);
-        dup2(pipefd[0], STDIN_FILENO);
-        close(pipefd[0]);
-        int devnull = open("/dev/null", O_WRONLY);
-        if (devnull >= 0) { dup2(devnull, STDERR_FILENO); close(devnull); }
-        execlp("aplay", "aplay", "-q", "-f", "U8", "-r", "22050",
-               "-c", "1", "-t", "raw", "--", (char *)NULL);
-        _exit(0);
-    }
-    close(pipefd[0]);
-    int off = 0;
-    while (off < len) {
-        ssize_t w = write(pipefd[1], data + off, (size_t)(len - off));
-        if (w <= 0) break;
-        off += (int)w;
-    }
-    close(pipefd[1]);
-    waitpid(p2, NULL, 0);
-    _exit(0);
+    if (!g_sfx_handle)
+        g_sfx_handle = ma_pb_create();
 }
 
-/* ─── SFX ─────────────────────────────────────────────────────── */
+static void sound_play(const unsigned char *data, int len)
+{
+    sfx_ensure_handle();
+    if (!g_sfx_handle) return;
+    ma_pb_start(g_sfx_handle, data, (size_t)len, SAMPLE_RATE, 0 /* no loop */);
+}
 
 void sound_success(void)
 {
@@ -122,7 +70,8 @@ void sound_success(void)
     int off = 0;
     for (int i = 0; i < 4; i++)
         off += gen_tone(buf + off, TOTAL - off, notes[i], DUR_MS, SFX_AMP, DSP_WAVE_SQUARE);
-    profile_generation(off, dsp_profile_now_ticks() - t0);
+    if (MEMDECK_AUDIO_PROFILE)
+        dsp_profile_add_generation(&g_sound_profile, off, dsp_profile_now_ticks() - t0);
     sound_play(buf, off);
 }
 
@@ -136,65 +85,27 @@ void sound_fail(void)
     int off = 0;
     for (int i = 0; i < 2; i++)
         off += gen_tone(buf + off, TOTAL - off, notes[i], DUR_MS, SFX_AMP, DSP_WAVE_SQUARE);
-    profile_generation(off, dsp_profile_now_ticks() - t0);
+    if (MEMDECK_AUDIO_PROFILE)
+        dsp_profile_add_generation(&g_sound_profile, off, dsp_profile_now_ticks() - t0);
     sound_play(buf, off);
 }
 
-/* ─── Background music ────────────────────────────────────────── */
+/* ── Background music ────────────────────────────────────────────────────── */
 
-/*
- * Architecture: the PARENT owns all resources for reliable cleanup.
- *
- *   Parent
- *     ├─ creates pipe
- *     ├─ forks aplay_pid  (reads pipe[0], execs aplay)
- *     ├─ forks writer_pid (writes loop PCM to pipe[1])
- *     └─ keeps pipe[1] open as music_fd
- *
- *   To stop:
- *     1. Kill writer  → no more data produced
- *     2. Close music_fd → pipe has no writers → aplay reads EOF → exits
- *     3. Kill aplay    → immediate stop (don't wait for buffer drain)
- *     4. Waitpid both  → clean reap, no zombies
- */
+static MaPlaybackHandle *g_music_handle = NULL;
+static int   music_source = 0;   /* 0=none, 1=abc, 2=builtin sequencer */
+static char  music_track_title[128] = {0};
+static char  sound_data_dir[MAX_PATH + 64] = {0};
 
-static pid_t aplay_pid  = 0;
-static pid_t writer_pid = 0;
-static int   music_fd   = -1;   /* parent's copy of pipe write-end */
-/* Writer child exits with this code when pipe write fails (underrun/broken sink). */
-#define WRITER_EXIT_UNDERRUN 2
+int sound_music_source(void) { return music_source; }
+const char *sound_music_title(void) { return music_track_title; }
 
-static void writer_collect_status(int block)
+void sound_set_data_dir(const char *dir)
 {
-    if (writer_pid <= 0) return;
-    int status = 0;
-    pid_t rc = waitpid(writer_pid, &status, block ? 0 : WNOHANG);
-    if (rc != writer_pid) return;
-    if (WIFEXITED(status) && WEXITSTATUS(status) == WRITER_EXIT_UNDERRUN)
-        g_sound_profile.underruns++;
-    writer_pid = 0;
+    snprintf(sound_data_dir, sizeof(sound_data_dir), "%s", dir);
 }
 
-static char music_track_title[128] = {0};
-
-static unsigned char *music_generate_loop(int *out_len)
-{
-    AudioRenderStats stats;
-    uint64_t t0 = dsp_profile_now_ticks();
-    unsigned char *buf;
-
-    buf = audio_engine_render_builtin_menu(SAMPLE_RATE, out_len, &stats);
-    snprintf(music_track_title, sizeof(music_track_title), "%s",
-             buf ? "MemDeck Built-in Retro Sequencer" : "");
-    if (buf && out_len) profile_generation(*out_len, dsp_profile_now_ticks() - t0);
-    return buf;
-}
-
-/*
- * Try to load music from ABC files. Discovers all available tracks
- * (menu_bass/arp/lead.abc, menu2_bass/arp/lead.abc, ...) and picks one
- * at random. Falls back to a combined menu.abc if no voice files found.
- */
+/* Generate PCM for one loop iteration using ABC files. */
 static unsigned char *music_try_track(int *out_len, const char *music_dir,
                                       const char *prefix)
 {
@@ -203,7 +114,7 @@ static unsigned char *music_try_track(int *out_len, const char *music_dir,
     char lead_path[MAX_PATH + 128];
 
     snprintf(bass_path, sizeof(bass_path), "%s/%s_bass.abc", music_dir, prefix);
-    snprintf(arp_path, sizeof(arp_path), "%s/%s_arp.abc", music_dir, prefix);
+    snprintf(arp_path,  sizeof(arp_path),  "%s/%s_arp.abc",  music_dir, prefix);
     snprintf(lead_path, sizeof(lead_path), "%s/%s_lead.abc", music_dir, prefix);
 
     const char *paths[3] = { bass_path, arp_path, lead_path };
@@ -220,11 +131,9 @@ static unsigned char *music_try_track(int *out_len, const char *music_dir,
 
 static unsigned char *music_load_abc(int *out_len, const char *data_dir)
 {
-    /* Derive music dir from data_dir (which points to data/stacks) */
     char music_dir[MAX_PATH + 96];
     snprintf(music_dir, sizeof(music_dir), "%s/../music", data_dir);
 
-    /* Discover available tracks: menu, menu2, menu3, ... */
     static const char *prefixes[] = {
         "menu", "menu2", "menu3", "menu4", "menu5", "menu6", "menu7", "menu8"
     };
@@ -238,14 +147,13 @@ static unsigned char *music_load_abc(int *out_len, const char *data_dir)
             available[count++] = i;
     }
 
-    /* Pick one at random */
     if (count > 0) {
         int pick = rand() % count;
         unsigned char *buf = music_try_track(out_len, music_dir, prefixes[available[pick]]);
         if (buf) return buf;
     }
 
-    /* Fallback: try combined menu.abc */
+    /* Fallback: combined menu.abc */
     char combined[MAX_PATH + 128];
     snprintf(combined, sizeof(combined), "%s/menu.abc", music_dir);
     {
@@ -260,129 +168,61 @@ static unsigned char *music_load_abc(int *out_len, const char *data_dir)
     return NULL;
 }
 
-const char *sound_music_title(void) { return music_track_title; }
-
-/* Global: data_dir is set by sound_set_data_dir() before music starts */
-static char sound_data_dir[MAX_PATH + 64] = {0};
-static int  music_source = 0; /* 0=none, 1=abc, 2=builtin sequencer */
-
-int sound_music_source(void) { return music_source; }
-
-void sound_set_data_dir(const char *dir)
+static unsigned char *music_generate_loop(int *out_len)
 {
-    snprintf(sound_data_dir, sizeof(sound_data_dir), "%s", dir);
+    AudioRenderStats stats;
+    uint64_t t0 = dsp_profile_now_ticks();
+    unsigned char *buf = audio_engine_render_builtin_menu(SAMPLE_RATE, out_len, &stats);
+    snprintf(music_track_title, sizeof(music_track_title), "%s",
+             buf ? "MemDeck Built-in Retro Sequencer" : "");
+    if (buf && out_len && MEMDECK_AUDIO_PROFILE)
+        dsp_profile_add_generation(&g_sound_profile, *out_len, dsp_profile_now_ticks() - t0);
+    return buf;
 }
 
 void sound_music_start(void)
 {
-    writer_collect_status(0);
-    /* Don't start if already playing */
-    if (writer_pid > 0 && kill(writer_pid, 0) == 0) return;
-    if (aplay_pid > 0 && kill(aplay_pid, 0) == 0) return;
+    /* Don't restart if already playing. */
+    if (g_music_handle && ma_pb_is_active(g_music_handle)) return;
 
-    /* Clean slate */
     sound_music_stop();
 
     int loop_len = 0;
     unsigned char *loop_buf = NULL;
 
-    /* Try ABC files first */
     if (sound_data_dir[0])
         loop_buf = music_load_abc(&loop_len, sound_data_dir);
 
     if (loop_buf) {
-        music_source = 1; /* ABC */
+        music_source = 1;
     } else {
-        /* Fallback to the built-in sequencer */
         loop_buf = music_generate_loop(&loop_len);
-        if (loop_buf) music_source = 2; /* built-in sequencer */
+        if (loop_buf) music_source = 2;
     }
 
     if (!loop_buf) return;
     g_last_loop_samples = loop_len;
 
-    /* Parent creates the pipe */
-    int pipefd[2];
-    if (pipe(pipefd) < 0) { audio_engine_free_buffer(loop_buf); return; }
+    if (!g_music_handle)
+        g_music_handle = ma_pb_create();
 
-    /* Fork aplay: reads from pipe[0] */
-    aplay_pid = fork();
-    if (aplay_pid < 0) {
-        close(pipefd[0]); close(pipefd[1]);
-        audio_engine_free_buffer(loop_buf);
-        return;
-    }
-    if (aplay_pid == 0) {
-        audio_engine_free_buffer(loop_buf);
-        close(pipefd[1]);           /* child doesn't write */
-        dup2(pipefd[0], STDIN_FILENO);
-        close(pipefd[0]);
-        int devnull = open("/dev/null", O_WRONLY);
-        if (devnull >= 0) { dup2(devnull, STDERR_FILENO); close(devnull); }
-        execlp("aplay", "aplay", "-q", "-f", "U8", "-r", "22050",
-               "-c", "1", "-t", "raw", "--", (char *)NULL);
-        _exit(1);
-    }
+    if (g_music_handle)
+        ma_pb_start(g_music_handle, loop_buf, (size_t)loop_len, SAMPLE_RATE, 1 /* loop */);
 
-    /* Parent no longer needs read end */
-    close(pipefd[0]);
-
-    /* Fork writer: writes loop PCM to pipe[1] forever */
-    writer_pid = fork();
-    if (writer_pid < 0) {
-        close(pipefd[1]);
-        kill(aplay_pid, SIGKILL);
-        waitpid(aplay_pid, NULL, 0);
-        aplay_pid = 0;
-        audio_engine_free_buffer(loop_buf);
-        return;
-    }
-    if (writer_pid == 0) {
-        /* Writer child: loop forever writing PCM data */
-        close(music_fd);  /* don't inherit parent's extra copy (not set yet, harmless) */
-        for (;;) {
-            int off = 0;
-            while (off < loop_len) {
-                ssize_t w = write(pipefd[1], loop_buf + off, (size_t)(loop_len - off));
-                if (w <= 0) {
-                    close(pipefd[1]);
-                    audio_engine_free_buffer(loop_buf);
-                    _exit(WRITER_EXIT_UNDERRUN);
-                }
-                off += (int)w;
-            }
-        }
-        close(pipefd[1]);
-        audio_engine_free_buffer(loop_buf);
-        _exit(0);
-    }
-
-    /* Parent keeps write-end so we can close it to trigger EOF on aplay */
-    music_fd = pipefd[1];
     audio_engine_free_buffer(loop_buf);
 }
 
 void sound_music_stop(void)
 {
-    /* 1. Kill writer first → stops producing data */
-    if (writer_pid > 0) {
-        kill(writer_pid, SIGKILL);
-        writer_collect_status(1);
+    if (g_music_handle) {
+        ma_pb_stop(g_music_handle);
+        ma_pb_destroy(g_music_handle);
+        g_music_handle = NULL;
     }
-
-    /* 2. Close parent's pipe FD → aplay sees EOF (no more writers) */
-    if (music_fd >= 0) {
-        close(music_fd);
-        music_fd = -1;
-    }
-
-    /* 3. Kill aplay → immediate silence, don't drain buffer */
-    if (aplay_pid > 0) {
-        kill(aplay_pid, SIGKILL);
-        waitpid(aplay_pid, NULL, 0);
-        aplay_pid = 0;
-    }
+    music_source = 0;
 }
+
+/* ── Profiling ────────────────────────────────────────────────────────────── */
 
 void sound_profile_reset(void)
 {
@@ -392,10 +232,11 @@ void sound_profile_reset(void)
 int sound_profile_snapshot(SoundProfile *out)
 {
     if (!out) return -1;
-    out->generated_samples = g_sound_profile.generated_samples;
-    out->generation_calls = g_sound_profile.generation_calls;
-    out->generation_ns = dsp_profile_ticks_to_ns(g_sound_profile.generation_ticks);
-    out->estimated_latency_ms = (unsigned long long)((g_last_loop_samples * 1000ull) / SAMPLE_RATE);
-    out->underruns = g_sound_profile.underruns;
+    out->generated_samples     = g_sound_profile.generated_samples;
+    out->generation_calls      = g_sound_profile.generation_calls;
+    out->generation_ns         = dsp_profile_ticks_to_ns(g_sound_profile.generation_ticks);
+    out->estimated_latency_ms  =
+        (unsigned long long)((g_last_loop_samples * 1000ull) / SAMPLE_RATE);
+    out->underruns             = g_sound_profile.underruns;
     return 0;
 }

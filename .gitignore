@@ -1,4 +1,7 @@
 bin/memdeck-tui
+bin/test-audio-dsp
+bin/test-abc
+bin/test-audio-seq
 *.o
 *.dSYM/
 .DS_Store

@@ -1,9 +1,11 @@
 PREFIX  ?= /usr/local
 CC      ?= cc
 CFLAGS  ?= -Wall -Wextra -O2 -std=c99 -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600
-LDFLAGS ?= -lncursesw -lm
+LDFLAGS ?= -lncursesw -lm -ldl -lpthread
 
 SRC          = src/main.c src/card.c src/stack.c src/progress.c src/session.c src/ui.c src/sound.c src/abc.c src/audio_dsp.c src/audio_seq.c src/audio_mix.c src/audio_song_builtin.c src/audio_fx.c src/audio_engine.c
+# miniaudio_playback.c compiled separately to suppress its upstream warnings.
+MINIAUDIO_OBJ = bin/miniaudio_playback.o
 BIN          = bin/memdeck-tui
 BENCH        = bin/bench-audio
 TEST_DSP     = bin/test-audio-dsp
@@ -19,13 +21,17 @@ PLAY_DEMO_BIN = bin/play-demo
 all:
 	@$(MAKE) --no-print-directory -B $(BIN)
 
-$(BIN): $(SRC) src/memdeck.h
+$(BIN): $(SRC) $(MINIAUDIO_OBJ) src/memdeck.h
 	@mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(SRC) $(MINIAUDIO_OBJ) $(LDFLAGS)
 	@echo "Build complete: $(BIN)"
 
+$(MINIAUDIO_OBJ): src/miniaudio_playback.c src/miniaudio_playback.h src/miniaudio.h
+	@mkdir -p bin
+	$(CC) -O2 -std=c99 -D_DEFAULT_SOURCE -w -I src -o $@ -c src/miniaudio_playback.c
+
 clean:
-	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN)
+	rm -f $(BIN) $(BENCH) $(TEST_DSP) $(TEST_ABC_BIN) $(TEST_SEQ_BIN) $(RENDER_DEMOS_BIN) $(PLAY_DEMO_BIN) $(MINIAUDIO_OBJ)
 
 install: all
 	install -d $(PREFIX)/bin
