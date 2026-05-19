@@ -4354,9 +4354,7 @@ impl eframe::App for MemDeckGuiApp {
             ctx.request_repaint_after(Duration::from_millis(60));
         }
 
-        egui::TopBottomPanel::top("runtime_header")
-            .exact_height(58.0)
-            .show(ctx, |ui| {
+        egui::TopBottomPanel::top("runtime_header").show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.heading("MEMDECK SOUND MACHINE");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -4499,23 +4497,43 @@ impl eframe::App for MemDeckGuiApp {
             .show(ctx, |ui| self.draw_status_line(ui));
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical(|ui| {
-                ui.columns(2, |columns| {
-                    self.draw_demo_browser(&mut columns[0]);
-                    self.draw_stats_panel(&mut columns[1]);
+            let available = ui.available_size();
+            let is_portrait = available.y > available.x * 1.1;
+            let use_compact_layout = is_portrait || available.x < 1180.0;
+
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.vertical(|ui| {
+                        if use_compact_layout {
+                            self.draw_demo_browser(ui);
+                            ui.add_space(8.0);
+                            self.draw_stats_panel(ui);
+                        } else {
+                            ui.columns(2, |columns| {
+                                self.draw_demo_browser(&mut columns[0]);
+                                self.draw_stats_panel(&mut columns[1]);
+                            });
+                        }
+                        ui.add_space(8.0);
+                        self.draw_waveform_panel(ui);
+                        ui.add_space(8.0);
+                        self.draw_pattern_panel(ui);
+                        ui.add_space(8.0);
+                        self.draw_pattern_editor_panel(ui);
+                        ui.add_space(8.0);
+                        if use_compact_layout {
+                            self.draw_instrument_inspector(ui);
+                            ui.add_space(8.0);
+                            self.draw_fx_inspector(ui);
+                        } else {
+                            ui.columns(2, |columns| {
+                                self.draw_instrument_inspector(&mut columns[0]);
+                                self.draw_fx_inspector(&mut columns[1]);
+                            });
+                        }
+                    });
                 });
-                ui.add_space(8.0);
-                self.draw_waveform_panel(ui);
-                ui.add_space(8.0);
-                self.draw_pattern_panel(ui);
-                ui.add_space(8.0);
-                self.draw_pattern_editor_panel(ui);
-                ui.add_space(8.0);
-                ui.columns(2, |columns| {
-                    self.draw_instrument_inspector(&mut columns[0]);
-                    self.draw_fx_inspector(&mut columns[1]);
-                });
-            });
         });
         self.draw_active_dialog(ctx);
         if self.request_quit {
