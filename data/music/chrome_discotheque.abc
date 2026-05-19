@@ -1,0 +1,109 @@
+X:1
+T:Chrome Discotheque - Robot Anthem
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=120
+K:Am
+%%swing 56
+%%instrument kick wave=noise amp=72 attack=0 decay=10 sustain=6 release=14 gate=22 fx=0
+%%instrument hats wave=noise amp=30 attack=0 decay=4 sustain=8 release=8 gate=20 fx=0
+%%instrument clap wave=noise amp=58 attack=2 decay=14 sustain=12 release=24 gate=32 fx=0
+%%instrument bass wave=pulse amp=92 duty=40 attack=0 decay=30 sustain=68 release=70 gate=85 fx=0
+%%instrument stab wave=pulse amp=66 duty=50 attack=2 decay=24 sustain=60 release=70 gate=72 fx=1
+%%instrument arp wave=pulse amp=44 duty=22 attack=0 decay=14 sustain=52 release=30 gate=40 vibrato=5 fx=1
+%%instrument lead wave=triangle amp=52 attack=6 decay=44 sustain=80 release=140 gate=90 vibrato=12 glide=22 fx=2
+%%instrument pad wave=triangle amp=30 attack=180 decay=210 sustain=88 release=420 gate=98 fx=2
+%%effect 0 delay_steps=1 delay_feedback=14 delay_mix=8 drive=24 lowpass=26 sidechain=58 sidechain_release=160 mix=100
+%%effect 1 delay_steps=3 delay_feedback=32 delay_mix=24 drive=18 lowpass=20 sidechain=62 sidechain_release=180 mix=88 ladder=82 ladder_cutoff=42 ladder_resonance=58
+%%effect 2 delay_steps=6 delay_feedback=48 delay_mix=38 drive=12 lowpass=40 sidechain=42 sidechain_release=220 mix=78 ladder=38 ladder_cutoff=70 ladder_resonance=24
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A B C D A B C D A B C D A B C D
+V:kick instrument=kick
+V:hats instrument=hats
+V:clap instrument=clap
+V:bass instrument=bass
+V:stab instrument=stab
+V:arp instrument=arp
+V:lead instrument=lead
+V:pad instrument=pad
+%
+% Form: 16 bars, Am-F-C-G cycle (one chord per bar) x4. 120 BPM 1/16.
+% Intensity build by voice gating: loop 1 drums, loop 2 +bass, loop 3 +stab/arp, loop 4 full.
+% FX buses: 0 drums (sidechain pump), 1 stab+arp through Moog ladder (DP filter chord),
+%           2 lead+pad with delay tail and softer ladder.
+V:kick
+% loop 1 (half-time intro)
+| c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 |
+% loop 2 (four-on-floor)
+| c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 |
+% loop 3 (four-on-floor)
+| c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 |
+% loop 4 (four-on-floor with 16th roll on last bar)
+| c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c2 z2 c2 z2 c2 z2 c2 z2 | c c c c c c c c c c c c c c c c |
+V:hats
+% loop 1 (8th-note hats sneak in on bar 4)
+| z16 | z16 | z16 | c2 c2 c2 c2 c2 c2 c2 c2 |
+% loop 2 (constant 8th-note hats)
+| c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 |
+% loop 3 (open hats on off-beats)
+| z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% loop 4 (full 16ths)
+| c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c |
+V:clap
+% loop 1 (no clap)
+| z16 | z16 | z16 | z16 |
+% loop 2 (snare backbeat on beats 2 and 4)
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+% loop 3 (snare backbeat)
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+% loop 4 (snare with fills)
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | c c c c c c c c c c c c c c c c |
+V:bass
+% loop 1 (silent — drums only intro)
+| z16 | z16 | z16 | z16 |
+% loop 2 (octave-jump funk: Am F C G)
+| A,,2 A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 | F,,2 F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 | C,2 C,2 C2 C,2 C,2 C2 C,2 C,2 | G,,2 G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 |
+% loop 3 (same funk pattern)
+| A,,2 A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 | F,,2 F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 | C,2 C,2 C2 C,2 C,2 C2 C,2 C,2 | G,,2 G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 |
+% loop 4 (16th-note acid pulses)
+| A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, A,, | F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, F,, | C, C, C, C, C, C, C, C, C, C, C, C, C, C, C, C, | G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, |
+V:stab
+% loop 1 (silent)
+| z16 | z16 | z16 | z16 |
+% loop 2 (off-beat root stabs — filtered chord cuts in)
+| z2 A,2 z2 A,2 z2 A,2 z2 A,2 | z2 F,2 z2 F,2 z2 F,2 z2 F,2 | z2 C2 z2 C2 z2 C2 z2 C2 | z2 G,2 z2 G,2 z2 G,2 z2 G,2 |
+% loop 3 (chord arpeggio on 8ths through ladder)
+| A,2 C2 E2 A2 A,2 C2 E2 A2 | F,2 A,2 C2 F2 F,2 A,2 C2 F2 | C2 E2 G2 c2 C2 E2 G2 c2 | G,2 B,2 D2 G2 G,2 B,2 D2 G2 |
+% loop 4 (16th-note chord arpeggio — peak filter banger)
+| A, C E A A, C E A A, C E A A, C E A | F, A, C F F, A, C F F, A, C F F, A, C F | C E G c C E G c C E G c C E G c | G, B, D G G, B, D G G, B, D G G, B, D G |
+V:arp
+% loop 1 (silent)
+| z16 | z16 | z16 | z16 |
+% loop 2 (silent — stab carries the chord)
+| z16 | z16 | z16 | z16 |
+% loop 3 (high arpeggio — 8ths)
+| a2 c'2 e'2 a2 a2 c'2 e'2 a2 | f2 a2 c'2 f2 f2 a2 c'2 f2 | c'2 e'2 g'2 c'2 c'2 e'2 g'2 c'2 | g2 b2 d'2 g2 g2 b2 d'2 g2 |
+% loop 4 (high arpeggio — 16ths sparkling on top)
+| a c' e' a' a c' e' a' a c' e' a' a c' e' a' | f a c' f' f a c' f' f a c' f' f a c' f' | c' e' g' c'' c' e' g' c'' c' e' g' c'' c' e' g' c'' | g b d' g' g b d' g' g b d' g' g b d' g' |
+V:lead
+% loop 1 (silent)
+| z16 | z16 | z16 | z16 |
+% loop 2 (silent — anticipation)
+| z16 | z16 | z16 | z16 |
+% loop 3 (silent — anticipation continues)
+| z16 | z16 | z16 | z16 |
+% loop 4 (talkbox-style hook — syncopated melody over Am F C G)
+| z4 a2 e'2 c'2 a2 e2 z2 | z4 c'2 a2 f2 a2 c'2 z2 | z4 e'2 c'2 g2 c'2 e'2 z2 | g'4 d'4 b4 g4 |
+V:pad
+% loop 1 (sustained Am drone for intro atmosphere)
+| A,8 A,8 | A,8 A,8 | F,8 F,8 | C8 C8 |
+% loop 2 (pad follows chords)
+| A,8 A,8 | F,8 F,8 | C8 C8 | G,8 G,8 |
+% loop 3 (pad follows chords)
+| A,8 A,8 | F,8 F,8 | C8 C8 | G,8 G,8 |
+% loop 4 (pad follows chords — final)
+| A,8 A,8 | F,8 F,8 | C8 C8 | G,8 G,8 |

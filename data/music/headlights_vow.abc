@@ -1,0 +1,113 @@
+X:1
+T:Headlights Vow - Synthwave Cruise
+C:MemDeck
+M:4/4
+L:1/16
+Q:1/4=116
+K:Am
+%%swing 52
+%%instrument kick wave=noise amp=70 attack=0 decay=14 sustain=8 release=24 gate=30 fx=0
+%%instrument snare wave=noise amp=58 attack=2 decay=28 sustain=24 release=80 gate=44 fx=0
+%%instrument hats wave=noise amp=28 attack=0 decay=4 sustain=6 release=10 gate=18 fx=0
+%%instrument bass wave=pulse amp=78 duty=32 attack=0 decay=20 sustain=72 release=110 gate=88 fx=1
+%%instrument arp wave=pulse amp=40 duty=24 attack=2 decay=24 sustain=58 release=80 gate=58 vibrato=4 fx=2
+%%instrument pluck wave=pulse amp=38 duty=20 attack=0 decay=18 sustain=40 release=50 gate=44 vibrato=3 fx=2
+%%instrument lead wave=pulse amp=48 duty=22 attack=10 decay=140 sustain=80 release=280 gate=92 vibrato=14 glide=28 fx=3
+%%instrument pad wave=triangle amp=28 attack=240 decay=280 sustain=90 release=520 gate=98 vibrato=4 fx=3
+%%effect 0 delay_steps=2 delay_feedback=18 delay_mix=10 drive=22 lowpass=12 sidechain=44 sidechain_release=200 mix=100
+%%effect 1 delay_steps=1 delay_feedback=8 delay_mix=4 drive=20 lowpass=14 sidechain=42 sidechain_release=180 mix=98
+%%effect 2 delay_steps=4 delay_feedback=46 delay_mix=32 drive=14 lowpass=28 sidechain=36 sidechain_release=240 mix=85 ladder=60 ladder_cutoff=48 ladder_resonance=42
+%%effect 3 delay_steps=8 delay_feedback=46 delay_mix=34 drive=10 lowpass=38 sidechain=44 sidechain_release=320 mix=78 ladder=42 ladder_cutoff=66 ladder_resonance=28
+%%pattern A length=16
+%%pattern B length=16
+%%pattern C length=16
+%%pattern D length=16
+%%arrangement A B C D A B C D A B C D A B C D
+V:kick instrument=kick
+V:snare instrument=snare
+V:hats instrument=hats
+V:bass instrument=bass
+V:arp instrument=arp
+V:pluck instrument=pluck
+V:lead instrument=lead
+V:pad instrument=pad
+%
+% Form: 16 bars, Am-F-C-G cycle x4 at 116 BPM. Half-time drum feel,
+% octave-pulse bass, sustained vibrato lead through long delay.
+% Sections: loop 1 intro (pad + sparse kick), loop 2 build (+ snare,
+% arp), loop 3 chorus (+ lead hook, pluck), loop 4 climax (lead
+% answer, 16th roll fills).
+% FX buses: 0 drums (drive, sidechain pump), 1 bass (clean),
+%           2 arp+pluck (ladder + medium delay),
+%           3 lead+pad (long delay tail, soft ladder).
+V:kick
+% loop 1 - intro (sparse quarter-note then half-time)
+| c4 z4 c4 z4 | c4 z4 c4 z4 | c2 z6 c2 z6 | c2 z6 c2 z6 |
+% loop 2 - half-time backbeat
+| c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 |
+% loop 3 - same, chorus
+| c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 |
+% loop 4 - climax with 16th roll
+| c2 z6 c2 z6 | c2 z6 c2 z6 | c2 z6 c2 z6 | c c c c c c c c c c c c c c c c |
+V:snare
+% loop 1 - no snare until bar 3
+| z16 | z16 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+% loop 2 - gated backbeat on 2 and 4
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+% loop 3
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 |
+% loop 4 - backbeat + roll fill
+| z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | z4 c2 z6 c2 z2 | c c c c c c c c c c c c c c c c |
+V:hats
+% loop 1 - off-beats sneak in on bar 3
+| z16 | z16 | z2 c2 z2 c2 z2 c2 z2 c2 | z2 c2 z2 c2 z2 c2 z2 c2 |
+% loop 2 - 8th-note ride
+| c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 | c2 c2 c2 c2 c2 c2 c2 c2 |
+% loop 3 - 16ths
+| c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c |
+% loop 4 - 16ths
+| c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c | c c c c c c c c c c c c c c c c |
+V:bass
+% loop 1 - sparse low pulse
+| A,,2 z2 A,,2 z2 A,,2 z2 A,,2 z2 | F,,2 z2 F,,2 z2 F,,2 z2 F,,2 z2 | C,2 z2 C,2 z2 C,2 z2 C,2 z2 | G,,2 z2 G,,2 z2 G,,2 z2 G,,2 z2 |
+% loop 2 - octave-jump pulse (Kavinsky bass DNA)
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 | F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 | C,2 C2 C,2 C,2 C2 C,2 C,2 C2 | G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 G,2 |
+% loop 3
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 | F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 | C,2 C2 C,2 C,2 C2 C,2 C,2 C2 | G,,2 G,2 G,,2 G,,2 G,2 G,,2 G,,2 G,2 |
+% loop 4 - same plus 16th-note bass roll on last bar
+| A,,2 A,2 A,,2 A,,2 A,2 A,,2 A,,2 A,2 | F,,2 F,2 F,,2 F,,2 F,2 F,,2 F,,2 F,2 | C,2 C2 C,2 C,2 C2 C,2 C,2 C2 | G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, G,, |
+V:arp
+% loop 1 - silent
+| z16 | z16 | z16 | z16 |
+% loop 2 - 8th-note arpeggio enters
+| A,2 C2 E2 A2 A,2 C2 E2 A2 | F,2 A,2 C2 F2 F,2 A,2 C2 F2 | C2 E2 G2 c2 C2 E2 G2 c2 | G,2 B,2 D2 G2 G,2 B,2 D2 G2 |
+% loop 3 - 16th-note arpeggio (filtered through ladder)
+| A, C E A A, C E A A, C E A A, C E A | F, A, C F F, A, C F F, A, C F F, A, C F | C E G c C E G c C E G c C E G c | G, B, D G G, B, D G G, B, D G G, B, D G |
+% loop 4 - same 16ths
+| A, C E A A, C E A A, C E A A, C E A | F, A, C F F, A, C F F, A, C F F, A, C F | C E G c C E G c C E G c C E G c | G, B, D G G, B, D G G, B, D G G, B, D G |
+V:pluck
+% loops 1-2 silent
+| z16 | z16 | z16 | z16 |
+| z16 | z16 | z16 | z16 |
+% loop 3 - off-beat chord pluck (top voicing)
+| z2 a2 z2 a2 z2 a2 z2 a2 | z2 f2 z2 f2 z2 f2 z2 f2 | z2 c'2 z2 c'2 z2 c'2 z2 c'2 | z2 g2 z2 g2 z2 g2 z2 g2 |
+% loop 4 - same
+| z2 a2 z2 a2 z2 a2 z2 a2 | z2 f2 z2 f2 z2 f2 z2 f2 | z2 c'2 z2 c'2 z2 c'2 z2 c'2 | z2 g2 z2 g2 z2 g2 z2 g2 |
+V:lead
+% loops 1-2 silent (let the cruise build)
+| z16 | z16 | z16 | z16 |
+| z16 | z16 | z16 | z16 |
+% loop 3 - main hook, sustained sliding notes (vibrato + glide bind them)
+| e4 a8 g4 | f4 a4 c'8 | g4 c'8 e'4 | d'4 b4 g8 |
+% loop 4 - answer phrase, longer sustains
+| a8 e'8 | f4 a4 c'8 | g4 c'8 e'4 | b4 d'4 g8 |
+V:pad
+% pad sustains throughout to anchor the cruise
+% loop 1 - root pads
+| A,8 A,8 | F,8 F,8 | C8 C8 | G,8 G,8 |
+% loop 2 - root then third for color
+| A,8 c8 | F,8 c8 | C8 g8 | G,8 d8 |
+% loop 3
+| A,8 e8 | F,8 c8 | C8 g8 | G,8 d8 |
+% loop 4 - top voicing rises in last bars
+| A,8 a8 | F,8 c8 | C8 g8 | G,8 d8 |
