@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "audio_seq.h"
+#include "memdeck.h"
 
 /*
  * audio_jam — variation primitives for "infinite continuation" mode.
@@ -16,15 +17,41 @@
  * Q-style integer math; the PRNG is xorshift64*. No floats.
  */
 
+/* Heuristic voice role used by the variation strategies. Filled in by
+ * audio_jam_analyze_song; UNKNOWN means "treat as generic lead". */
+typedef enum {
+    JAM_VOICE_UNKNOWN = 0,
+    JAM_VOICE_KICK,
+    JAM_VOICE_SNARE_HAT,  /* any short noise hit that isn't the kick */
+    JAM_VOICE_BASS,
+    JAM_VOICE_LEAD,
+    JAM_VOICE_PAD
+} JamVoiceRole;
+
 typedef struct {
     uint64_t state;       /* xorshift64* state */
     int iteration;        /* increments per audio_jam_vary_song call */
     int arrangement_offset; /* current scroll position into base arrangement */
+    /* Per-voice role (0..SEQ_MAX_TRACKS-1). Defaults to UNKNOWN until
+     * audio_jam_analyze_song runs. */
+    JamVoiceRole roles[SEQ_MAX_TRACKS];
+    /* For each track, a representative MIDI note pulled from the song
+     * (first sounding step). Used when synthesising new hits (drum fills)
+     * so we don't insert an alien pitch. */
+    int reference_note[SEQ_MAX_TRACKS];
+    /* Per-pattern density 0..100 — percentage of step-slots that have
+     * a sounding note. Used to gate disruptive arrangement swaps. */
+    int pattern_density[SEQ_MAX_PATTERNS];
 } JamState;
 
 void     audio_jam_init(JamState *jam, uint64_t seed);
 uint32_t audio_jam_rand(JamState *jam);
 int      audio_jam_rand_range(JamState *jam, int min_inclusive, int max_exclusive);
+
+/* Populate jam->roles[], jam->reference_note[], and jam->pattern_density[]
+ * by inspecting `music` (for instrument params) and `base` (for note
+ * pitches and active-step counts). Safe to call multiple times. */
+void audio_jam_analyze_song(JamState *jam, const AbcMusic *music, const SeqSong *base);
 
 /* Copy `slots` arrangement entries from `base`, starting at `start_slot`
  * (modulo base->arrangement_length), into `out`. The rest of `out` is

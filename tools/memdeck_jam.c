@@ -95,6 +95,20 @@ int main(int argc, char **argv)
 
     JamState jam;
     audio_jam_init(&jam, seed);
+    audio_jam_analyze_song(&jam, &music, &base);
+
+    /* Report what we detected so the user sees the variation choices
+     * the jam will make. */
+    static const char *role_names[] = {
+        "unknown", "kick", "snare/hat", "bass", "lead", "pad"
+    };
+    fprintf(stderr, "[jam] voice roles:");
+    for (int t = 0; t < SEQ_MAX_TRACKS; t++) {
+        if (jam.roles[t] == JAM_VOICE_UNKNOWN && t >= music.voice_count) break;
+        const char *vname = (t < music.voice_count) ? music.voices[t].name : "?";
+        fprintf(stderr, " %s=%s", vname[0] ? vname : "?", role_names[jam.roles[t]]);
+    }
+    fprintf(stderr, "\n");
 
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
