@@ -1,0 +1,444 @@
+X:1
+T:Three Chord Howl - Punk Ladder
+C:MemDeck
+M:4/4
+L:1/8
+Q:1/4=140
+K:A
+%%swing 50
+%%instrument kick wave=noise amp=54 attack=0 decay=8 sustain=4 release=10 gate=24 fx=0
+%%instrument snare wave=noise amp=46 attack=0 decay=14 sustain=12 release=16 gate=28 fx=0
+%%instrument hats wave=noise amp=30 attack=0 decay=5 sustain=8 release=8 gate=20 fx=0
+%%instrument tom wave=noise amp=38 attack=0 decay=12 sustain=8 release=14 gate=26 fx=0
+%%instrument bass wave=pulse amp=60 duty=36 attack=2 decay=42 sustain=68 release=80 gate=78 fx=1
+%%instrument rhythm wave=pulse amp=38 duty=44 attack=2 decay=22 sustain=58 release=50 gate=60 fx=1
+%%instrument lead wave=pulse amp=40 duty=22 attack=6 decay=160 sustain=72 release=200 gate=90 vibrato=14 glide=20 fx=2
+%%instrument vocal wave=triangle amp=44 attack=12 decay=160 sustain=74 release=140 gate=86 vibrato=10 fx=3
+%%effect 0 delay_steps=1 delay_feedback=12 delay_mix=5 drive=24 lowpass=10 sidechain=44 sidechain_release=150 mix=100
+%%effect 1 delay_steps=2 delay_feedback=18 delay_mix=10 drive=28 lowpass=18 sidechain=28 sidechain_release=180 mix=96 ladder=44 ladder_cutoff=55 ladder_resonance=30
+%%effect 2 delay_steps=4 delay_feedback=42 delay_mix=24 drive=22 lowpass=12 sidechain=22 sidechain_release=240 mix=84 ladder=70 ladder_cutoff=42 ladder_resonance=64
+%%effect 3 delay_steps=3 delay_feedback=24 delay_mix=14 drive=18 lowpass=24 sidechain=32 sidechain_release=200 mix=92
+%%pattern A length=64
+%%pattern B length=64
+%%pattern C length=64
+%%pattern D length=64
+%%pattern E length=64
+%%pattern F length=64
+%%pattern G length=64
+%%pattern H length=64
+%%pattern I length=64
+%%pattern J length=64
+%%pattern K length=64
+%%pattern L length=64
+%%pattern M length=64
+%%pattern N length=64
+%%pattern O length=64
+%%pattern P length=64
+%%arrangement A B C D E F G H I J K L M N O P
+V:kick instrument=kick
+V:snare instrument=snare
+V:hats instrument=hats
+V:tom instrument=tom
+V:bass instrument=bass
+V:rhythm instrument=rhythm
+V:lead instrument=lead
+V:vocal instrument=vocal
+%
+% Form: punk 8-track. 140 BPM, Q=1/4, L=1/8 -> 16 patterns x 8 bars = 3:39.
+% Chord cycle per pattern (4 bars x2): A - D - E - D
+% FX buses: 0 drums dry, 1 bass+rhythm light ladder, 2 lead screaming ladder, 3 vocal space
+% Sections: A intro / B verse1 / C chorus1 / D verse2 / E chorus2 / F breakdown /
+%   G chorus3 / H verse3 / I chorus4 / J lead solo / K chorus5 / L chorus6 /
+%   M stop-time break / N final chorus / O outro chorus / P ending hit
+V:kick
+% A intro (kick fades in)
+| z8 | z8 | z8 | z8 |
+| z8 | c4 z4 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% B verse 1 (kick 1-3)
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% C chorus 1 (four on the floor)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% D verse 2
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% E chorus 2
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% F breakdown (sparse)
+| c4 z4 | z8 | c4 z4 | z8 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c c c c c c c c | c c c c c c c c |
+% G chorus 3
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% H verse 3
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+| c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% I chorus 4
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% J lead solo (kick steady)
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% K chorus 5
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+% L chorus 6
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c c c c c c c c |
+% M stop-time break (sparse stabs)
+| c4 z4 | z8 | c4 z4 | z8 |
+| z8 | z8 | z8 | z8 |
+% N final chorus (8th-note mayhem)
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% O outro chorus
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 | c2 c2 c2 c2 |
+| c2 c2 c2 c2 | c2 c2 c2 c2 | c2 z2 c2 z2 | c2 z2 c2 z2 |
+% P ending hit
+| c8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:snare
+% A intro (silent until end)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z2 c2 z2 c2 |
+% B verse 1 (backbeat 2 and 4)
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% C chorus 1
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% D verse 2
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% E chorus 2
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% F breakdown
+| z8 | z2 c2 z2 c2 | z8 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% G chorus 3
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% H verse 3
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% I chorus 4
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% J lead solo (rolls)
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% K chorus 5
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% L chorus 6
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% M stop-time break
+| z4 c4 | z8 | z4 c4 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% N final chorus
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | c c c c c c c c |
+% O outro chorus
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+| z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% P ending
+| c8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:hats
+% A intro
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% B verse 1 (8ths)
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% C chorus 1
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% D verse 2
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% E chorus 2
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% F breakdown (drop hats)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% G chorus 3
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% H verse 3
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% I chorus 4
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% J lead solo
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% K chorus 5
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% L chorus 6
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% M stop-time
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% N final chorus
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+% O outro chorus
+| c c c c c c c c | c c c c c c c c | c c c c c c c c | c c c c c c c c |
+| c c c c c c c c | c c c c c c c c | z2 c2 z2 c2 | z2 c2 z2 c2 |
+% P ending
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:tom
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C chorus 1 (tom fill on bar 8)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% D verse 2
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% E chorus 2
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% F breakdown (tom punctuation)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z2 c2 z2 c2 | c c c c c c c c |
+% G chorus 3
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% H verse 3
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I chorus 4
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% J lead solo (tom punctuation)
+| z8 | z8 | z8 | c c c c c c c c |
+| z8 | z8 | z8 | c c c c c c c c |
+% K chorus 5
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% L chorus 6
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% M stop-time
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | c c c c c c c c |
+% N final chorus (tom rolls everywhere)
+| z8 | z8 | z8 | c c c c c c c c |
+| z8 | z8 | z8 | c c c c c c c c |
+% O outro chorus
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% P ending
+| c8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:bass
+% A intro (bass enters partway, sets up the riff)
+| z8 | z8 | z8 | z8 |
+| A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, | A,, A,, A,, A,, A,, A,, A,, A,, |
+% B verse 1 (root 8ths: A - D - E - D x2)
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% C chorus 1
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% D verse 2
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% E chorus 2
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% F breakdown (sustained roots)
+| A,,8 | A,,8 | D,,8 | D,,8 |
+| E,,8 | E,,8 | D,,8 | D,,8 |
+% G chorus 3
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% H verse 3
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% I chorus 4
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% J lead solo (bass anchors)
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% K chorus 5
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% L chorus 6
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% M stop-time (sparse stabs)
+| A,,2 z2 z4 | z8 | A,,2 z2 z4 | z8 |
+| z8 | z8 | z8 | A,,4 D,,4 |
+% N final chorus
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+% O outro chorus (thinning)
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | E,, E,, E,, E,, E,, E,, E,, E,, | D,, D,, D,, D,, D,, D,, D,, D,, |
+| A,, A,, A,, A,, A,, A,, A,, A,, | D,, D,, D,, D,, D,, D,, D,, D,, | A,,4 z4 | A,,4 z4 |
+% P ending hit
+| A,,8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:rhythm
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | A2 A2 A2 A2 | A2 A2 A2 A2 |
+% B verse 1 (power chord stabs on quarters)
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+% C chorus 1 (8th-note stabs — denser)
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% D verse 2
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+% E chorus 2
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% F breakdown (silent — drop guitars)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | A2 A2 A2 A2 | A2 A2 A2 A2 |
+% G chorus 3
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% H verse 3
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+| A2 A2 A2 A2 | D2 D2 D2 D2 | E2 E2 E2 E2 | D2 D2 D2 D2 |
+% I chorus 4
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% J lead solo (rhythm stays driving)
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% K chorus 5
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% L chorus 6
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% M stop-time (stabs to match kick)
+| A4 z4 | z8 | A4 z4 | z8 |
+| z8 | z8 | z8 | z8 |
+% N final chorus
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+% O outro chorus
+| A A A A A A A A | D D D D D D D D | E E E E E E E E | D D D D D D D D |
+| A A A A A A A A | D D D D D D D D | A4 z4 | A4 z4 |
+% P ending hit
+| A8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:lead
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (silent — lead enters at chorus)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% C chorus 1 (sustained ringing notes)
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% D verse 2 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% E chorus 2
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% F breakdown (single building note)
+| z8 | z8 | z8 | z8 |
+| a8 | a8 | a8 | a8 |
+% G chorus 3
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% H verse 3 (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% I chorus 4
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% J lead solo (high-Q showcase — descending pentatonic sneer)
+| a'2 e'2 c'2 a2 | d'2 a2 f'2 c'2 | e'2 b2 g'2 d'2 | d'2 a2 f'2 c'2 |
+| a'2 g'2 e'2 c'2 | d'2 a2 c'2 g'2 | e'2 d'2 b2 g'2 | d'2 c'2 a2 f'2 |
+% K chorus 5
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% L chorus 6
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | e'8 | d'8 |
+% M stop-time (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | e'8 |
+% N final chorus (lead in higher octave for scream)
+| a'8 | d'8 | e'8 | d'8 |
+| a'8 | d'8 | e'8 | d'8 |
+% O outro chorus
+| a8 | d'8 | e'8 | d'8 |
+| a8 | d'8 | a4 z4 | a4 z4 |
+% P ending (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+V:vocal
+% A intro (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% B verse 1 (sneering melody on root)
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+% C chorus 1 (gang shouts — root stabs)
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% D verse 2
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+% E chorus 2
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% F breakdown (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% G chorus 3
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% H verse 3
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+| a4 a2 a2 | a4 a2 a2 | a4 a4 | a4 a4 |
+% I chorus 4
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% J lead solo (vocal silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |
+% K chorus 5
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% L chorus 6
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+% M stop-time (vocal stabs)
+| a4 z4 | z8 | a4 z4 | z8 |
+| z8 | z8 | z8 | a a a a a a a a |
+% N final chorus (held shouts)
+| a4 a4 | a4 a4 | a4 a4 | a4 a4 |
+| a4 a4 | a4 a4 | a4 a4 | a4 a4 |
+% O outro chorus
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a2 z2 a2 a2 | a2 a2 z2 a2 |
+| a2 a2 z2 a2 | a2 z2 a2 a2 | a4 z4 | a4 z4 |
+% P ending (silent)
+| z8 | z8 | z8 | z8 |
+| z8 | z8 | z8 | z8 |

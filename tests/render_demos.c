@@ -47,7 +47,8 @@ int main(void)
         "data/music/glass_anthem.abc",
         "data/music/pixie_dust.abc",
         "data/music/surrender_loop.abc",
-        "data/music/moog_lattice.abc"
+        "data/music/moog_lattice.abc",
+        "data/music/three_chord_howl.abc"
     };
     int failures = 0;
 
