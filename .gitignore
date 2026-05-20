@@ -16,3 +16,7 @@ bin/render-demos
 bin/wav/
 bin/test-audio-seq
 bin/test-abc
+bin/test-audio-dsp
+bin/memdeck-mcp
+bin/memdeck-jam
+build/
